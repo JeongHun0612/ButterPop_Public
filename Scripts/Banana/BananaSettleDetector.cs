@@ -29,14 +29,14 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void Update()
     {
-        if (StageManager.Instance == null) 
+        if (StageManager.Instance == null)
             return;
 
         var state = StageManager.Instance.CurrentState;
         if (state != GameState.Flying && state != GameState.Settling)
             return;
 
-        if (_judged) 
+        if (_judged)
             return;
 
         if (transform.position.y < fallYThreshold)
@@ -74,6 +74,16 @@ public class BananaSettleDetector : MonoBehaviour
         var stage = collision.gameObject.GetComponent<StageObject>();
         if (stage != null)
             _touchingStages.Remove(stage);
+    }
+
+    public void SetSpawnPosition(Vector2 position)
+    {
+        _spawnPosition = position;
+    }
+
+    public void SetFallYThreshold(float threshold)
+    {
+        fallYThreshold = threshold;
     }
 
     private void OnSuccess()
