@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 public class StageManager : MonoBehaviour
@@ -18,6 +20,9 @@ public class StageManager : MonoBehaviour
     [Header("원숭이 팔")]
     [SerializeField] private GameObject monkeyArmPrefab;
 
+    [Header("성공 연출")]
+    [SerializeField] private SuccessEffect successEffectPrefab;
+
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
 
@@ -29,6 +34,8 @@ public class StageManager : MonoBehaviour
     private BananaThrowController _throwController;
     private BananaSettleDetector _settleDetector;
     private readonly List<GameObject> _spawnedStageObjects = new();
+    private SuccessEffect _successEffectInstance;
+    private CancellationTokenSource _effectCts;
 
     public BananaThrowController BananaController => _throwController;
     public MonkeyArm MonkeyArm => _monkeyArm;
@@ -62,6 +69,7 @@ public class StageManager : MonoBehaviour
         SetupCamera();
         SpawnMonkeyArm();
         SpawnBanana();
+        SpawnSuccessEffect();
 
         SetState(GameState.Ready);
 
@@ -141,6 +149,19 @@ public class StageManager : MonoBehaviour
         SetState(GameState.Ready);
     }
 
+    private void SpawnSuccessEffect()
+    {
+        if (_successEffectInstance != null)
+        {
+            Destroy(_successEffectInstance.gameObject);
+            _successEffectInstance = null;
+        }
+
+        if (successEffectPrefab == null) return;
+
+        _successEffectInstance = Instantiate(successEffectPrefab);
+    }
+
     private void ClearStage()
     {
         if (_monkeyArmInstance != null)
@@ -168,5 +189,27 @@ public class StageManager : MonoBehaviour
             Debug.Log($"[StageManager] {prev} → {newState}");
 
         OnStateChanged?.Invoke(newState);
+
+        if (newState == GameState.Success)
+            PlaySuccessEffectAsync().Forget();
+    }
+
+    private async UniTaskVoid PlaySuccessEffectAsync()
+    {
+        _effectCts?.Cancel();
+        _effectCts?.Dispose();
+        _effectCts = new CancellationTokenSource();
+
+        if (_successEffectInstance != null)
+            await _successEffectInstance.PlayEffect(_effectCts.Token);
+
+        // TODO: 이어지는 연출 추가
+        // TODO: 다음 스테이지로 전환
+    }
+
+    private void OnDestroy()
+    {
+        _effectCts?.Cancel();
+        _effectCts?.Dispose();
     }
 }

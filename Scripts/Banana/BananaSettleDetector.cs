@@ -11,7 +11,6 @@ public class BananaSettleDetector : MonoBehaviour
 
     [Header("딜레이")]
     [SerializeField] private float respawnDelay = 1.0f;
-    [SerializeField] private float restartDelay = 1.5f;
 
     private Rigidbody2D _rb;
     private Vector2 _spawnPosition;
@@ -97,13 +96,6 @@ public class BananaSettleDetector : MonoBehaviour
         _judged = true;
         StageManager.Instance.SetState(GameState.Success);
         Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
-        Invoke(nameof(Restart), restartDelay);
-    }
-
-    private void Restart()
-    {
-        StageManager.Instance.ResetBanana();
-        Debug.Log("[Result] 스테이지 재시작");
     }
 
     private void OnFailed()
