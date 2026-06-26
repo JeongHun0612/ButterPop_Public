@@ -160,6 +160,7 @@ public class StageManager : MonoBehaviour
         if (successEffectPrefab == null) return;
 
         _successEffectInstance = Instantiate(successEffectPrefab);
+        _successEffectInstance.Initialize();
     }
 
     private void ClearStage()

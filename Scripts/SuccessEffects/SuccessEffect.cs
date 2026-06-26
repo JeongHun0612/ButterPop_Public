@@ -4,5 +4,6 @@ using UnityEngine;
 
 public abstract class SuccessEffect : MonoBehaviour
 {
+    public abstract void Initialize();
     public abstract UniTask PlayEffect(CancellationToken ct = default);
 }
