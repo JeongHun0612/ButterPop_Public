@@ -143,7 +143,7 @@ public class StageManager : MonoBehaviour
         {
             _settleDetector.ResetState();
             _settleDetector.SetSpawnPosition(stageData.bananaSpawnPosition);
-            _settleDetector.SetFallYThreshold(stageData.fallYThreshold);
+            _settleDetector.InitializeBounds(mainCamera);
         }
 
         SetState(GameState.Ready);

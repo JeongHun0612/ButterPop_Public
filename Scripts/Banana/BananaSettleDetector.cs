@@ -7,13 +7,15 @@ public class BananaSettleDetector : MonoBehaviour
     [Header("판정")]
     [SerializeField] private float settleSpeedThreshold = 0.3f;
     [SerializeField] private float settleTimeRequired = 0.5f;
-    [SerializeField] private float fallYThreshold = -8f;
+    [SerializeField] private float outOfBoundsMargin = 2f;
 
     [Header("딜레이")]
     [SerializeField] private float respawnDelay = 1.0f;
 
     private Rigidbody2D _rb;
     private Vector2 _spawnPosition;
+    private float _fallYThreshold;
+    private float _fallXThreshold;
 
     private readonly HashSet<StageObject> _touchingStages = new();
     private bool _touchingMonkeyArm;
@@ -38,7 +40,8 @@ public class BananaSettleDetector : MonoBehaviour
         if (_judged)
             return;
 
-        if (transform.position.y < fallYThreshold)
+        var pos = transform.position;
+        if (pos.y < _fallYThreshold || Mathf.Abs(pos.x) > _fallXThreshold)
         {
             OnFailed();
             return;
@@ -92,9 +95,13 @@ public class BananaSettleDetector : MonoBehaviour
         _spawnPosition = position;
     }
 
-    public void SetFallYThreshold(float threshold)
+    public void InitializeBounds(Camera cam)
     {
-        fallYThreshold = threshold;
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+
+        _fallYThreshold = cam.transform.position.y - halfH - outOfBoundsMargin;
+        _fallXThreshold = halfW + outOfBoundsMargin;
     }
 
     public void ResetState()

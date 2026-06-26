@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage Data")]
@@ -20,9 +20,6 @@ public class StageDataSO : ScriptableObject
 
     [Header("스테이지 오브젝트")]
     public StageObjectSpawnData[] stageObjects;
-
-    [Header("판정")]
-    public float fallYThreshold = -8f;
 }
 
 [Serializable]

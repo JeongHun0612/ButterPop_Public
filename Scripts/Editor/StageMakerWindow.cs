@@ -15,7 +15,6 @@ public class StageMakerWindow : EditorWindow
         public Vector2 monkeyArmPosition = new(0f, -2f);
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 5f;
-        public float fallYThreshold = -8f;
         public List<StageObjectEntry> stageObjects = new();
     }
 
@@ -39,8 +38,8 @@ public class StageMakerWindow : EditorWindow
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
 
-    private const string BananaPrefabPath = "Assets/03. Prefabs/Banana.prefab";
-    private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/MonkeyArm.prefab";
+    private const string BananaPrefabPath = "Assets/03. Prefabs/Controllers/Banana.prefab";
+    private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
@@ -108,8 +107,6 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.Space(4);
         DrawCameraSettings();
         EditorGUILayout.Space(4);
-        DrawFallThreshold();
-        EditorGUILayout.Space(4);
         DrawStageObjects();
 
         EditorGUILayout.EndScrollView();
@@ -148,7 +145,6 @@ public class StageMakerWindow : EditorWindow
         _data.monkeyArmPosition = so.monkeyArmPosition;
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
-        _data.fallYThreshold = so.fallYThreshold;
 
         _data.stageObjects.Clear();
         if (so.stageObjects != null)
@@ -227,20 +223,6 @@ public class StageMakerWindow : EditorWindow
             _data.cameraCenter = newCenter;
             _data.cameraOrthoSize = newOrtho;
             if (_isEditMode) SyncGameCamera();
-        }
-    }
-
-    private void DrawFallThreshold()
-    {
-        EditorGUILayout.LabelField("판정", EditorStyles.boldLabel);
-
-        EditorGUI.BeginChangeCheck();
-        float newVal = EditorGUILayout.FloatField("Fall Y Threshold", _data.fallYThreshold);
-        if (EditorGUI.EndChangeCheck())
-        {
-            RecordUndo("Edit Fall Threshold");
-            _data.fallYThreshold = newVal;
-            SceneView.RepaintAll();
         }
     }
 
@@ -617,11 +599,30 @@ public class StageMakerWindow : EditorWindow
 
     private void DrawFallLine()
     {
-        float y = _data.fallYThreshold;
+        float halfH = _data.cameraOrthoSize;
+        float aspect = _mainCamera != null ? _mainCamera.aspect : 16f / 9f;
+        float halfW = halfH * aspect;
+        float cx = _data.cameraCenter.x;
+        float cy = _data.cameraCenter.y;
+
+        var bananaPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BananaPrefabPath);
+        var detector = bananaPrefab != null ? bananaPrefab.GetComponent<BananaSettleDetector>() : null;
+        var so = detector != null ? new SerializedObject(detector) : null;
+        var marginProp = so?.FindProperty("outOfBoundsMargin");
+        float margin = marginProp != null ? marginProp.floatValue : 2f;
+
+        float yLine = cy - halfH - margin;
+        float xLine = halfW + margin;
+
         Handles.color = new Color(1f, 0.3f, 0.3f, 0.6f);
-        Handles.DrawDottedLine(new Vector3(-50, y, 0), new Vector3(50, y, 0), 4f);
-        Handles.Label(new Vector3(-49f, y + 0.2f, 0), $"Fall Y = {y}",
-            new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = new Color(1f, 0.3f, 0.3f) } });
+        var style = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = new Color(1f, 0.3f, 0.3f) } };
+
+        Handles.DrawDottedLine(new Vector3(cx - xLine, yLine, 0), new Vector3(cx + xLine, yLine, 0), 4f);
+        Handles.Label(new Vector3(cx - xLine, yLine + 0.2f, 0), $"Fall Y", style);
+
+        Handles.DrawDottedLine(new Vector3(cx - xLine, cy - halfH, 0), new Vector3(cx - xLine, cy + halfH, 0), 4f);
+        Handles.DrawDottedLine(new Vector3(cx + xLine, cy - halfH, 0), new Vector3(cx + xLine, cy + halfH, 0), 4f);
+        Handles.Label(new Vector3(cx + xLine + 0.1f, cy, 0), $"Fall X", style);
     }
 
     private bool HandleStageObjects()
@@ -743,7 +744,6 @@ public class StageMakerWindow : EditorWindow
         so.monkeyArmPosition = _data.monkeyArmPosition;
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
-        so.fallYThreshold = _data.fallYThreshold;
 
         EnsureFolder(GeneratedPrefabFolder);
 
