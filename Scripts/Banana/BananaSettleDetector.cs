@@ -16,6 +16,7 @@ public class BananaSettleDetector : MonoBehaviour
     private Vector2 _spawnPosition;
 
     private readonly HashSet<StageObject> _touchingStages = new();
+    private bool _touchingMonkeyArm;
     private float _settleTimer;
     private bool _judged;
 
@@ -43,7 +44,7 @@ public class BananaSettleDetector : MonoBehaviour
             return;
         }
 
-        if (_touchingStages.Count > 0 && _rb.linearVelocity.magnitude < settleSpeedThreshold)
+        if (_touchingStages.Count > 0 && !_touchingMonkeyArm && _rb.linearVelocity.magnitude < settleSpeedThreshold)
         {
             if (state != GameState.Settling)
                 StageManager.Instance.SetState(GameState.Settling);
@@ -62,6 +63,12 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
+        {
+            _touchingMonkeyArm = true;
+            return;
+        }
+
         var stage = collision.gameObject.GetComponent<StageObject>();
         if (stage != null)
             _touchingStages.Add(stage);
@@ -69,6 +76,12 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void OnCollisionExit2D(Collision2D collision)
     {
+        if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
+        {
+            _touchingMonkeyArm = false;
+            return;
+        }
+
         var stage = collision.gameObject.GetComponent<StageObject>();
         if (stage != null)
             _touchingStages.Remove(stage);
@@ -89,6 +102,7 @@ public class BananaSettleDetector : MonoBehaviour
         _judged = false;
         _settleTimer = 0f;
         _touchingStages.Clear();
+        _touchingMonkeyArm = false;
     }
 
     private void OnSuccess()
