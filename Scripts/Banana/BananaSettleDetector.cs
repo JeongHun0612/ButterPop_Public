@@ -9,11 +9,11 @@ public class BananaSettleDetector : MonoBehaviour
     [SerializeField] private float settleTimeRequired = 0.5f;
     [SerializeField] private float fallYThreshold = -8f;
 
-    [Header("리스폰")]
+    [Header("딜레이")]
     [SerializeField] private float respawnDelay = 1.0f;
+    [SerializeField] private float restartDelay = 1.5f;
 
     private Rigidbody2D _rb;
-    private BananaThrowController _throwController;
     private Vector2 _spawnPosition;
 
     private readonly HashSet<StageObject> _touchingStages = new();
@@ -23,7 +23,6 @@ public class BananaSettleDetector : MonoBehaviour
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
-        _throwController = GetComponent<BananaThrowController>();
         _spawnPosition = transform.position;
     }
 
@@ -33,7 +32,7 @@ public class BananaSettleDetector : MonoBehaviour
             return;
 
         var state = StageManager.Instance.CurrentState;
-        if (state != GameState.Flying && state != GameState.Settling)
+        if (state != GameState.Falling && state != GameState.Flying && state != GameState.Settling)
             return;
 
         if (_judged)
@@ -47,7 +46,7 @@ public class BananaSettleDetector : MonoBehaviour
 
         if (_touchingStages.Count > 0 && _rb.linearVelocity.magnitude < settleSpeedThreshold)
         {
-            if (state == GameState.Flying)
+            if (state != GameState.Settling)
                 StageManager.Instance.SetState(GameState.Settling);
 
             _settleTimer += Time.deltaTime;
@@ -86,11 +85,25 @@ public class BananaSettleDetector : MonoBehaviour
         fallYThreshold = threshold;
     }
 
+    public void ResetState()
+    {
+        _judged = false;
+        _settleTimer = 0f;
+        _touchingStages.Clear();
+    }
+
     private void OnSuccess()
     {
         _judged = true;
         StageManager.Instance.SetState(GameState.Success);
         Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
+        Invoke(nameof(Restart), restartDelay);
+    }
+
+    private void Restart()
+    {
+        StageManager.Instance.ResetBanana();
+        Debug.Log("[Result] 스테이지 재시작");
     }
 
     private void OnFailed()
@@ -103,10 +116,7 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void Respawn()
     {
-        _judged = false;
-        _settleTimer = 0f;
-        _touchingStages.Clear();
-        _throwController.ResetBanana(_spawnPosition);
+        StageManager.Instance.ResetBanana();
         Debug.Log("[Result] 바나나 리스폰 완료");
     }
 }

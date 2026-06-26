@@ -15,6 +15,9 @@ public class StageManager : MonoBehaviour
     [Header("바나나")]
     [SerializeField] private GameObject bananaPrefab;
 
+    [Header("원숭이 팔")]
+    [SerializeField] private MonkeyArm monkeyArm;
+
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
 
@@ -25,6 +28,7 @@ public class StageManager : MonoBehaviour
     private BananaSettleDetector _settleDetector;
     private readonly List<GameObject> _spawnedStageObjects = new();
 
+    public BananaThrowController BananaController => _throwController;
     public Vector2 BananaSpawnPosition => stageData != null ? stageData.bananaSpawnPosition : Vector2.zero;
 
     private void Awake()
@@ -107,11 +111,17 @@ public class StageManager : MonoBehaviour
         if (_throwController != null)
             _throwController.ResetBanana(stageData.bananaSpawnPosition);
 
+        if (monkeyArm != null)
+            monkeyArm.ResetArm();
+
         if (_settleDetector != null)
         {
+            _settleDetector.ResetState();
             _settleDetector.SetSpawnPosition(stageData.bananaSpawnPosition);
             _settleDetector.SetFallYThreshold(stageData.fallYThreshold);
         }
+
+        SetState(GameState.Ready);
     }
 
     private void ClearStage()
