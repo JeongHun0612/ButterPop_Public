@@ -16,7 +16,7 @@ public class StageManager : MonoBehaviour
     [SerializeField] private GameObject bananaPrefab;
 
     [Header("원숭이 팔")]
-    [SerializeField] private MonkeyArm monkeyArm;
+    [SerializeField] private GameObject monkeyArmPrefab;
 
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
@@ -24,11 +24,14 @@ public class StageManager : MonoBehaviour
     [SerializeField] private bool debugLog = true;
 
     private GameObject _bananaInstance;
+    private GameObject _monkeyArmInstance;
+    private MonkeyArm _monkeyArm;
     private BananaThrowController _throwController;
     private BananaSettleDetector _settleDetector;
     private readonly List<GameObject> _spawnedStageObjects = new();
 
     public BananaThrowController BananaController => _throwController;
+    public MonkeyArm MonkeyArm => _monkeyArm;
     public Vector2 BananaSpawnPosition => stageData != null ? stageData.bananaSpawnPosition : Vector2.zero;
 
     private void Awake()
@@ -57,6 +60,7 @@ public class StageManager : MonoBehaviour
         ClearStage();
         SpawnStageObjects();
         SetupCamera();
+        SpawnMonkeyArm();
         SpawnBanana();
 
         SetState(GameState.Ready);
@@ -92,6 +96,19 @@ public class StageManager : MonoBehaviour
         mainCamera.orthographicSize = stageData.cameraOrthographicSize;
     }
 
+    private void SpawnMonkeyArm()
+    {
+        if (monkeyArmPrefab == null) return;
+
+        if (_monkeyArmInstance != null)
+            Destroy(_monkeyArmInstance);
+
+        _monkeyArmInstance = Instantiate(monkeyArmPrefab);
+        _monkeyArmInstance.transform.position = new Vector3(
+            stageData.monkeyArmPosition.x, stageData.monkeyArmPosition.y, 0f);
+        _monkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
+    }
+
     private void SpawnBanana()
     {
         if (bananaPrefab == null) return;
@@ -111,8 +128,8 @@ public class StageManager : MonoBehaviour
         if (_throwController != null)
             _throwController.ResetBanana(stageData.bananaSpawnPosition);
 
-        if (monkeyArm != null)
-            monkeyArm.ResetArm();
+        if (_monkeyArm != null)
+            _monkeyArm.ResetArm();
 
         if (_settleDetector != null)
         {
@@ -126,6 +143,13 @@ public class StageManager : MonoBehaviour
 
     private void ClearStage()
     {
+        if (_monkeyArmInstance != null)
+        {
+            Destroy(_monkeyArmInstance);
+            _monkeyArmInstance = null;
+            _monkeyArm = null;
+        }
+
         foreach (var obj in _spawnedStageObjects)
         {
             if (obj != null) Destroy(obj);

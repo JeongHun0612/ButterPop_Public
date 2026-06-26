@@ -3,19 +3,21 @@ using UnityEngine.InputSystem;
 
 public class InputManager : MonoBehaviour
 {
-    [SerializeField] private MonkeyArm monkeyArm;
-
     private BananaThrowController _bananaController;
+    private MonkeyArm _monkeyArm;
 
     private void Update()
     {
-        if (StageManager.Instance == null) 
+        if (StageManager.Instance == null)
             return;
 
         if (_bananaController == null)
             _bananaController = StageManager.Instance.BananaController;
 
-        if (_bananaController == null) 
+        if (_monkeyArm == null)
+            _monkeyArm = StageManager.Instance.MonkeyArm;
+
+        if (_bananaController == null)
             return;
 
         var state = StageManager.Instance.CurrentState;
@@ -26,10 +28,10 @@ public class InputManager : MonoBehaviour
         }
         else if (state == GameState.Falling)
         {
-            if (WasPressed() && monkeyArm != null)
-                monkeyArm.Raise();
-            else if (WasReleased() && monkeyArm != null)
-                monkeyArm.Lower();
+            if (WasPressed() && _monkeyArm != null)
+                _monkeyArm.Raise();
+            else if (WasReleased() && _monkeyArm != null)
+                _monkeyArm.Lower();
         }
     }
 
