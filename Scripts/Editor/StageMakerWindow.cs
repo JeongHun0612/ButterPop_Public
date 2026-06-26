@@ -11,7 +11,8 @@ public class StageMakerWindow : EditorWindow
     {
         public int stageId;
         public string stageName = "New Stage";
-        public Vector2 bananaSpawnPosition = new(0f, -2f);
+        public Vector2 bananaSpawnPosition = new(0f, 3f);
+        public Vector2 monkeyArmPosition = new(0f, -2f);
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 5f;
         public float fallYThreshold = -8f;
@@ -34,10 +35,12 @@ public class StageMakerWindow : EditorWindow
     private bool _isEditMode;
     private GameObject _previewParent;
     private GameObject _bananaPreviewInstance;
+    private GameObject _monkeyArmPreviewInstance;
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
 
     private const string BananaPrefabPath = "Assets/03. Prefabs/Banana.prefab";
+    private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/MonkeyArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
@@ -101,6 +104,8 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.Space(4);
         DrawBananaSpawn();
         EditorGUILayout.Space(4);
+        DrawMonkeyArm();
+        EditorGUILayout.Space(4);
         DrawCameraSettings();
         EditorGUILayout.Space(4);
         DrawFallThreshold();
@@ -140,6 +145,7 @@ public class StageMakerWindow : EditorWindow
         _data.stageId = so.stageId;
         _data.stageName = so.stageName;
         _data.bananaSpawnPosition = so.bananaSpawnPosition;
+        _data.monkeyArmPosition = so.monkeyArmPosition;
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
         _data.fallYThreshold = so.fallYThreshold;
@@ -181,7 +187,7 @@ public class StageMakerWindow : EditorWindow
 
     private void DrawBananaSpawn()
     {
-        EditorGUILayout.LabelField("바나나 스폰", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("바나나 낙하 시작점", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
         var newPos = EditorGUILayout.Vector2Field("Spawn Position", _data.bananaSpawnPosition);
@@ -190,6 +196,21 @@ public class StageMakerWindow : EditorWindow
             RecordUndo("Move Banana Spawn");
             _data.bananaSpawnPosition = newPos;
             if (_isEditMode) UpdateBananaPreviewPosition();
+        }
+    }
+
+    private void DrawMonkeyArm()
+    {
+        EditorGUILayout.LabelField("원숭이 팔", EditorStyles.boldLabel);
+
+        EditorGUI.BeginChangeCheck();
+        var newPos = EditorGUILayout.Vector2Field("Arm Position", _data.monkeyArmPosition);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("Move Monkey Arm");
+            _data.monkeyArmPosition = newPos;
+            if (_isEditMode) UpdateMonkeyArmPreviewPosition();
+            SceneView.RepaintAll();
         }
     }
 
@@ -361,6 +382,16 @@ public class StageMakerWindow : EditorWindow
             UpdateBananaPreviewPosition();
         }
 
+        var monkeyArmPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MonkeyArmPrefabPath);
+        if (monkeyArmPrefab != null)
+        {
+            _monkeyArmPreviewInstance = (GameObject)PrefabUtility.InstantiatePrefab(monkeyArmPrefab, _previewParent.transform);
+            _monkeyArmPreviewInstance.name = "[StageMaker] MonkeyArm";
+            _monkeyArmPreviewInstance.hideFlags = HideFlags.DontSave;
+            SetPreviewStatic(_monkeyArmPreviewInstance);
+            UpdateMonkeyArmPreviewPosition();
+        }
+
         _objectPreviewInstances.Clear();
         for (int i = 0; i < _data.stageObjects.Count; i++)
         {
@@ -414,6 +445,13 @@ public class StageMakerWindow : EditorWindow
                 _data.bananaSpawnPosition.x, _data.bananaSpawnPosition.y, 0f);
     }
 
+    private void UpdateMonkeyArmPreviewPosition()
+    {
+        if (_monkeyArmPreviewInstance != null)
+            _monkeyArmPreviewInstance.transform.position = new Vector3(
+                _data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
+    }
+
     private void UpdateObjectPreview(int index)
     {
         if (index < 0 || index >= _objectPreviewInstances.Count) return;
@@ -457,6 +495,7 @@ public class StageMakerWindow : EditorWindow
     private void CleanupPreview()
     {
         _bananaPreviewInstance = null;
+        _monkeyArmPreviewInstance = null;
         _objectPreviewInstances.Clear();
         _previewParent = null;
 
@@ -475,6 +514,7 @@ public class StageMakerWindow : EditorWindow
         bool changed = false;
 
         changed |= HandleBananaSpawn();
+        changed |= HandleMonkeyArm();
         changed |= HandleCameraCenter();
         DrawCameraRect();
         DrawFallLine();
@@ -491,8 +531,11 @@ public class StageMakerWindow : EditorWindow
     {
         Vector3 pos = new Vector3(_data.bananaSpawnPosition.x, _data.bananaSpawnPosition.y, 0f);
 
+        // 낙하 방향 화살표
         Handles.color = Color.yellow;
-        Handles.Label(pos + Vector3.up * 0.5f, "Banana Spawn",
+        Handles.DrawDottedLine(pos, pos + Vector3.down * 1.5f, 4f);
+        Handles.ConeHandleCap(0, pos + Vector3.down * 1.5f, Quaternion.Euler(180f, 0f, 0f), 0.2f, EventType.Repaint);
+        Handles.Label(pos + Vector3.up * 0.4f, "Banana Drop",
             new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = Color.yellow } });
 
         if (Tools.current != Tool.Move) return false;
@@ -504,6 +547,29 @@ public class StageMakerWindow : EditorWindow
             RecordUndo("Move Banana Spawn");
             _data.bananaSpawnPosition = new Vector2(newPos.x, newPos.y);
             UpdateBananaPreviewPosition();
+            return true;
+        }
+        return false;
+    }
+
+    private bool HandleMonkeyArm()
+    {
+        Vector3 pos = new Vector3(_data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
+
+        Handles.color = new Color(0.7f, 0.4f, 1f);
+        Handles.DrawWireDisc(pos, Vector3.forward, 0.3f);
+        Handles.Label(pos + Vector3.up * 0.5f, "Monkey Arm",
+            new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.7f, 0.4f, 1f) } });
+
+        if (Tools.current != Tool.Move) return false;
+
+        EditorGUI.BeginChangeCheck();
+        var newPos = Handles.PositionHandle(pos, Quaternion.identity);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("Move Monkey Arm");
+            _data.monkeyArmPosition = new Vector2(newPos.x, newPos.y);
+            UpdateMonkeyArmPreviewPosition();
             return true;
         }
         return false;
@@ -653,11 +719,19 @@ public class StageMakerWindow : EditorWindow
     {
         if (_loadedSO == null) return;
 
+        bool confirmed = EditorUtility.DisplayDialog(
+            "StageData 덮어쓰기",
+            $"'{_loadedSO.name}' 에 현재 작업 내용을 저장합니다.\n기존 데이터는 복구할 수 없습니다.",
+            "저장", "취소");
+
+        if (!confirmed) return;
+
         Undo.RecordObject(_loadedSO, "Stage Maker Save");
         ApplyWorkingDataToSO(_loadedSO);
         EditorUtility.SetDirty(_loadedSO);
         AssetDatabase.SaveAssets();
 
+        EditorUtility.DisplayDialog("저장 완료", $"'{_loadedSO.name}' 저장이 완료되었습니다.", "확인");
         Debug.Log($"[StageMaker] StageData 저장 완료: {_loadedSO.name}");
     }
 
@@ -666,6 +740,7 @@ public class StageMakerWindow : EditorWindow
         so.stageId = _data.stageId;
         so.stageName = _data.stageName;
         so.bananaSpawnPosition = _data.bananaSpawnPosition;
+        so.monkeyArmPosition = _data.monkeyArmPosition;
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
         so.fallYThreshold = _data.fallYThreshold;

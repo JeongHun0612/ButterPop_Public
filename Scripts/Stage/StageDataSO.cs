@@ -8,8 +8,11 @@ public class StageDataSO : ScriptableObject
     public int stageId;
     public string stageName;
 
-    [Header("바나나 스폰")]
+    [Header("바나나 낙하 시작점")]
     public Vector2 bananaSpawnPosition;
+
+    [Header("원숭이 팔")]
+    public Vector2 monkeyArmPosition;
 
     [Header("카메라")]
     public Vector2 cameraCenter;
