@@ -12,10 +12,10 @@ public class UIStageReady : UIPopup
 
     [SerializeField] private float textFadeDuration = 0.5f;
 
-    public void Refresh(int stageIndex, string stageName)
+    public void Refresh(int stageIndex, string stageDescription)
     {
         stageIndexText.text = $"# {stageIndex + 1}";
-        stageNameText.text = stageName;
+        stageNameText.text = stageDescription;
     }
 
     protected override async UniTask OnShowAnimation()
