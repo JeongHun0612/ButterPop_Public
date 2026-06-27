@@ -13,7 +13,6 @@ public class BananaSettleDetector : MonoBehaviour
     [SerializeField] private float respawnDelay = 1.0f;
 
     private Rigidbody2D _rb;
-    private Vector2 _spawnPosition;
     private float _fallYThreshold;
     private float _fallXThreshold;
 
@@ -25,7 +24,6 @@ public class BananaSettleDetector : MonoBehaviour
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
-        _spawnPosition = transform.position;
     }
 
     private void Update()
@@ -90,11 +88,6 @@ public class BananaSettleDetector : MonoBehaviour
             _touchingStages.Remove(stage);
     }
 
-    public void SetSpawnPosition(Vector2 position)
-    {
-        _spawnPosition = position;
-    }
-
     public void InitializeBounds(Camera cam)
     {
         float halfH = cam.orthographicSize;
@@ -115,6 +108,7 @@ public class BananaSettleDetector : MonoBehaviour
     private void OnSuccess()
     {
         _judged = true;
+        StageManager.Instance.BananaController.FreezeInPlace();
         StageManager.Instance.SetState(GameState.Success);
         Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
     }

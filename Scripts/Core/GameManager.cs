@@ -25,6 +25,6 @@ public class GameManager : MonoSingleton<GameManager>
     private async UniTask ShowStageReady()
     {
         var popup = await UIManager.Instance.ShowPopup<UIStageReady>();
-        popup.Refresh(StageManager.Instance.CurrentStageIndex, StageManager.Instance.CurrentStageData.stageName);
+        popup.Refresh(StageManager.Instance.CurrentStageIndex, StageManager.Instance.CurrentStageData.stageDescription);
     }
 }

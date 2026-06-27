@@ -98,7 +98,8 @@ public class StageManager : MonoSingleton<StageManager>
             var instance = Instantiate(objData.prefab, transform);
             instance.transform.position = new Vector3(objData.position.x, objData.position.y, 0f);
             instance.transform.rotation = Quaternion.Euler(0f, 0f, objData.rotation);
-            instance.transform.localScale = new Vector3(objData.scale.x, objData.scale.y, 1f);
+            float scaleX = objData.flipX ? -objData.scale.x : objData.scale.x;
+            instance.transform.localScale = new Vector3(scaleX, objData.scale.y, 1f);
             _spawnedStageObjects.Add(instance);
         }
     }
@@ -152,7 +153,6 @@ public class StageManager : MonoSingleton<StageManager>
         if (_settleDetector != null)
         {
             _settleDetector.ResetState();
-            _settleDetector.SetSpawnPosition(CurrentStageData.bananaSpawnPosition);
             _settleDetector.InitializeBounds(mainCamera);
         }
 
@@ -201,8 +201,17 @@ public class StageManager : MonoSingleton<StageManager>
 
         OnStateChanged?.Invoke(newState);
 
+        if (newState == GameState.StageReady)
+            ShowStageReadyAsync().Forget();
+
         if (newState == GameState.Success)
             PlaySuccessEffectAsync().Forget();
+    }
+
+    private async UniTaskVoid ShowStageReadyAsync()
+    {
+        var popup = await UIManager.Instance.ShowPopup<UIStageReady>();
+        popup.Refresh(CurrentStageIndex, CurrentStageData.stageDescription);
     }
 
     private async UniTaskVoid PlaySuccessEffectAsync()
@@ -214,8 +223,13 @@ public class StageManager : MonoSingleton<StageManager>
         if (_successEffectInstance != null)
             await _successEffectInstance.PlayEffect(_effectCts.Token);
 
-        // TODO: 이어지는 연출 추가
-        // TODO: 다음 스테이지로 전환
+        //var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
+        //await resultUI.CaptureScreen();
+
+        //await UIManager.Instance.ShowPopup<UIStageResult>();
+        //await UIManager.Instance.HidePopup();
+
+        LoadNextStage();
     }
 
     private void OnDestroy()

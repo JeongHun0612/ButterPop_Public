@@ -31,6 +31,8 @@ public class BananaThrowController : MonoBehaviour
         transform.rotation = Quaternion.identity;
     }
 
+    public void FreezeInPlace() => SetKinematic();
+
     private void SetKinematic()
     {
         _rb.bodyType = RigidbodyType2D.Kinematic;
