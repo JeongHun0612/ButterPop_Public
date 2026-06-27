@@ -9,7 +9,6 @@ public class StageMakerWindow : EditorWindow
     // Undo 지원을 위한 Serializable 작업 데이터 (에셋으로 저장하지 않음)
     private class WorkingData : ScriptableObject
     {
-        public int stageId;
         public string stageName = "New Stage";
         public Vector2 bananaSpawnPosition = new(0f, 3f);
         public Vector2 monkeyArmPosition = new(0f, -2f);
@@ -139,7 +138,6 @@ public class StageMakerWindow : EditorWindow
     {
         RecordUndo("Load StageData");
 
-        _data.stageId = so.stageId;
         _data.stageName = so.stageName;
         _data.bananaSpawnPosition = so.bananaSpawnPosition;
         _data.monkeyArmPosition = so.monkeyArmPosition;
@@ -171,12 +169,10 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.LabelField("스테이지 정보", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
-        int newId = EditorGUILayout.IntField("Stage ID", _data.stageId);
         string newName = EditorGUILayout.TextField("Stage Name", _data.stageName);
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Edit Stage Info");
-            _data.stageId = newId;
             _data.stageName = newName;
         }
     }
@@ -698,11 +694,11 @@ public class StageMakerWindow : EditorWindow
 
     private void CreateNewSO()
     {
-        string defaultName = $"StageData_{_data.stageId}_{_data.stageName}";
+        string defaultName = $"StageData_{_data.stageName}";
         string path = EditorUtility.SaveFilePanelInProject(
             "StageData 저장", defaultName, "asset",
             "StageData SO를 저장할 위치를 선택하세요.",
-            "Assets/08. ScriptableObjects");
+            "Assets/08. ScriptableObjects/StageDatas/Stages");
 
         if (string.IsNullOrEmpty(path)) return;
 
@@ -738,7 +734,6 @@ public class StageMakerWindow : EditorWindow
 
     private void ApplyWorkingDataToSO(StageDataSO so)
     {
-        so.stageId = _data.stageId;
         so.stageName = _data.stageName;
         so.bananaSpawnPosition = _data.bananaSpawnPosition;
         so.monkeyArmPosition = _data.monkeyArmPosition;

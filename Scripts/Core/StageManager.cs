@@ -4,15 +4,17 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class StageManager : MonoBehaviour
+public class StageManager : MonoSingleton<StageManager>
 {
-    public static StageManager Instance { get; private set; }
-
-    public GameState CurrentState { get; private set; } = GameState.Ready;
+    public GameState CurrentState { get; private set; } = GameState.StageReady;
     public event Action<GameState> OnStateChanged;
 
     [Header("스테이지 데이터")]
-    [SerializeField] private StageDataSO stageData;
+    [SerializeField] private StageListSO stageList;
+
+    public int CurrentStageIndex { get; private set; }
+    public StageDataSO CurrentStageData { get; private set; }
+    public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
 
     [Header("바나나")]
     [SerializeField] private GameObject bananaPrefab;
@@ -39,30 +41,38 @@ public class StageManager : MonoBehaviour
 
     public BananaThrowController BananaController => _throwController;
     public MonkeyArm MonkeyArm => _monkeyArm;
-    public Vector2 BananaSpawnPosition => stageData != null ? stageData.bananaSpawnPosition : Vector2.zero;
+    public Vector2 BananaSpawnPosition => CurrentStageData != null ? CurrentStageData.bananaSpawnPosition : Vector2.zero;
 
-    private void Awake()
+    protected override void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
-
+        base.Awake();
         if (mainCamera == null)
             mainCamera = Camera.main;
     }
 
-    private void Start()
+    public void LoadNextStage()
     {
-        if (stageData != null)
-            SetupStage(stageData);
+        if (HasNextStage)
+            LoadStage(CurrentStageIndex + 1);
+        else if (debugLog)
+            Debug.Log("[StageManager] 마지막 스테이지입니다.");
+    }
+
+    public void LoadStage(int index)
+    {
+        if (stageList == null || !stageList.IsValidIndex(index))
+        {
+            Debug.LogWarning($"[StageManager] 유효하지 않은 스테이지 인덱스: {index}");
+            return;
+        }
+
+        CurrentStageIndex = index;
+        SetupStage(stageList.Get(index));
     }
 
     public void SetupStage(StageDataSO data)
     {
-        stageData = data;
+        CurrentStageData = data;
 
         ClearStage();
         SpawnStageObjects();
@@ -71,17 +81,17 @@ public class StageManager : MonoBehaviour
         SpawnBanana();
         SpawnSuccessEffect();
 
-        SetState(GameState.Ready);
+        SetState(GameState.StageReady);
 
         if (debugLog)
-            Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName} (ID: {data.stageId})");
+            Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName}");
     }
 
     private void SpawnStageObjects()
     {
-        if (stageData.stageObjects == null) return;
+        if (CurrentStageData.stageObjects == null) return;
 
-        foreach (var objData in stageData.stageObjects)
+        foreach (var objData in CurrentStageData.stageObjects)
         {
             if (objData.prefab == null) continue;
 
@@ -98,10 +108,10 @@ public class StageManager : MonoBehaviour
         if (mainCamera == null) return;
 
         mainCamera.transform.position = new Vector3(
-            stageData.cameraCenter.x,
-            stageData.cameraCenter.y,
+            CurrentStageData.cameraCenter.x,
+            CurrentStageData.cameraCenter.y,
             mainCamera.transform.position.z);
-        mainCamera.orthographicSize = stageData.cameraOrthographicSize;
+        mainCamera.orthographicSize = CurrentStageData.cameraOrthographicSize;
     }
 
     private void SpawnMonkeyArm()
@@ -113,7 +123,7 @@ public class StageManager : MonoBehaviour
 
         _monkeyArmInstance = Instantiate(monkeyArmPrefab);
         _monkeyArmInstance.transform.position = new Vector3(
-            stageData.monkeyArmPosition.x, stageData.monkeyArmPosition.y, 0f);
+            CurrentStageData.monkeyArmPosition.x, CurrentStageData.monkeyArmPosition.y, 0f);
         _monkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
     }
 
@@ -134,7 +144,7 @@ public class StageManager : MonoBehaviour
     public void ResetBanana()
     {
         if (_throwController != null)
-            _throwController.ResetBanana(stageData.bananaSpawnPosition);
+            _throwController.ResetBanana(CurrentStageData.bananaSpawnPosition);
 
         if (_monkeyArm != null)
             _monkeyArm.ResetArm();
@@ -142,7 +152,7 @@ public class StageManager : MonoBehaviour
         if (_settleDetector != null)
         {
             _settleDetector.ResetState();
-            _settleDetector.SetSpawnPosition(stageData.bananaSpawnPosition);
+            _settleDetector.SetSpawnPosition(CurrentStageData.bananaSpawnPosition);
             _settleDetector.InitializeBounds(mainCamera);
         }
 

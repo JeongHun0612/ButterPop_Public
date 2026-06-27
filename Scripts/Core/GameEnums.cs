@@ -1,5 +1,6 @@
 public enum GameState
 {
+    StageReady,
     Ready,
     Dragging,
     Falling,

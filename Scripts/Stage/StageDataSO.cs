@@ -1,11 +1,10 @@
 ﻿using System;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage Data")]
+[CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage/Stage Data")]
 public class StageDataSO : ScriptableObject
 {
     [Header("스테이지 정보")]
-    public int stageId;
     public string stageName;
 
     [Header("바나나 낙하 시작점")]
