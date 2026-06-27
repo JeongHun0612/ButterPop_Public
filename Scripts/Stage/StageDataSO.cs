@@ -6,6 +6,7 @@ public class StageDataSO : ScriptableObject
 {
     [Header("스테이지 정보")]
     public string stageName;
+    [TextArea] public string stageDescription;
 
     [Header("바나나 낙하 시작점")]
     public Vector2 bananaSpawnPosition;
@@ -29,4 +30,5 @@ public class StageObjectSpawnData
     public Vector2 position;
     public float rotation;
     public Vector2 scale = Vector2.one;
+    public bool flipX;
 }

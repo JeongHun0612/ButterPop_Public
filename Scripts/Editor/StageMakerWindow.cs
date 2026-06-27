@@ -10,10 +10,11 @@ public class StageMakerWindow : EditorWindow
     private class WorkingData : ScriptableObject
     {
         public string stageName = "New Stage";
+        public string stageDescription = "";
         public Vector2 bananaSpawnPosition = new(0f, 3f);
         public Vector2 monkeyArmPosition = new(0f, -2f);
         public Vector2 cameraCenter = Vector2.zero;
-        public float cameraOrthoSize = 5f;
+        public float cameraOrthoSize = 6f;
         public List<StageObjectEntry> stageObjects = new();
     }
 
@@ -24,6 +25,7 @@ public class StageMakerWindow : EditorWindow
         public Vector2 position;
         public float rotation;
         public Vector2 scale = Vector2.one;
+        public bool flipX;
     }
 
     private WorkingData _data;
@@ -139,6 +141,7 @@ public class StageMakerWindow : EditorWindow
         RecordUndo("Load StageData");
 
         _data.stageName = so.stageName;
+        _data.stageDescription = so.stageDescription;
         _data.bananaSpawnPosition = so.bananaSpawnPosition;
         _data.monkeyArmPosition = so.monkeyArmPosition;
         _data.cameraCenter = so.cameraCenter;
@@ -154,7 +157,8 @@ public class StageMakerWindow : EditorWindow
                     sprite = obj.sprite,
                     position = obj.position,
                     rotation = obj.rotation,
-                    scale = obj.scale
+                    scale = obj.scale,
+                    flipX = obj.flipX
                 });
             }
         }
@@ -170,10 +174,12 @@ public class StageMakerWindow : EditorWindow
 
         EditorGUI.BeginChangeCheck();
         string newName = EditorGUILayout.TextField("Stage Name", _data.stageName);
+        string newDescription = EditorGUILayout.TextArea(_data.stageDescription, GUILayout.MinHeight(60));
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Edit Stage Info");
             _data.stageName = newName;
+            _data.stageDescription = newDescription;
         }
     }
 
@@ -265,15 +271,19 @@ public class StageMakerWindow : EditorWindow
             var newPosition = EditorGUILayout.Vector2Field("Position", entry.position);
             float newRotation = EditorGUILayout.FloatField("Rotation", entry.rotation);
             var newScale = EditorGUILayout.Vector2Field("Size", entry.scale);
+            bool newFlipX = EditorGUILayout.Toggle("Flip X", entry.flipX);
 
             if (EditorGUI.EndChangeCheck())
             {
                 RecordUndo("Edit Stage Object");
                 bool spriteChanged = entry.sprite != newSprite;
                 entry.sprite = newSprite;
+                if (spriteChanged && i == 0 && newSprite != null && _data.stageName == "New Stage")
+                    _data.stageName = newSprite.name;
                 entry.position = newPosition;
                 entry.rotation = newRotation;
                 entry.scale = newScale;
+                entry.flipX = newFlipX;
 
                 if (_isEditMode)
                 {
@@ -321,6 +331,14 @@ public class StageMakerWindow : EditorWindow
 
         if (GUILayout.Button("새 StageData SO 생성", GUILayout.Height(30)))
             CreateNewSO();
+
+        EditorGUILayout.Space(4);
+
+        if (GUILayout.Button("초기화", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("초기화", "현재 작업 내용을 모두 초기화합니다.", "확인", "취소"))
+                ResetWorkingData();
+        }
     }
 
     #endregion
@@ -402,7 +420,8 @@ public class StageMakerWindow : EditorWindow
     {
         t.position = new Vector3(entry.position.x, entry.position.y, 0f);
         t.rotation = Quaternion.Euler(0f, 0f, entry.rotation);
-        t.localScale = new Vector3(entry.scale.x, entry.scale.y, 1f);
+        float scaleX = entry.flipX ? -entry.scale.x : entry.scale.x;
+        t.localScale = new Vector3(scaleX, entry.scale.y, 1f);
     }
 
     private void SetPreviewStatic(GameObject go)
@@ -735,6 +754,7 @@ public class StageMakerWindow : EditorWindow
     private void ApplyWorkingDataToSO(StageDataSO so)
     {
         so.stageName = _data.stageName;
+        so.stageDescription = _data.stageDescription;
         so.bananaSpawnPosition = _data.bananaSpawnPosition;
         so.monkeyArmPosition = _data.monkeyArmPosition;
         so.cameraCenter = _data.cameraCenter;
@@ -750,7 +770,8 @@ public class StageMakerWindow : EditorWindow
                 sprite = entry.sprite,
                 position = entry.position,
                 rotation = entry.rotation,
-                scale = entry.scale
+                scale = entry.scale,
+                flipX = entry.flipX
             };
 
             if (entry.sprite != null)
@@ -795,6 +816,23 @@ public class StageMakerWindow : EditorWindow
     }
 
     #endregion
+
+    private void ResetWorkingData()
+    {
+        if (_isEditMode) ExitEditMode();
+        _loadedSO = null;
+
+        RecordUndo("Reset Stage Maker");
+        _data.stageName = "New Stage";
+        _data.stageDescription = "";
+        _data.bananaSpawnPosition = new Vector2(0f, 3f);
+        _data.monkeyArmPosition = new Vector2(0f, -2f);
+        _data.cameraCenter = Vector2.zero;
+        _data.cameraOrthoSize = 6f;
+        _data.stageObjects.Clear();
+
+        Repaint();
+    }
 
     #region Utility
 
