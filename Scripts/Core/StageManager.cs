@@ -28,7 +28,9 @@ public class StageManager : MonoSingleton<StageManager>
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
 
-    [SerializeField] private bool debugLog = true;
+    [Header("디버그")]
+    [SerializeField] private bool debugMode = false;
+    [SerializeField] private StageDataSO debugStageData;
 
     private GameObject _bananaInstance;
     private GameObject _monkeyArmInstance;
@@ -54,12 +56,26 @@ public class StageManager : MonoSingleton<StageManager>
     {
         if (HasNextStage)
             LoadStage(CurrentStageIndex + 1);
-        else if (debugLog)
+        else
             Debug.Log("[StageManager] 마지막 스테이지입니다.");
     }
 
     public void LoadStage(int index)
     {
+        if (debugMode)
+        {
+            if (debugStageData == null)
+            {
+                Debug.LogWarning("[StageManager] Debug Mode: debugStageData가 비어있습니다.");
+                return;
+            }
+
+            Debug.Log($"[StageManager] Debug Mode: {debugStageData.stageName} 강제 로드");
+            CurrentStageIndex = index;
+            SetupStage(debugStageData);
+            return;
+        }
+
         if (stageList == null || !stageList.IsValidIndex(index))
         {
             Debug.LogWarning($"[StageManager] 유효하지 않은 스테이지 인덱스: {index}");
@@ -83,8 +99,7 @@ public class StageManager : MonoSingleton<StageManager>
 
         SetState(GameState.StageReady);
 
-        if (debugLog)
-            Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName}");
+        Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName}");
     }
 
     private void SpawnStageObjects()
@@ -196,8 +211,7 @@ public class StageManager : MonoSingleton<StageManager>
         var prev = CurrentState;
         CurrentState = newState;
 
-        if (debugLog)
-            Debug.Log($"[StageManager] {prev} → {newState}");
+        Debug.Log($"[StageManager] {prev} → {newState}");
 
         OnStateChanged?.Invoke(newState);
 
