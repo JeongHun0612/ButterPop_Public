@@ -5,6 +5,12 @@ public class GameManager : MonoSingleton<GameManager>
 {
     [SerializeField] private int startStageIndex = 0;
 
+    protected override void Awake()
+    {
+        base.Awake();
+        Application.targetFrameRate = 60;
+    }
+
     private async void Start()
     {
         await InitializeAsync();
