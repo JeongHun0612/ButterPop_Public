@@ -150,8 +150,8 @@ public class StageManager : MonoSingleton<StageManager>
         if (_bananaInstance == null)
         {
             _bananaInstance = Instantiate(bananaPrefab);
-            _throwController = _bananaInstance.GetComponent<BananaThrowController>();
-            _settleDetector = _bananaInstance.GetComponent<BananaSettleDetector>();
+            _throwController = _bananaInstance.GetComponentInChildren<BananaThrowController>();
+            _settleDetector = _bananaInstance.GetComponentInChildren<BananaSettleDetector>();
         }
 
         ResetBanana();
@@ -159,8 +159,12 @@ public class StageManager : MonoSingleton<StageManager>
 
     public void ResetBanana()
     {
+        // 앵커(Root)를 spawn 위치로 이동 → 하위 Tree(Visual)까지 함께 배치
+        if (_bananaInstance != null)
+            _bananaInstance.transform.position = CurrentStageData.bananaSpawnPosition;
+
         if (_throwController != null)
-            _throwController.ResetBanana(CurrentStageData.bananaSpawnPosition);
+            _throwController.ResetBanana();
 
         if (_monkeyArm != null)
             _monkeyArm.ResetArm();

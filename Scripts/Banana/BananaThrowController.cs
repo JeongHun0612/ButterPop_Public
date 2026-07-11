@@ -32,14 +32,14 @@ public class BananaThrowController : MonoBehaviour
         if (!_isSwinging) return;
 
         _swingTime += Time.deltaTime;
-        transform.rotation = Quaternion.Euler(0f, 0f, swingAngle * Mathf.Sin(_swingTime * swingSpeed));
+        transform.localRotation = Quaternion.Euler(0f, 0f, swingAngle * Mathf.Sin(_swingTime * swingSpeed));
     }
 
     public void StartSwing()
     {
         _swingTime = 0f;
         _isSwinging = true;
-        transform.rotation = Quaternion.identity;
+        transform.localRotation = Quaternion.identity;
     }
 
     public void DropBanana()
@@ -55,11 +55,11 @@ public class BananaThrowController : MonoBehaviour
         StageManager.Instance.SetState(GameState.Falling);
     }
 
-    public void ResetBanana(Vector2 spawnPosition)
+    public void ResetBanana()
     {
         SetKinematic();
-        transform.position = (Vector3)spawnPosition;
-        transform.rotation = Quaternion.identity;
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
     }
 
     public void FreezeInPlace() => SetKinematic();
