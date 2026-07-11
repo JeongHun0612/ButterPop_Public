@@ -20,7 +20,7 @@ public class MonkeyArm : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody2D>();
         _rb.bodyType = RigidbodyType2D.Kinematic;
-        _rb.MoveRotation(idleAngle);
+        _rb.rotation = idleAngle;
     }
 
     private void FixedUpdate()
@@ -45,6 +45,6 @@ public class MonkeyArm : MonoBehaviour
     public void ResetArm()
     {
         _isRaising = false;
-        _rb.MoveRotation(idleAngle);
+        _rb.rotation = idleAngle;
     }
 }
