@@ -38,6 +38,7 @@ public class StageMakerWindow : EditorWindow
     private GameObject _monkeyArmPreviewInstance;
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
+    private float _lastKnownAspect;
 
     private const string BananaPrefabPath = "Assets/03. Prefabs/Controllers/Banana.prefab";
     private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
@@ -56,6 +57,7 @@ public class StageMakerWindow : EditorWindow
     private void OnEnable()
     {
         SceneView.duringSceneGui += OnSceneGUI;
+        EditorApplication.update += OnEditorUpdate;
         EnsureWorkingData();
         Undo.undoRedoPerformed += OnUndoRedo;
     }
@@ -63,9 +65,23 @@ public class StageMakerWindow : EditorWindow
     private void OnDisable()
     {
         SceneView.duringSceneGui -= OnSceneGUI;
+        EditorApplication.update -= OnEditorUpdate;
         Undo.undoRedoPerformed -= OnUndoRedo;
         if (_isEditMode) ExitEditMode();
         if (_data != null) DestroyImmediate(_data);
+    }
+
+    // Game View 비율(_mainCamera.aspect)이 바뀌면 씬 뷰를 갱신해
+    // "현재 기기에서 실제로 보이는 영역" 프레임이 실시간으로 따라오게 한다.
+    private void OnEditorUpdate()
+    {
+        if (!_isEditMode || _mainCamera == null) return;
+
+        if (!Mathf.Approximately(_mainCamera.aspect, _lastKnownAspect))
+        {
+            _lastKnownAspect = _mainCamera.aspect;
+            SceneView.RepaintAll();
+        }
     }
 
     private void EnsureWorkingData()
@@ -596,26 +612,48 @@ public class StageMakerWindow : EditorWindow
 
     private void DrawCameraRect()
     {
-        float aspect = _mainCamera != null ? _mainCamera.aspect : 16f / 9f;
-        float halfW = _data.cameraOrthoSize * aspect;
-        float halfH = _data.cameraOrthoSize;
         Vector2 c = _data.cameraCenter;
 
+        // 1) 기준 프레임(9:19.5) — 런타임 보정상 "모든 기기에서 항상 보이는 최소 영역".
+        //    여기 안에 배치한 오브젝트는 어떤 기기에서도 잘리지 않는다.
+        DrawFrame(c, _data.cameraOrthoSize, StageDataSO.ReferenceAspect,
+            new Color(0, 1, 1, 0.05f), new Color(0, 1, 1, 0.4f));
+
+        // 2) 현재 Game View 기기 프레임 — 위 보정 공식을 그대로 적용한, 이 기기에서 실제로 보이는 영역.
+        //    Game View 비율을 바꾸면 실시간으로 갱신된다. 기준 프레임보다 넓거나 위아래로 더 크게 나타난다.
+        if (_mainCamera != null)
+        {
+            float deviceAspect = _mainCamera.aspect;
+            float deviceSize = StageDataSO.ResolveOrthographicSize(_data.cameraOrthoSize, deviceAspect);
+            DrawFrame(c, deviceSize, deviceAspect,
+                new Color(1f, 0.6f, 0f, 0f), new Color(1f, 0.6f, 0f, 0.7f));
+
+            float dhW = deviceSize * deviceAspect;
+            float dhH = deviceSize;
+            var style = new GUIStyle(EditorStyles.miniBoldLabel)
+            { normal = { textColor = new Color(1f, 0.6f, 0f) } };
+            Handles.Label(new Vector3(c.x - dhW, c.y + dhH + 0.15f, 0),
+                $"Device View  {deviceAspect:0.000}  ({deviceSize / _data.cameraOrthoSize:0.00}x)", style);
+        }
+    }
+
+    private static void DrawFrame(Vector2 center, float halfH, float aspect, Color fill, Color outline)
+    {
+        float halfW = halfH * aspect;
         var corners = new Vector3[]
         {
-            new(c.x - halfW, c.y - halfH, 0),
-            new(c.x - halfW, c.y + halfH, 0),
-            new(c.x + halfW, c.y + halfH, 0),
-            new(c.x + halfW, c.y - halfH, 0),
+            new(center.x - halfW, center.y - halfH, 0),
+            new(center.x - halfW, center.y + halfH, 0),
+            new(center.x + halfW, center.y + halfH, 0),
+            new(center.x + halfW, center.y - halfH, 0),
         };
-
-        Handles.DrawSolidRectangleWithOutline(corners, new Color(0, 1, 1, 0.05f), new Color(0, 1, 1, 0.4f));
+        Handles.DrawSolidRectangleWithOutline(corners, fill, outline);
     }
 
     private void DrawFallLine()
     {
         float halfH = _data.cameraOrthoSize;
-        float aspect = _mainCamera != null ? _mainCamera.aspect : 16f / 9f;
+        float aspect = StageDataSO.ReferenceAspect;
         float halfW = halfH * aspect;
         float cx = _data.cameraCenter.x;
         float cy = _data.cameraCenter.y;

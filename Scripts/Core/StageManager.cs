@@ -127,7 +127,9 @@ public class StageManager : MonoSingleton<StageManager>
             CurrentStageData.cameraCenter.x,
             CurrentStageData.cameraCenter.y,
             mainCamera.transform.position.z);
-        mainCamera.orthographicSize = CurrentStageData.cameraOrthographicSize;
+
+        mainCamera.orthographicSize = StageDataSO.ResolveOrthographicSize(
+            CurrentStageData.cameraOrthographicSize, mainCamera.aspect);
     }
 
     private void SpawnMonkeyArm()
