@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +20,7 @@ public class UIInGameHUD : UIScene
 
     private void OnCustomButtonClicked()
     {
-        Debug.Log("[UIInGameHUD] Custom 버튼 클릭");
+        UIManager.Instance.ShowPopup<UICustom>().Forget();
     }
 
     private void OnStoreButtonClicked()
