@@ -25,7 +25,7 @@ public class UIInGameHUD : UIScene
 
     private void OnStoreButtonClicked()
     {
-        Debug.Log("[UIInGameHUD] Store 버튼 클릭");
+        UIManager.Instance.ShowPopup<UIStore>().Forget();
     }
 
     private void OnTempButtonClicked()
