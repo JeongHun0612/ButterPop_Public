@@ -23,14 +23,8 @@ public class GameManager : MonoSingleton<GameManager>
         await UIManager.Instance.InitializeAsync();
         StageManager.Instance.LoadStage(startStageIndex);
 
+        await UIManager.Instance.ShowScene<UIInGameHUD>();
+
         UIManager.Instance.HideInitialLoading().Forget();
-
-        await ShowStageReady();
-    }
-
-    private async UniTask ShowStageReady()
-    {
-        var popup = await UIManager.Instance.ShowPopup<UIStageReady>();
-        popup.Refresh(StageManager.Instance.CurrentStageIndex, StageManager.Instance.CurrentStageData.stageDescription);
     }
 }

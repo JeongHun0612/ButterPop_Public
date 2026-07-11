@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 public class InputManager : MonoBehaviour
@@ -9,6 +10,9 @@ public class InputManager : MonoBehaviour
     private void Update()
     {
         if (StageManager.Instance == null)
+            return;
+
+        if (IsPointerOverUI())
             return;
 
         if (_bananaController == null)
@@ -34,6 +38,16 @@ public class InputManager : MonoBehaviour
             else if (WasReleased() && _monkeyArm != null)
                 _monkeyArm.Lower();
         }
+    }
+
+    private bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null) return false;
+
+        if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed)
+            return EventSystem.current.IsPointerOverGameObject(Touchscreen.current.primaryTouch.touchId.ReadValue());
+
+        return EventSystem.current.IsPointerOverGameObject();
     }
 
     private bool WasPressed()
