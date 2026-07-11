@@ -1,7 +1,6 @@
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(Collider2D))]
 public class BananaThrowController : MonoBehaviour
 {
     [Header("물리")]
@@ -10,7 +9,17 @@ public class BananaThrowController : MonoBehaviour
     [SerializeField] private float angularDrag = 0.2f;
     [SerializeField] private float mass = 1.0f;
 
+    [Header("흔들림")]
+    [SerializeField] private float swingAngle = 30f;
+    [SerializeField] private float swingSpeed = 3f;
+
+    [Header("드롭")]
+    [SerializeField] private float dropVelocityMultiplier = 1f;
+    [SerializeField] private float dropTorqueMultiplier = 1f;
+
     private Rigidbody2D _rb;
+    private float _swingTime;
+    private bool _isSwinging;
 
     private void Awake()
     {
@@ -18,9 +27,31 @@ public class BananaThrowController : MonoBehaviour
         SetKinematic();
     }
 
+    private void Update()
+    {
+        if (!_isSwinging) return;
+
+        _swingTime += Time.deltaTime;
+        transform.rotation = Quaternion.Euler(0f, 0f, swingAngle * Mathf.Sin(_swingTime * swingSpeed));
+    }
+
+    public void StartSwing()
+    {
+        _swingTime = 0f;
+        _isSwinging = true;
+        transform.rotation = Quaternion.identity;
+    }
+
     public void DropBanana()
     {
+        float angularSpeed = swingAngle * swingSpeed * Mathf.Cos(_swingTime * swingSpeed);
+        float angularSpeedRad = angularSpeed * Mathf.Deg2Rad;
+
+        _isSwinging = false;
         SetDynamic();
+        _rb.linearVelocity = new Vector2(angularSpeedRad * dropVelocityMultiplier, 0f);
+        _rb.angularVelocity = angularSpeed * dropTorqueMultiplier;
+
         StageManager.Instance.SetState(GameState.Falling);
     }
 

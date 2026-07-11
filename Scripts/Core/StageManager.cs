@@ -171,6 +171,9 @@ public class StageManager : MonoSingleton<StageManager>
             _settleDetector.InitializeBounds(mainCamera);
         }
 
+        if (_throwController != null)
+            _throwController.StartSwing();
+
         SetState(GameState.Ready);
     }
 
