@@ -143,6 +143,9 @@ public class StageManager : MonoSingleton<StageManager>
         _monkeyArmInstance.transform.position = new Vector3(
             CurrentStageData.monkeyArmPosition.x, CurrentStageData.monkeyArmPosition.y, 0f);
         _monkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
+
+        if (_monkeyArm != null)
+            _monkeyArm.ResetArm();
     }
 
     private void SpawnBanana()
@@ -167,9 +170,6 @@ public class StageManager : MonoSingleton<StageManager>
 
         if (_throwController != null)
             _throwController.ResetBanana();
-
-        if (_monkeyArm != null)
-            _monkeyArm.ResetArm();
 
         if (_settleDetector != null)
         {

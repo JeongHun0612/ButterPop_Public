@@ -1,62 +1,74 @@
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(HingeJoint2D))]
 public class BananaThrowController : MonoBehaviour
 {
-    [Header("물리")]
-    [SerializeField] private float gravityScale = 1.0f;
-    [SerializeField] private float linearDrag = 0.1f;
-    [SerializeField] private float angularDrag = 0.2f;
-    [SerializeField] private float mass = 1.0f;
+    [Header("진자")]
+    [Tooltip("시작 시 기울임 각도 (도). 클수록 넓게 흔들림.")]
+    [SerializeField] private float swingAmplitude = 40f;
 
-    [Header("흔들림")]
-    [SerializeField] private float swingAngle = 30f;
-    [SerializeField] private float swingSpeed = 3f;
+    [Header("속도 제한")]
+    [Tooltip("릴리즈 후 최대 속도 상한 (화면 이탈 방지)")]
+    [SerializeField] private bool clampSpeed = true;
+    [SerializeField] private float maxSpeed = 12f;
 
-    [Header("드롭")]
-    [SerializeField] private float dropVelocityMultiplier = 1f;
-    [SerializeField] private float dropTorqueMultiplier = 1f;
+    private bool _released;
 
     private Rigidbody2D _rb;
-    private float _swingTime;
-    private bool _isSwinging;
+    private HingeJoint2D _hinge;
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
+        _hinge = GetComponent<HingeJoint2D>();
+        _hinge.enabled = false;
         SetKinematic();
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
-        if (!_isSwinging) return;
-
-        _swingTime += Time.deltaTime;
-        transform.localRotation = Quaternion.Euler(0f, 0f, swingAngle * Mathf.Sin(_swingTime * swingSpeed));
+        if (_released && clampSpeed)
+        {
+            Vector2 v = _rb.linearVelocity;
+            if (v.magnitude > maxSpeed)
+                _rb.linearVelocity = v.normalized * maxSpeed;
+        }
     }
 
     public void StartSwing()
     {
-        _swingTime = 0f;
-        _isSwinging = true;
-        transform.localRotation = Quaternion.identity;
+        _released = false;
+
+        _rb.bodyType = RigidbodyType2D.Dynamic;
+        _rb.position = transform.position;
+        _rb.rotation = swingAmplitude;
+        _rb.linearVelocity = Vector2.zero;
+        _rb.angularVelocity = 0f;
+
+        _hinge.enabled = true;
+        _hinge.anchor = Vector2.zero;
+        _hinge.connectedAnchor = transform.position;
     }
 
     public void DropBanana()
     {
-        float angularSpeed = swingAngle * swingSpeed * Mathf.Cos(_swingTime * swingSpeed);
-        float angularSpeedRad = angularSpeed * Mathf.Deg2Rad;
+        if (_released) return;
+        _released = true;
 
-        _isSwinging = false;
-        SetDynamic();
-        _rb.linearVelocity = new Vector2(angularSpeedRad * dropVelocityMultiplier, 0f);
-        _rb.angularVelocity = angularSpeed * dropTorqueMultiplier;
+        if (_hinge != null)
+            _hinge.enabled = false;
 
         StageManager.Instance.SetState(GameState.Falling);
     }
 
     public void ResetBanana()
     {
+        _released = false;
+
+        if (_hinge != null)
+            _hinge.enabled = false;
+
         SetKinematic();
         transform.localPosition = Vector3.zero;
         transform.localRotation = Quaternion.identity;
@@ -69,16 +81,5 @@ public class BananaThrowController : MonoBehaviour
         _rb.bodyType = RigidbodyType2D.Kinematic;
         _rb.linearVelocity = Vector2.zero;
         _rb.angularVelocity = 0f;
-    }
-
-    private void SetDynamic()
-    {
-        _rb.bodyType = RigidbodyType2D.Dynamic;
-        _rb.gravityScale = gravityScale;
-        _rb.linearDamping = linearDrag;
-        _rb.angularDamping = angularDrag;
-        _rb.mass = mass;
-        _rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        _rb.interpolation = RigidbodyInterpolation2D.Interpolate;
     }
 }

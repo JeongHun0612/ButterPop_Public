@@ -31,7 +31,7 @@ public class InputManager : MonoBehaviour
             _bananaController.DropBanana();
         }
 
-        if (state == GameState.Falling || state == GameState.Flying || state == GameState.Settling)
+        if (state != GameState.Success)
         {
             if (WasPressed() && _monkeyArm != null)
                 _monkeyArm.Raise();

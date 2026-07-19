@@ -10,7 +10,7 @@ public class BananaSettleDetector : MonoBehaviour
     [SerializeField] private float outOfBoundsMargin = 2f;
 
     [Header("딜레이")]
-    [SerializeField] private float respawnDelay = 1.0f;
+    [SerializeField] private float respawnDelay = 0.5f;
 
     private Rigidbody2D _rb;
     private float _fallYThreshold;
@@ -32,7 +32,7 @@ public class BananaSettleDetector : MonoBehaviour
             return;
 
         var state = StageManager.Instance.CurrentState;
-        if (state != GameState.Falling && state != GameState.Flying && state != GameState.Settling)
+        if (state != GameState.Falling && state != GameState.Settling)
             return;
 
         if (_judged)
