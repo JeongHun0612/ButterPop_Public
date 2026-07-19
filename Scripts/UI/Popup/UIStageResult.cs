@@ -5,55 +5,82 @@ using UnityEngine.UI;
 
 public class UIStageResult : UIPopup
 {
+    [Header("셔터 연출")]
+    [SerializeField] private CanvasGroup shutterPanel;
+    [SerializeField] private float shutterFadeInDuration = 0.15f;
+    [SerializeField] private float shutterHoldDuration = 0.2f;
+    [SerializeField] private float shutterFadeOutDuration = 0.3f;
+
     [Header("필름 연출")]
-    [SerializeField] private RectTransform filmPanel;       // 필름 전체 패널 (테두리 + RawImage 포함)
-    [SerializeField] private RawImage capturedImage;        // 캡처된 화면을 표시할 RawImage
-    [SerializeField] private RectTransform filmBorder;      // 필름 테두리 이미지
+    [SerializeField] private RectTransform filmPanel;
+    [SerializeField] private RawImage capturedImage;
 
-    [Header("설정")]
-    [SerializeField] private float slideInDuration = 0.5f;
-    [SerializeField] private float holdDuration = 0.8f;
-    [SerializeField] private float slideOutDuration = 0.5f;
-    [SerializeField] private Ease slideEase = Ease.InOutQuart;
+    [Header("파티클")]
+    [SerializeField] private ParticleSystem successParticle;
 
-    private Texture2D _capturedTexture;
-    private float _screenHeight;
+    [Header("하단 버튼")]
+    [SerializeField] private Button btnRetry;
+    [SerializeField] private Button btnAdReward;
+    [SerializeField] private Button btnNext;
 
     public override void Initialize()
     {
         base.Initialize();
-        _screenHeight = ((RectTransform)transform.root).rect.height;
+
+        btnRetry.onClick.AddListener(OnClickRetry);
+        btnAdReward.onClick.AddListener(OnClickAdReward);
+        btnNext.onClick.AddListener(OnClickNext);
     }
 
-    // StageManager에서 직접 호출
-    public async UniTask CaptureScreen()
+    public void SetCaptureTexture(RenderTexture rt)
     {
-        await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
-
-        if (_capturedTexture != null)
-            Destroy(_capturedTexture);
-
-        _capturedTexture = ScreenCapture.CaptureScreenshotAsTexture();
-        capturedImage.texture = _capturedTexture;
+        capturedImage.texture = rt;
     }
 
     protected override async UniTask OnShowAnimation()
     {
-        // 화면 아래에서 올라오는 필름
-        filmPanel.anchoredPosition = new Vector2(0f, -_screenHeight);
-        await filmPanel.DOAnchorPosY(0f, slideInDuration).SetEase(slideEase).ToUniTask();
+        filmPanel.gameObject.SetActive(false);
+
+        // 셔터 연출 (화면 플래시)
+        if (shutterPanel != null)
+        {
+            shutterPanel.gameObject.SetActive(true);
+            shutterPanel.alpha = 0f;
+            await shutterPanel.DOFade(1f, shutterFadeInDuration).ToUniTask();
+            await UniTask.Delay((int)(shutterHoldDuration * 1000));
+
+            // 액자 + 파티클 동시 표시
+            filmPanel.gameObject.SetActive(true);
+            if (successParticle != null)
+                successParticle.Play();
+
+            await shutterPanel.DOFade(0f, shutterFadeOutDuration).ToUniTask();
+            shutterPanel.gameObject.SetActive(false);
+        }
     }
 
     protected override async UniTask OnHideAnimation()
     {
-        await UniTask.Delay((int)(holdDuration * 1000));
-        // 화면 위로 넘어가는 필름
-        await filmPanel.DOAnchorPosY(_screenHeight, slideOutDuration).SetEase(slideEase).ToUniTask();
+        if (successParticle != null)
+            successParticle.Stop();
+
+        filmPanel.gameObject.SetActive(false);
     }
 
-    private void OnDestroy()
+    private void OnClickRetry()
     {
-        if (_capturedTexture != null)
-            Destroy(_capturedTexture);
+        UIManager.Instance.HidePopup().Forget();
+        StageManager.Instance.LoadStage(StageManager.Instance.CurrentStageIndex);
+    }
+
+    private void OnClickAdReward()
+    {
+        // TODO: 광고 재생 → 보상 지급
+    }
+
+    private void OnClickNext()
+    {
+        UIManager.Instance.HidePopup().Forget();
+        StageManager.Instance.LoadNextStage();
     }
 }

@@ -21,6 +21,8 @@ public class BananaSettleDetector : MonoBehaviour
     private float _settleTimer;
     private bool _judged;
 
+
+
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
@@ -62,6 +64,71 @@ public class BananaSettleDetector : MonoBehaviour
         }
     }
 
+    public void InitializeBounds(Camera cam)
+    {
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+
+        _fallYThreshold = cam.transform.position.y - halfH - outOfBoundsMargin;
+        _fallXThreshold = halfW + outOfBoundsMargin;
+    }
+
+    public void ResetState()
+    {
+        _judged = false;
+        _settleTimer = 0f;
+        _touchingStages.Clear();
+        _touchingMonkeyArm = false;
+    }
+
+    public Bounds GetSettledBounds()
+    {
+        var bounds = GetRendererBounds(gameObject);
+
+        foreach (var stage in _touchingStages)
+        {
+            if (stage == null) continue;
+            bounds.Encapsulate(GetRendererBounds(stage.gameObject));
+        }
+
+        return bounds;
+    }
+
+    private void OnSuccess()
+    {
+        _judged = true;
+        StageManager.Instance.BananaController.FreezeInPlace();
+        StageManager.Instance.SetState(GameState.Success);
+        Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
+    }
+
+    private void OnFailed()
+    {
+        _judged = true;
+        StageManager.Instance.SetState(GameState.Failed);
+        Debug.Log("<color=red>[Result] FAILED - 바나나가 떨어졌습니다!</color>");
+        Invoke(nameof(Respawn), respawnDelay);
+    }
+
+    private void Respawn()
+    {
+        StageManager.Instance.ResetBanana();
+        Debug.Log("[Result] 바나나 리스폰 완료");
+    }
+
+    private static Bounds GetRendererBounds(GameObject go)
+    {
+        var renderers = go.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+            return new Bounds(go.transform.position, Vector3.zero);
+
+        var bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+            bounds.Encapsulate(renderers[i].bounds);
+
+        return bounds;
+    }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
@@ -86,44 +153,5 @@ public class BananaSettleDetector : MonoBehaviour
         var stage = collision.gameObject.GetComponent<StageObject>();
         if (stage != null)
             _touchingStages.Remove(stage);
-    }
-
-    public void InitializeBounds(Camera cam)
-    {
-        float halfH = cam.orthographicSize;
-        float halfW = halfH * cam.aspect;
-
-        _fallYThreshold = cam.transform.position.y - halfH - outOfBoundsMargin;
-        _fallXThreshold = halfW + outOfBoundsMargin;
-    }
-
-    public void ResetState()
-    {
-        _judged = false;
-        _settleTimer = 0f;
-        _touchingStages.Clear();
-        _touchingMonkeyArm = false;
-    }
-
-    private void OnSuccess()
-    {
-        _judged = true;
-        StageManager.Instance.BananaController.FreezeInPlace();
-        StageManager.Instance.SetState(GameState.Success);
-        Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
-    }
-
-    private void OnFailed()
-    {
-        _judged = true;
-        StageManager.Instance.SetState(GameState.Failed);
-        Debug.Log("<color=red>[Result] FAILED - 바나나가 떨어졌습니다!</color>");
-        Invoke(nameof(Respawn), respawnDelay);
-    }
-
-    private void Respawn()
-    {
-        StageManager.Instance.ResetBanana();
-        Debug.Log("[Result] 바나나 리스폰 완료");
     }
 }

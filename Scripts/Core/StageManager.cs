@@ -12,10 +12,6 @@ public class StageManager : MonoSingleton<StageManager>
     [Header("스테이지 데이터")]
     [SerializeField] private StageListSO stageList;
 
-    public int CurrentStageIndex { get; private set; }
-    public StageDataSO CurrentStageData { get; private set; }
-    public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
-
     [Header("바나나")]
     [SerializeField] private GameObject bananaPrefab;
 
@@ -23,7 +19,11 @@ public class StageManager : MonoSingleton<StageManager>
     [SerializeField] private GameObject monkeyArmPrefab;
 
     [Header("성공 연출")]
-    [SerializeField] private SuccessEffect successEffectPrefab;
+    [SerializeField] private Camera captureCamera;
+    [SerializeField] private int captureWidth = 720;
+    [SerializeField] private int captureHeight = 900;
+    [Tooltip("캡처 여백 (월드 단위)")]
+    [SerializeField] private float capturePadding = 0.5f;
 
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
@@ -38,9 +38,12 @@ public class StageManager : MonoSingleton<StageManager>
     private BananaThrowController _throwController;
     private BananaSettleDetector _settleDetector;
     private readonly List<GameObject> _spawnedStageObjects = new();
-    private SuccessEffect _successEffectInstance;
     private CancellationTokenSource _effectCts;
+    private RenderTexture _captureRT;
 
+    public int CurrentStageIndex { get; private set; }
+    public StageDataSO CurrentStageData { get; private set; }
+    public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
     public BananaThrowController BananaController => _throwController;
     public MonkeyArm MonkeyArm => _monkeyArm;
     public Vector2 BananaSpawnPosition => CurrentStageData != null ? CurrentStageData.bananaSpawnPosition : Vector2.zero;
@@ -50,6 +53,11 @@ public class StageManager : MonoSingleton<StageManager>
         base.Awake();
         if (mainCamera == null)
             mainCamera = Camera.main;
+
+        _captureRT = new RenderTexture(captureWidth, captureHeight, 16);
+
+        if (captureCamera != null)
+            captureCamera.enabled = false;
     }
 
     public void LoadNextStage()
@@ -92,10 +100,9 @@ public class StageManager : MonoSingleton<StageManager>
 
         ClearStage();
         SpawnStageObjects();
-        SetupCamera();
         SpawnMonkeyArm();
         SpawnBanana();
-        SpawnSuccessEffect();
+        SetupCamera();
 
         SetState(GameState.StageReady);
 
@@ -130,6 +137,9 @@ public class StageManager : MonoSingleton<StageManager>
 
         mainCamera.orthographicSize = StageDataSO.ResolveOrthographicSize(
             CurrentStageData.cameraOrthographicSize, mainCamera.aspect);
+
+        if (_settleDetector != null)
+            _settleDetector.InitializeBounds(mainCamera);
     }
 
     private void SpawnMonkeyArm()
@@ -164,7 +174,6 @@ public class StageManager : MonoSingleton<StageManager>
 
     public void ResetBanana()
     {
-        // 앵커(Root)를 spawn 위치로 이동 → 하위 Tree(Visual)까지 함께 배치
         if (_bananaInstance != null)
             _bananaInstance.transform.position = CurrentStageData.bananaSpawnPosition;
 
@@ -172,29 +181,12 @@ public class StageManager : MonoSingleton<StageManager>
             _throwController.ResetBanana();
 
         if (_settleDetector != null)
-        {
             _settleDetector.ResetState();
-            _settleDetector.InitializeBounds(mainCamera);
-        }
 
         if (_throwController != null)
             _throwController.StartSwing();
 
         SetState(GameState.Ready);
-    }
-
-    private void SpawnSuccessEffect()
-    {
-        if (_successEffectInstance != null)
-        {
-            Destroy(_successEffectInstance.gameObject);
-            _successEffectInstance = null;
-        }
-
-        if (successEffectPrefab == null) return;
-
-        _successEffectInstance = Instantiate(successEffectPrefab);
-        _successEffectInstance.Initialize();
     }
 
     private void ClearStage()
@@ -228,7 +220,7 @@ public class StageManager : MonoSingleton<StageManager>
             ShowStageReadyAsync().Forget();
 
         if (newState == GameState.Success)
-            PlaySuccessEffectAsync().Forget();
+            PlaySuccessAsync().Forget();
     }
 
     private async UniTaskVoid ShowStageReadyAsync()
@@ -237,27 +229,57 @@ public class StageManager : MonoSingleton<StageManager>
         popup.Refresh(CurrentStageIndex, CurrentStageData.stageDescription);
     }
 
-    private async UniTaskVoid PlaySuccessEffectAsync()
+    private async UniTaskVoid PlaySuccessAsync()
     {
         _effectCts?.Cancel();
         _effectCts?.Dispose();
         _effectCts = new CancellationTokenSource();
+        var ct = _effectCts.Token;
 
-        if (_successEffectInstance != null)
-            await _successEffectInstance.PlayEffect(_effectCts.Token);
+        Bounds captureBounds = _settleDetector != null
+            ? _settleDetector.GetSettledBounds()
+            : new Bounds(Vector3.zero, Vector3.one);
 
-        //var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
-        //await resultUI.CaptureScreen();
+        if (captureCamera != null)
+        {
+            CaptureScene(captureBounds);
 
-        //await UIManager.Instance.ShowPopup<UIStageResult>();
-        //await UIManager.Instance.HidePopup();
+            var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
+            resultUI.SetCaptureTexture(_captureRT);
 
-        LoadNextStage();
+            await UIManager.Instance.ShowPopup<UIStageResult>();
+        }
+    }
+
+    private void CaptureScene(Bounds bounds)
+    {
+        captureCamera.CopyFrom(mainCamera);
+        captureCamera.enabled = false;
+        captureCamera.cullingMask &= ~(1 << LayerMask.NameToLayer("UI"));
+
+        captureCamera.transform.position = new Vector3(
+            bounds.center.x,
+            bounds.center.y,
+            mainCamera.transform.position.z);
+
+        float captureAspect = (float)captureWidth / captureHeight;
+        float halfHeight = bounds.extents.y;
+        float halfWidth = bounds.extents.x;
+        float sizeFromHeight = halfHeight;
+        float sizeFromWidth = halfWidth / captureAspect;
+        captureCamera.orthographicSize = Mathf.Max(sizeFromHeight, sizeFromWidth) + capturePadding;
+
+        captureCamera.targetTexture = _captureRT;
+        captureCamera.Render();
+        captureCamera.targetTexture = null;
     }
 
     private void OnDestroy()
     {
         _effectCts?.Cancel();
         _effectCts?.Dispose();
+
+        if (_captureRT != null)
+            _captureRT.Release();
     }
 }
