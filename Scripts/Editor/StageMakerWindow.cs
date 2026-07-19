@@ -21,6 +21,7 @@ public class StageMakerWindow : EditorWindow
     [Serializable]
     private class StageObjectEntry
     {
+        public GameObject prefab;
         public Sprite sprite;
         public Vector2 position;
         public float rotation;
@@ -170,6 +171,7 @@ public class StageMakerWindow : EditorWindow
             {
                 _data.stageObjects.Add(new StageObjectEntry
                 {
+                    prefab = obj.prefab,
                     sprite = obj.sprite,
                     position = obj.position,
                     rotation = obj.rotation,
@@ -247,7 +249,7 @@ public class StageMakerWindow : EditorWindow
     private void DrawStageObjects()
     {
         EditorGUILayout.LabelField("스테이지 오브젝트", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("Sprite 이미지를 넣으면 SO 생성 시 자동으로 프리팹이 만들어집니다.", MessageType.Info);
+        EditorGUILayout.HelpBox("Prefab을 직접 지정하거나, Sprite만 넣으면 자동으로 프리팹이 생성됩니다.", MessageType.Info);
 
         for (int i = 0; i < _data.stageObjects.Count; i++)
         {
@@ -257,7 +259,9 @@ public class StageMakerWindow : EditorWindow
 
             // 헤더
             EditorGUILayout.BeginHorizontal();
-            string label = entry.sprite != null ? entry.sprite.name : $"Object [{i}]";
+            string label = entry.prefab != null ? entry.prefab.name
+                : entry.sprite != null ? entry.sprite.name
+                : $"Object [{i}]";
             EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
             if (GUILayout.Button("삭제", GUILayout.Width(50)))
             {
@@ -272,11 +276,19 @@ public class StageMakerWindow : EditorWindow
             // 필드
             EditorGUI.BeginChangeCheck();
 
-            var newSprite = (Sprite)EditorGUILayout.ObjectField("Sprite", entry.sprite, typeof(Sprite), false);
+            var newPrefab = (GameObject)EditorGUILayout.ObjectField("Prefab", entry.prefab, typeof(GameObject), false);
 
-            if (entry.sprite != null)
+            Sprite newSprite = entry.sprite;
+            if (newPrefab == null)
             {
-                var previewTex = AssetPreview.GetAssetPreview(entry.sprite);
+                newSprite = (Sprite)EditorGUILayout.ObjectField("Sprite", entry.sprite, typeof(Sprite), false);
+            }
+
+            // 프리뷰 이미지
+            UnityEngine.Object previewTarget = newPrefab != null ? (UnityEngine.Object)newPrefab : entry.sprite;
+            if (previewTarget != null)
+            {
+                var previewTex = AssetPreview.GetAssetPreview(previewTarget);
                 if (previewTex != null)
                 {
                     var rect = GUILayoutUtility.GetRect(64, 64, GUILayout.ExpandWidth(false));
@@ -292,10 +304,14 @@ public class StageMakerWindow : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 RecordUndo("Edit Stage Object");
-                bool spriteChanged = entry.sprite != newSprite;
+                bool visualChanged = entry.prefab != newPrefab || entry.sprite != newSprite;
+                entry.prefab = newPrefab;
                 entry.sprite = newSprite;
-                if (spriteChanged && i == 0 && newSprite != null && _data.stageName == "New Stage")
-                    _data.stageName = newSprite.name;
+                if (visualChanged && i == 0 && _data.stageName == "New Stage")
+                {
+                    if (newPrefab != null) _data.stageName = newPrefab.name;
+                    else if (newSprite != null) _data.stageName = newSprite.name;
+                }
                 entry.position = newPosition;
                 entry.rotation = newRotation;
                 entry.scale = newScale;
@@ -303,7 +319,7 @@ public class StageMakerWindow : EditorWindow
 
                 if (_isEditMode)
                 {
-                    if (spriteChanged)
+                    if (visualChanged)
                         RebuildPreview();
                     else
                         UpdateObjectPreview(i);
@@ -418,17 +434,29 @@ public class StageMakerWindow : EditorWindow
 
     private GameObject CreateObjectPreview(StageObjectEntry entry, int index)
     {
-        var go = new GameObject($"[StageMaker] Object_{index}");
-        go.hideFlags = HideFlags.DontSave;
-        go.transform.SetParent(_previewParent.transform);
-        ApplyEntryToTransform(go.transform, entry);
+        GameObject go;
 
-        if (entry.sprite != null)
+        if (entry.prefab != null)
         {
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = entry.sprite;
+            go = (GameObject)PrefabUtility.InstantiatePrefab(entry.prefab, _previewParent.transform);
+            go.name = $"[StageMaker] Object_{index}";
+            go.hideFlags = HideFlags.DontSave;
+            SetPreviewStatic(go);
+        }
+        else
+        {
+            go = new GameObject($"[StageMaker] Object_{index}");
+            go.hideFlags = HideFlags.DontSave;
+            go.transform.SetParent(_previewParent.transform);
+
+            if (entry.sprite != null)
+            {
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = entry.sprite;
+            }
         }
 
+        ApplyEntryToTransform(go.transform, entry);
         return go;
     }
 
@@ -479,6 +507,8 @@ public class StageMakerWindow : EditorWindow
         }
 
         ApplyEntryToTransform(instance.transform, entry);
+
+        if (entry.prefab != null) return;
 
         var sr = instance.GetComponent<SpriteRenderer>();
         if (entry.sprite != null)
@@ -691,7 +721,9 @@ public class StageMakerWindow : EditorWindow
             Vector3 scl = new Vector3(entry.scale.x, entry.scale.y, 1f);
 
             Handles.color = Color.green;
-            string label = entry.sprite != null ? entry.sprite.name : $"Object [{i}]";
+            string label = entry.prefab != null ? entry.prefab.name
+                : entry.sprite != null ? entry.sprite.name
+                : $"Object [{i}]";
             Handles.Label(pos + Vector3.up * 0.35f, label,
                 new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = Color.green } });
 
@@ -812,7 +844,12 @@ public class StageMakerWindow : EditorWindow
                 flipX = entry.flipX
             };
 
-            if (entry.sprite != null)
+            if (entry.prefab != null)
+            {
+                spawnData.prefab = entry.prefab;
+                EnsureStageObjectComponent(entry.prefab);
+            }
+            else if (entry.sprite != null)
                 spawnData.prefab = GetOrCreatePrefab(entry.sprite);
 
             spawnDataList.Add(spawnData);
@@ -838,6 +875,20 @@ public class StageMakerWindow : EditorWindow
 
         Debug.Log($"[StageMaker] 프리팹 생성: {prefabPath}");
         return prefab;
+    }
+
+    private static void EnsureStageObjectComponent(GameObject prefab)
+    {
+        if (prefab.GetComponentInChildren<StageObject>() != null) return;
+
+        using var edit = new PrefabUtility.EditPrefabContentsScope(AssetDatabase.GetAssetPath(prefab));
+        var root = edit.prefabContentsRoot;
+
+        var collider = root.GetComponentInChildren<Collider2D>();
+        var target = collider != null ? collider.gameObject : root;
+
+        target.AddComponent<StageObject>();
+        Debug.Log($"[StageMaker] StageObject 컴포넌트 추가: {prefab.name}/{target.name}");
     }
 
     private static void EnsureFolder(string folderPath)
