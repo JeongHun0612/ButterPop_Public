@@ -13,10 +13,10 @@ public class BananaThrowController : MonoBehaviour
     [SerializeField] private bool clampSpeed = true;
     [SerializeField] private float maxSpeed = 12f;
 
-    private bool _released;
-
     private Rigidbody2D _rb;
     private HingeJoint2D _hinge;
+
+    private bool _released;
 
     private void Awake()
     {
@@ -40,6 +40,12 @@ public class BananaThrowController : MonoBehaviour
     {
         _released = false;
 
+        if (_hinge != null)
+            _hinge.enabled = false;
+
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
+
         _rb.bodyType = RigidbodyType2D.Dynamic;
         _rb.position = transform.position;
         _rb.rotation = swingAmplitude;
@@ -60,18 +66,6 @@ public class BananaThrowController : MonoBehaviour
             _hinge.enabled = false;
 
         StageManager.Instance.SetState(GameState.Falling);
-    }
-
-    public void ResetBanana()
-    {
-        _released = false;
-
-        if (_hinge != null)
-            _hinge.enabled = false;
-
-        SetKinematic();
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
     }
 
     public void FreezeInPlace() => SetKinematic();

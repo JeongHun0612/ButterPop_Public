@@ -12,16 +12,14 @@ public class BananaSettleDetector : MonoBehaviour
     [Header("딜레이")]
     [SerializeField] private float respawnDelay = 0.5f;
 
+    private readonly HashSet<StageObject> _touchingStages = new();
+
     private Rigidbody2D _rb;
     private float _fallYThreshold;
     private float _fallXThreshold;
-
-    private readonly HashSet<StageObject> _touchingStages = new();
-    private bool _touchingMonkeyArm;
     private float _settleTimer;
+    private bool _touchingMonkeyArm;
     private bool _judged;
-
-
 
     private void Awake()
     {
@@ -64,7 +62,7 @@ public class BananaSettleDetector : MonoBehaviour
         }
     }
 
-    public void InitializeBounds(Camera cam)
+    public void UpdateCameraBounds(Camera cam)
     {
         float halfH = cam.orthographicSize;
         float halfW = halfH * cam.aspect;

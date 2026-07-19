@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -32,25 +31,25 @@ public class StageManager : MonoSingleton<StageManager>
     [SerializeField] private bool debugMode = false;
     [SerializeField] private StageDataSO debugStageData;
 
+    private readonly List<GameObject> _spawnedStageObjects = new();
+
     private GameObject _bananaInstance;
     private GameObject _monkeyArmInstance;
     private MonkeyArm _monkeyArm;
     private BananaThrowController _throwController;
     private BananaSettleDetector _settleDetector;
-    private readonly List<GameObject> _spawnedStageObjects = new();
-    private CancellationTokenSource _effectCts;
     private RenderTexture _captureRT;
 
     public int CurrentStageIndex { get; private set; }
-    public StageDataSO CurrentStageData { get; private set; }
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
+    public StageDataSO CurrentStageData { get; private set; }
     public BananaThrowController BananaController => _throwController;
     public MonkeyArm MonkeyArm => _monkeyArm;
-    public Vector2 BananaSpawnPosition => CurrentStageData != null ? CurrentStageData.bananaSpawnPosition : Vector2.zero;
 
     protected override void Awake()
     {
         base.Awake();
+
         if (mainCamera == null)
             mainCamera = Camera.main;
 
@@ -58,14 +57,6 @@ public class StageManager : MonoSingleton<StageManager>
 
         if (captureCamera != null)
             captureCamera.enabled = false;
-    }
-
-    public void LoadNextStage()
-    {
-        if (HasNextStage)
-            LoadStage(CurrentStageIndex + 1);
-        else
-            Debug.Log("[StageManager] 마지막 스테이지입니다.");
     }
 
     public void LoadStage(int index)
@@ -94,7 +85,52 @@ public class StageManager : MonoSingleton<StageManager>
         SetupStage(stageList.Get(index));
     }
 
-    public void SetupStage(StageDataSO data)
+    public void LoadNextStage()
+    {
+        if (HasNextStage)
+        {
+            LoadStage(CurrentStageIndex + 1);
+        }
+        else
+        {
+            Debug.Log("[StageManager] 마지막 스테이지입니다.");
+            LoadStage(CurrentStageIndex);
+        }
+    }
+
+    public void SetState(GameState newState)
+    {
+        if (CurrentState == newState) return;
+
+        var prev = CurrentState;
+        CurrentState = newState;
+
+        Debug.Log($"[StageManager] {prev} → {newState}");
+
+        OnStateChanged?.Invoke(newState);
+
+        if (newState == GameState.StageReady)
+            ShowStageReadyAsync().Forget();
+
+        if (newState == GameState.Success)
+            ShowStageResultAsync().Forget();
+    }
+
+    public void ResetBanana()
+    {
+        if (_bananaInstance != null)
+            _bananaInstance.transform.position = CurrentStageData.bananaSpawnPosition;
+
+        if (_throwController != null)
+            _throwController.StartSwing();
+
+        if (_settleDetector != null)
+            _settleDetector.ResetState();
+
+        SetState(GameState.Ready);
+    }
+
+    private void SetupStage(StageDataSO data)
     {
         CurrentStageData = data;
 
@@ -139,20 +175,21 @@ public class StageManager : MonoSingleton<StageManager>
             CurrentStageData.cameraOrthographicSize, mainCamera.aspect);
 
         if (_settleDetector != null)
-            _settleDetector.InitializeBounds(mainCamera);
+            _settleDetector.UpdateCameraBounds(mainCamera);
     }
 
     private void SpawnMonkeyArm()
     {
         if (monkeyArmPrefab == null) return;
 
-        if (_monkeyArmInstance != null)
-            Destroy(_monkeyArmInstance);
+        if (_monkeyArmInstance == null)
+        {
+            _monkeyArmInstance = Instantiate(monkeyArmPrefab);
+            _monkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
+        }
 
-        _monkeyArmInstance = Instantiate(monkeyArmPrefab);
         _monkeyArmInstance.transform.position = new Vector3(
             CurrentStageData.monkeyArmPosition.x, CurrentStageData.monkeyArmPosition.y, 0f);
-        _monkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
 
         if (_monkeyArm != null)
             _monkeyArm.ResetArm();
@@ -172,32 +209,8 @@ public class StageManager : MonoSingleton<StageManager>
         ResetBanana();
     }
 
-    public void ResetBanana()
-    {
-        if (_bananaInstance != null)
-            _bananaInstance.transform.position = CurrentStageData.bananaSpawnPosition;
-
-        if (_throwController != null)
-            _throwController.ResetBanana();
-
-        if (_settleDetector != null)
-            _settleDetector.ResetState();
-
-        if (_throwController != null)
-            _throwController.StartSwing();
-
-        SetState(GameState.Ready);
-    }
-
     private void ClearStage()
     {
-        if (_monkeyArmInstance != null)
-        {
-            Destroy(_monkeyArmInstance);
-            _monkeyArmInstance = null;
-            _monkeyArm = null;
-        }
-
         foreach (var obj in _spawnedStageObjects)
         {
             if (obj != null) Destroy(obj);
@@ -205,37 +218,15 @@ public class StageManager : MonoSingleton<StageManager>
         _spawnedStageObjects.Clear();
     }
 
-    public void SetState(GameState newState)
-    {
-        if (CurrentState == newState) return;
-
-        var prev = CurrentState;
-        CurrentState = newState;
-
-        Debug.Log($"[StageManager] {prev} → {newState}");
-
-        OnStateChanged?.Invoke(newState);
-
-        if (newState == GameState.StageReady)
-            ShowStageReadyAsync().Forget();
-
-        if (newState == GameState.Success)
-            PlaySuccessAsync().Forget();
-    }
-
     private async UniTaskVoid ShowStageReadyAsync()
     {
-        var popup = await UIManager.Instance.ShowPopup<UIStageReady>();
+        var popup = UIManager.Instance.GetPanel<UIStageReady>();
         popup.Refresh(CurrentStageIndex, CurrentStageData.stageDescription);
+        await UIManager.Instance.ShowPopup<UIStageReady>();
     }
 
-    private async UniTaskVoid PlaySuccessAsync()
+    private async UniTaskVoid ShowStageResultAsync()
     {
-        _effectCts?.Cancel();
-        _effectCts?.Dispose();
-        _effectCts = new CancellationTokenSource();
-        var ct = _effectCts.Token;
-
         Bounds captureBounds = _settleDetector != null
             ? _settleDetector.GetSettledBounds()
             : new Bounds(Vector3.zero, Vector3.one);
@@ -246,7 +237,6 @@ public class StageManager : MonoSingleton<StageManager>
 
             var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
             resultUI.SetCaptureTexture(_captureRT);
-
             await UIManager.Instance.ShowPopup<UIStageResult>();
         }
     }
@@ -276,9 +266,6 @@ public class StageManager : MonoSingleton<StageManager>
 
     private void OnDestroy()
     {
-        _effectCts?.Cancel();
-        _effectCts?.Dispose();
-
         if (_captureRT != null)
             _captureRT.Release();
     }

@@ -43,20 +43,21 @@ public class MonkeyArm : MonoBehaviour
         _simVel += accel * dt;
         _angle += _simVel * dt;
 
-        if (_angle < idleAngle) { _angle = idleAngle; if (_simVel < 0f) _simVel = 0f; }
-        else if (_angle > raisedAngle) { _angle = raisedAngle; if (_simVel > 0f) _simVel = 0f; }
+        if (_angle < idleAngle) 
+        { 
+            _angle = idleAngle; 
+            if (_simVel < 0f) 
+                _simVel = 0f; 
+        }
+        else if (_angle > raisedAngle) 
+        {
+            _angle = raisedAngle; 
+            if (_simVel > 0f) 
+                _simVel = 0f; 
+        }
 
         _rb.MoveRotation(_angle);
     }
-
-    public void Raise()
-    {
-        if (!_raising && useFlickImpulse)
-            _simVel += flickImpulse;
-        _raising = true;
-    }
-
-    public void Lower() => _raising = false;
 
     public void ResetArm()
     {
@@ -65,4 +66,14 @@ public class MonkeyArm : MonoBehaviour
         _angle = idleAngle;
         _rb.rotation = idleAngle;
     }
+
+    public void Raise()
+    {
+        if (!_raising && useFlickImpulse)
+            _simVel += flickImpulse;
+
+        _raising = true;
+    }
+
+    public void Lower() => _raising = false;
 }

@@ -32,11 +32,6 @@ public class UIStageResult : UIPopup
         btnNext.onClick.AddListener(OnClickNext);
     }
 
-    public void SetCaptureTexture(RenderTexture rt)
-    {
-        capturedImage.texture = rt;
-    }
-
     protected override async UniTask OnShowAnimation()
     {
         filmPanel.gameObject.SetActive(false);
@@ -65,6 +60,11 @@ public class UIStageResult : UIPopup
             successParticle.Stop();
 
         filmPanel.gameObject.SetActive(false);
+    }
+
+    public void SetCaptureTexture(RenderTexture rt)
+    {
+        capturedImage.texture = rt;
     }
 
     private void OnClickRetry()
