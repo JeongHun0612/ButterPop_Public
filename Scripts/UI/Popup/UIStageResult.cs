@@ -1,4 +1,4 @@
-using Coffee.UIExtensions;
+// using Coffee.UIExtensions; // TODO: UIParticle 패키지(git URL) 설치 후 주석 해제
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using UnityEngine;
@@ -18,14 +18,14 @@ public class UIStageResult : UIPopup
 
     [Header("파티클")]
     [SerializeField] private RectTransform particleAnchor;
-    [SerializeField] private UIParticle successParticlePrefab;
+    // [SerializeField] private UIParticle successParticlePrefab; // TODO: UIParticle 패키지 설치 후 주석 해제
 
     [Header("하단 버튼")]
     [SerializeField] private Button btnRetry;
     [SerializeField] private Button btnAdReward;
     [SerializeField] private Button btnNext;
 
-    private UIParticle _spawnedParticle;
+    // private UIParticle _spawnedParticle; // TODO: UIParticle 패키지 설치 후 주석 해제
 
     public override void Initialize()
     {
@@ -49,7 +49,7 @@ public class UIStageResult : UIPopup
             await UniTask.Delay((int)(shutterHoldDuration * 1000));
 
             filmPanel.gameObject.SetActive(true);
-            SpawnParticle();
+            // SpawnParticle(); // TODO: UIParticle 패키지 설치 후 주석 해제
 
             await shutterPanel.DOFade(0f, shutterFadeOutDuration).ToUniTask();
             shutterPanel.gameObject.SetActive(false);
@@ -58,7 +58,7 @@ public class UIStageResult : UIPopup
 
     protected override async UniTask OnHideAnimation()
     {
-        DespawnParticle();
+        // DespawnParticle(); // TODO: UIParticle 패키지 설치 후 주석 해제
         filmPanel.gameObject.SetActive(false);
     }
 
@@ -67,29 +67,30 @@ public class UIStageResult : UIPopup
         capturedImage.texture = rt;
     }
 
-    private void SpawnParticle()
-    {
-        var prefab = ResolvePresentationPrefab();
-        if (prefab == null) return;
-
-        DespawnParticle();
-        var parent = particleAnchor != null ? particleAnchor : transform;
-        _spawnedParticle = Instantiate(prefab, parent);
-        _spawnedParticle.Play();
-    }
-
-    private void DespawnParticle()
-    {
-        if (_spawnedParticle == null) return;
-        Destroy(_spawnedParticle.gameObject);
-        _spawnedParticle = null;
-    }
-
-    private UIParticle ResolvePresentationPrefab()
-    {
-        // TODO: 스킨 연동 시 여기서 장착된 스킨의 프리팹을 반환
-        return successParticlePrefab;
-    }
+    // TODO: UIParticle 패키지(git URL) 설치 후 아래 블록 주석 해제
+    // private void SpawnParticle()
+    // {
+    //     var prefab = ResolvePresentationPrefab();
+    //     if (prefab == null) return;
+    //
+    //     DespawnParticle();
+    //     var parent = particleAnchor != null ? particleAnchor : transform;
+    //     _spawnedParticle = Instantiate(prefab, parent);
+    //     _spawnedParticle.Play();
+    // }
+    //
+    // private void DespawnParticle()
+    // {
+    //     if (_spawnedParticle == null) return;
+    //     Destroy(_spawnedParticle.gameObject);
+    //     _spawnedParticle = null;
+    // }
+    //
+    // private UIParticle ResolvePresentationPrefab()
+    // {
+    //     // TODO: 스킨 연동 시 여기서 장착된 스킨의 프리팹을 반환
+    //     return successParticlePrefab;
+    // }
 
     private void OnClickRetry()
     {
