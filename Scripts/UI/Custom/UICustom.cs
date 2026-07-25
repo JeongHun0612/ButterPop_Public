@@ -23,6 +23,7 @@ public class UICustom : UIPopup
     [SerializeField] private PagedScrollRect pagedScroll;
     [SerializeField] private RectTransform content;   // 페이지들의 부모 (HorizontalLayoutGroup)
     [SerializeField] private SkinPage pagePrefab;     // 페이지 프리팹 (부족할 때 생성용)
+    [SerializeField] private GameObject emptyPlaceholder;   // "콘텐츠 준비중" 안내 (스킨 데이터가 없을 때)
 
     [Header("페이지")]
     [SerializeField] private Button prevButton;
@@ -101,14 +102,29 @@ public class UICustom : UIPopup
 
         _currentTab = database.GetTab(category);
 
-        _selected = FindEquipped() ?? (_currentTab.Count > 0 ? _currentTab.skins[0] : null);
-
         UpdateTabVisual(category);
         RefreshOwnedCount();
-        BuildPages();
 
-        if (_selected != null)
-            ShowPreviewPanel(_selected);
+        // 해당 카테고리에 스킨 데이터가 없으면 안내 문구만 노출하고 그리드는 숨긴다.
+        bool hasSkins = _currentTab != null && _currentTab.Count > 0;
+        SetContentVisible(hasSkins);
+
+        if (!hasSkins)
+        {
+            _selected = null;
+            return;
+        }
+
+        _selected = FindEquipped() ?? _currentTab.skins[0];
+
+        BuildPages();
+        ShowPreviewPanel(_selected);
+    }
+
+    private void SetContentVisible(bool hasSkins)
+    {
+        if (pagedScroll != null) pagedScroll.gameObject.SetActive(hasSkins);
+        if (emptyPlaceholder != null) emptyPlaceholder.SetActive(!hasSkins);
     }
 
     private void UpdateTabVisual(SkinCategory selected)
@@ -127,12 +143,15 @@ public class UICustom : UIPopup
 
     private void RefreshOwnedCount()
     {
-        int owned = 0;
-        foreach (var skin in _currentTab.skins)
-            if (_service.IsOwned(skin)) owned++;
+        if (ownedCountText == null) return;
 
-        if (ownedCountText != null)
-            ownedCountText.text = $"Owned {owned}/{_currentTab.Count}";
+        int owned = 0;
+        if (_currentTab != null)
+            foreach (var skin in _currentTab.skins)
+                if (_service.IsOwned(skin)) owned++;
+
+        int maxCount = _currentTab?.Count ?? 0;
+        ownedCountText.text = $"보유 {owned}/{maxCount}";
     }
 
     // ---------------- 페이지 구성 ----------------

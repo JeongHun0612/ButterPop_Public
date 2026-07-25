@@ -7,7 +7,6 @@ public class UIInGameHUD : UIScene
     [Header("Buttons")]
     [SerializeField] private Button customButton;
     [SerializeField] private Button storeButton;
-    [SerializeField] private Button tempButton;
 
     public override void Initialize()
     {
@@ -15,7 +14,6 @@ public class UIInGameHUD : UIScene
 
         customButton.onClick.AddListener(OnCustomButtonClicked);
         storeButton.onClick.AddListener(OnStoreButtonClicked);
-        tempButton.onClick.AddListener(OnTempButtonClicked);
     }
 
     private void OnCustomButtonClicked()
@@ -26,10 +24,5 @@ public class UIInGameHUD : UIScene
     private void OnStoreButtonClicked()
     {
         UIManager.Instance.ShowPopup<UIStore>().Forget();
-    }
-
-    private void OnTempButtonClicked()
-    {
-        Debug.Log("[UIInGameHUD] Temp 버튼 클릭");
     }
 }

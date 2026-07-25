@@ -248,6 +248,7 @@ public class StageManager : MonoSingleton<StageManager>
 
             var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
             resultUI.SetCaptureTexture(_captureRT);
+            UIManager.Instance.HideAllPopups().Forget();
             await UIManager.Instance.ShowPopup<UIStageResult>();
         }
     }
