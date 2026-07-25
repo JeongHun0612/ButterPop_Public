@@ -18,7 +18,6 @@ public class PagedScrollRect : MonoBehaviour, IEndDragHandler, IBeginDragHandler
     private ScrollRect _scrollRect;
     private int _pageCount;
     private int _currentPage;
-    private bool _isDragging;
     private Tweener _snapTween;
 
     public int CurrentPage => _currentPage;
@@ -50,14 +49,11 @@ public class PagedScrollRect : MonoBehaviour, IEndDragHandler, IBeginDragHandler
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        _isDragging = true;
         _snapTween?.Kill();
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        _isDragging = false;
-
         if (_pageCount <= 1)
         {
             SnapToPage(0, false);

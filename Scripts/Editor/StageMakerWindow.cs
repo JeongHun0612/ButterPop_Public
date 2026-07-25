@@ -39,7 +39,6 @@ public class StageMakerWindow : EditorWindow
     }
 
     private WorkingData _data;
-    private SerializedObject _serializedData;
     private StageDataSO _loadedSO;
 
     private bool _isEditMode;
@@ -111,7 +110,6 @@ public class StageMakerWindow : EditorWindow
         if (_data != null) return;
         _data = CreateInstance<WorkingData>();
         _data.hideFlags = HideFlags.DontSave;
-        _serializedData = null;
     }
 
     private void OnUndoRedo()

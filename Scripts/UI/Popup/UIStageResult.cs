@@ -56,7 +56,7 @@ public class UIStageResult : UIPopup
         }
     }
 
-    protected override async UniTask OnHideAnimation()
+    public override void OnAfterHide()
     {
         DespawnParticle();
         filmPanel.gameObject.SetActive(false);
