@@ -11,8 +11,8 @@ public class StageMakerWindow : EditorWindow
     {
         public string stageName = "New Stage";
         public string stageDescription = "";
-        public Vector2 bananaSpawnPosition = new(0f, 3f);
-        public Vector2 monkeyArmPosition = new(0f, -2f);
+        public Vector2 bananaSpawnPosition = DefaultBananaSpawnPosition;
+        public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 6f;
         public List<StageObjectEntry> stageObjects = new();
@@ -27,6 +27,10 @@ public class StageMakerWindow : EditorWindow
         public float rotation;
         public Vector2 scale = Vector2.one;
         public bool flipX;
+        public bool coverBanana;
+
+        // Size X/Y를 원본 비율을 유지하며 함께 조절할지 여부 (에디터 편의용, SO에는 저장하지 않음).
+        public bool lockAspect = false;
     }
 
     private WorkingData _data;
@@ -46,6 +50,10 @@ public class StageMakerWindow : EditorWindow
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
+    // 바나나 낙하 시작점 · 원숭이 팔의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
+    private static readonly Vector2 DefaultBananaSpawnPosition = new(-1.4f, 2.5f);
+    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2.4f, -2f);
+
     private Vector2 _scrollPos;
 
     [MenuItem("BananaGallery/Stage Maker")]
@@ -61,6 +69,11 @@ public class StageMakerWindow : EditorWindow
         EditorApplication.update += OnEditorUpdate;
         EnsureWorkingData();
         Undo.undoRedoPerformed += OnUndoRedo;
+
+        // 도메인 리로드(스크립트 컴파일 등)로 _data는 파괴되어 기본값으로 리셋되지만,
+        // 창에 직렬화된 _loadedSO는 살아남아 상태가 어긋난다(오브젝트가 비어 프리뷰가 안 뜸).
+        // 로드된 SO가 있으면 그 데이터로 다시 채워 일관성을 맞춘다.
+        if (_loadedSO != null) LoadFromSO(_loadedSO);
     }
 
     private void OnDisable()
@@ -122,6 +135,8 @@ public class StageMakerWindow : EditorWindow
         DrawBananaSpawn();
         EditorGUILayout.Space(4);
         DrawMonkeyArm();
+        EditorGUILayout.Space(2);
+        DrawResetSpawnButton();
         EditorGUILayout.Space(4);
         DrawCameraSettings();
         EditorGUILayout.Space(4);
@@ -176,7 +191,8 @@ public class StageMakerWindow : EditorWindow
                     position = obj.position,
                     rotation = obj.rotation,
                     scale = obj.scale,
-                    flipX = obj.flipX
+                    flipX = obj.flipX,
+                    coverBanana = obj.coverBanana
                 });
             }
         }
@@ -228,6 +244,21 @@ public class StageMakerWindow : EditorWindow
             if (_isEditMode) UpdateMonkeyArmPreviewPosition();
             SceneView.RepaintAll();
         }
+    }
+
+    private void DrawResetSpawnButton()
+    {
+        if (!GUILayout.Button("바나나·원숭이 팔 위치 기본값으로", GUILayout.Height(22))) return;
+
+        RecordUndo("Reset Spawn Positions");
+        _data.bananaSpawnPosition = DefaultBananaSpawnPosition;
+        _data.monkeyArmPosition = DefaultMonkeyArmPosition;
+        if (_isEditMode)
+        {
+            UpdateBananaPreviewPosition();
+            UpdateMonkeyArmPreviewPosition();
+        }
+        SceneView.RepaintAll();
     }
 
     private void DrawCameraSettings()
@@ -296,10 +327,31 @@ public class StageMakerWindow : EditorWindow
                 }
             }
 
+            // 좁은 인스펙터에서도 벡터 필드를 "라벨 | X Y" 한 줄로 렌더링한다.
+            bool prevWideMode = EditorGUIUtility.wideMode;
+            EditorGUIUtility.wideMode = true;
+
             var newPosition = EditorGUILayout.Vector2Field("Position", entry.position);
             float newRotation = EditorGUILayout.FloatField("Rotation", entry.rotation);
+
+            EditorGUILayout.BeginHorizontal();
             var newScale = EditorGUILayout.Vector2Field("Size", entry.scale);
+            var lockIcon = new GUIContent(
+                EditorGUIUtility.IconContent(entry.lockAspect ? "Linked" : "Unlinked"))
+            {
+                tooltip = "비율 고정: 켜면 Size X/Y가 원본 비율을 유지하며 함께 조절됩니다."
+            };
+            bool newLockAspect = GUILayout.Toggle(
+                entry.lockAspect, lockIcon, "IconButton", GUILayout.Width(22f), GUILayout.Height(18f));
+            EditorGUILayout.EndHorizontal();
+            newScale = ApplyAspectLock(entry.scale, newScale, newLockAspect);
+
+            EditorGUIUtility.wideMode = prevWideMode;
+
             bool newFlipX = EditorGUILayout.Toggle("Flip X", entry.flipX);
+            bool newCoverBanana = EditorGUILayout.Toggle(
+                new GUIContent("바나나 가리기", "체크 시 Sorting Order를 높여 바나나를 가립니다 (돔 내부 등)."),
+                entry.coverBanana);
 
             if (EditorGUI.EndChangeCheck())
             {
@@ -315,7 +367,9 @@ public class StageMakerWindow : EditorWindow
                 entry.position = newPosition;
                 entry.rotation = newRotation;
                 entry.scale = newScale;
+                entry.lockAspect = newLockAspect;
                 entry.flipX = newFlipX;
+                entry.coverBanana = newCoverBanana;
 
                 if (_isEditMode)
                 {
@@ -457,7 +511,22 @@ public class StageMakerWindow : EditorWindow
         }
 
         ApplyEntryToTransform(go.transform, entry);
+        ApplyCoverBanana(go, entry);
         return go;
+    }
+
+    // 비율 고정: 이전 값 대비 변경된 축을 찾아 반대 축을 같은 배율로 맞춘다.
+    // 인스펙터·핸들은 한 번에 한 축만 바꾸므로 X를 먼저 검사하고, 아니면 Y로 판단한다.
+    private static Vector2 ApplyAspectLock(Vector2 previous, Vector2 next, bool locked)
+    {
+        if (!locked) return next;
+
+        if (!Mathf.Approximately(next.x, previous.x) && !Mathf.Approximately(previous.x, 0f))
+            next.y = previous.y * (next.x / previous.x);
+        else if (!Mathf.Approximately(next.y, previous.y) && !Mathf.Approximately(previous.y, 0f))
+            next.x = previous.x * (next.y / previous.y);
+
+        return next;
     }
 
     private void ApplyEntryToTransform(Transform t, StageObjectEntry entry)
@@ -466,6 +535,20 @@ public class StageMakerWindow : EditorWindow
         t.rotation = Quaternion.Euler(0f, 0f, entry.rotation);
         float scaleX = entry.flipX ? -entry.scale.x : entry.scale.x;
         t.localScale = new Vector3(scaleX, entry.scale.y, 1f);
+    }
+
+    // 프리뷰에서도 바나나 가리기 여부에 따라 Sorting Order를 반영해 실제 그려지는 순서를 확인할 수 있게 한다.
+    // 원본 프리팹의 Order in Layer(흰자·검은자 등 내부 상대 순서)를 유지하기 위해 덮어쓰지 않고 오프셋만 더한다.
+    // 원본 값을 기준으로 계산하므로 이동·회전 등으로 반복 호출돼도 누적되지 않는다(idempotent).
+    private void ApplyCoverBanana(GameObject go, StageObjectEntry entry)
+    {
+        int offset = entry.coverBanana ? StageDataSO.CoverBananaSortingOrder : 0;
+        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            var source = PrefabUtility.GetCorrespondingObjectFromSource(sr);
+            int baseOrder = source != null ? source.sortingOrder : 0;
+            sr.sortingOrder = baseOrder + offset;
+        }
     }
 
     private void SetPreviewStatic(GameObject go)
@@ -507,6 +590,7 @@ public class StageMakerWindow : EditorWindow
         }
 
         ApplyEntryToTransform(instance.transform, entry);
+        ApplyCoverBanana(instance, entry);
 
         if (entry.prefab != null) return;
 
@@ -764,7 +848,7 @@ public class StageMakerWindow : EditorWindow
                     if (EditorGUI.EndChangeCheck())
                     {
                         RecordUndo("Scale Stage Object");
-                        entry.scale = new Vector2(newScale.x, newScale.y);
+                        entry.scale = ApplyAspectLock(entry.scale, new Vector2(newScale.x, newScale.y), entry.lockAspect);
                         if (i < _objectPreviewInstances.Count && _objectPreviewInstances[i] != null)
                             ApplyEntryToTransform(_objectPreviewInstances[i].transform, entry);
                         changed = true;
@@ -841,7 +925,8 @@ public class StageMakerWindow : EditorWindow
                 position = entry.position,
                 rotation = entry.rotation,
                 scale = entry.scale,
-                flipX = entry.flipX
+                flipX = entry.flipX,
+                coverBanana = entry.coverBanana
             };
 
             if (entry.prefab != null)
@@ -860,9 +945,14 @@ public class StageMakerWindow : EditorWindow
 
     private GameObject GetOrCreatePrefab(Sprite sprite)
     {
-        string prefabPath = $"{GeneratedPrefabFolder}/{sprite.name}.prefab";
+        // Images/StageObjects 규칙과 동일하게 타입별 서브폴더에 넣는다. 예: Jelly_01 → StageObjects/Jelly/Jelly_01.prefab
+        string categoryFolder = $"{GeneratedPrefabFolder}/{GetCategoryName(sprite.name)}";
+        string prefabPath = $"{categoryFolder}/{sprite.name}.prefab";
+
         var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
         if (existing != null) return existing;
+
+        EnsureFolder(categoryFolder);
 
         var go = new GameObject(sprite.name);
         var sr = go.AddComponent<SpriteRenderer>();
@@ -875,6 +965,13 @@ public class StageMakerWindow : EditorWindow
 
         Debug.Log($"[StageMaker] 프리팹 생성: {prefabPath}");
         return prefab;
+    }
+
+    // 에셋 이름에서 타입(카테고리) 폴더명을 얻는다. 첫 언더스코어 앞부분. 예: Eye_Sclera_01 → Eye
+    private static string GetCategoryName(string assetName)
+    {
+        int underscore = assetName.IndexOf('_');
+        return underscore > 0 ? assetName.Substring(0, underscore) : assetName;
     }
 
     private static void EnsureStageObjectComponent(GameObject prefab)

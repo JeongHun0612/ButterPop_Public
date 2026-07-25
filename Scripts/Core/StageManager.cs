@@ -158,6 +158,14 @@ public class StageManager : MonoSingleton<StageManager>
             instance.transform.rotation = Quaternion.Euler(0f, 0f, objData.rotation);
             float scaleX = objData.flipX ? -objData.scale.x : objData.scale.x;
             instance.transform.localScale = new Vector3(scaleX, objData.scale.y, 1f);
+
+            // 바나나 가리기 오브젝트는 Sorting Order를 높여 바나나보다 앞에 그린다
+            if (objData.coverBanana)
+            {
+                foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
+                    sr.sortingOrder += StageDataSO.CoverBananaSortingOrder;
+            }
+
             _spawnedStageObjects.Add(instance);
         }
     }
