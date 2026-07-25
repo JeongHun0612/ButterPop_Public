@@ -39,7 +39,7 @@ public class StageDataSO : ScriptableObject
 
     [Header("카메라")]
     public Vector2 cameraCenter;
-    public float cameraOrthographicSize = 5f;
+    public float cameraOrthographicSize = 6f;
 
     [Header("배경")]
     public Color backgroundColor = DefaultBackgroundColor;

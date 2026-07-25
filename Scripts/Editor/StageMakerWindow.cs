@@ -9,7 +9,7 @@ public class StageMakerWindow : EditorWindow
     // Undo 지원을 위한 Serializable 작업 데이터 (에셋으로 저장하지 않음)
     private class WorkingData : ScriptableObject
     {
-        public string stageName = "New Stage";
+        public string stageName = DefaultStageName;
         public string stageDescription = "";
         public Vector2 bananaSpawnPosition = DefaultBananaSpawnPosition;
         public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
@@ -50,6 +50,9 @@ public class StageMakerWindow : EditorWindow
     private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
+
+    // 신규 작업의 기본 스테이지 이름. 첫 오브젝트 추가 시 이름 자동 설정 여부 판별에도 사용한다.
+    private const string DefaultStageName = "New Stage";
 
     // 바나나 낙하 시작점 · 원숭이 팔의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
     private static readonly Vector2 DefaultBananaSpawnPosition = new(-1.4f, 2.5f);
@@ -388,7 +391,7 @@ public class StageMakerWindow : EditorWindow
                 bool visualChanged = entry.prefab != newPrefab || entry.sprite != newSprite;
                 entry.prefab = newPrefab;
                 entry.sprite = newSprite;
-                if (visualChanged && i == 0 && _data.stageName == "New Stage")
+                if (visualChanged && i == 0 && _data.stageName == DefaultStageName)
                 {
                     if (newPrefab != null) _data.stageName = newPrefab.name;
                     else if (newSprite != null) _data.stageName = newSprite.name;
@@ -1043,10 +1046,10 @@ public class StageMakerWindow : EditorWindow
         _loadedSO = null;
 
         RecordUndo("Reset Stage Maker");
-        _data.stageName = "New Stage";
+        _data.stageName = DefaultStageName;
         _data.stageDescription = "";
-        _data.bananaSpawnPosition = new Vector2(0f, 3f);
-        _data.monkeyArmPosition = new Vector2(0f, -2f);
+        _data.bananaSpawnPosition = DefaultBananaSpawnPosition;
+        _data.monkeyArmPosition = DefaultMonkeyArmPosition;
         _data.cameraCenter = Vector2.zero;
         _data.cameraOrthoSize = 6f;
         _data.backgroundColor = StageDataSO.DefaultBackgroundColor;
