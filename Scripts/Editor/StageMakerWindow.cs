@@ -32,6 +32,10 @@ public class StageMakerWindow : EditorWindow
 
         // Size X/Y를 원본 비율을 유지하며 함께 조절할지 여부 (에디터 편의용, SO에는 저장하지 않음).
         public bool lockAspect = false;
+
+        // 비율 고정 시 기준이 되는 종횡비(X/Y). 락을 켜는 순간 캡처한다.
+        // 매번 현재 값에서 파생하지 않고 이 값을 쓰므로, 입력 중 한 축이 0을 스쳐도 비율이 유실되지 않는다.
+        public float lockAspectRatio = 1f;
     }
 
     private WorkingData _data;
@@ -376,7 +380,12 @@ public class StageMakerWindow : EditorWindow
             bool newLockAspect = GUILayout.Toggle(
                 entry.lockAspect, lockIcon, "IconButton", GUILayout.Width(22f), GUILayout.Height(18f));
             EditorGUILayout.EndHorizontal();
-            newScale = ApplyAspectLock(entry.scale, newScale, newLockAspect);
+
+            // 비율 고정이 새로 켜진 순간의 종횡비를 저장해 이후 입력의 기준으로 삼는다.
+            if (newLockAspect && !entry.lockAspect)
+                entry.lockAspectRatio = CaptureAspectRatio(entry.scale);
+
+            newScale = ApplyAspectLock(entry.scale, newScale, newLockAspect, entry.lockAspectRatio);
 
             EditorGUIUtility.wideMode = prevWideMode;
 
@@ -547,19 +556,25 @@ public class StageMakerWindow : EditorWindow
         return go;
     }
 
-    // 비율 고정: 이전 값 대비 변경된 축을 찾아 반대 축을 같은 배율로 맞춘다.
+    // 비율 고정: 저장된 종횡비(ratio = X/Y)를 기준으로, 사용자가 바꾼 축에 맞춰 반대 축을 계산한다.
     // 인스펙터·핸들은 한 번에 한 축만 바꾸므로 X를 먼저 검사하고, 아니면 Y로 판단한다.
-    private static Vector2 ApplyAspectLock(Vector2 previous, Vector2 next, bool locked)
+    // 값을 이전 값에서 나눗셈으로 파생하지 않으므로, "0.5" 입력 도중의 "0"처럼 한 축이 잠깐 0이 돼도
+    // 비율이 유실되지 않고 회복된다.
+    private static Vector2 ApplyAspectLock(Vector2 previous, Vector2 next, bool locked, float ratio)
     {
-        if (!locked) return next;
+        if (!locked || ratio <= 0f) return next;
 
-        if (!Mathf.Approximately(next.x, previous.x) && !Mathf.Approximately(previous.x, 0f))
-            next.y = previous.y * (next.x / previous.x);
-        else if (!Mathf.Approximately(next.y, previous.y) && !Mathf.Approximately(previous.y, 0f))
-            next.x = previous.x * (next.y / previous.y);
+        if (!Mathf.Approximately(next.x, previous.x))
+            next.y = next.x / ratio;
+        else if (!Mathf.Approximately(next.y, previous.y))
+            next.x = next.y * ratio;
 
         return next;
     }
+
+    // 현재 스케일에서 종횡비(X/Y)를 구한다. 축이 0이면 비율을 정의할 수 없어 1로 둔다.
+    private static float CaptureAspectRatio(Vector2 scale)
+        => Mathf.Approximately(scale.x, 0f) || Mathf.Approximately(scale.y, 0f) ? 1f : scale.x / scale.y;
 
     private void ApplyEntryToTransform(Transform t, StageObjectEntry entry)
     {
@@ -884,7 +899,7 @@ public class StageMakerWindow : EditorWindow
                     if (EditorGUI.EndChangeCheck())
                     {
                         RecordUndo("Scale Stage Object");
-                        entry.scale = ApplyAspectLock(entry.scale, new Vector2(newScale.x, newScale.y), entry.lockAspect);
+                        entry.scale = ApplyAspectLock(entry.scale, new Vector2(newScale.x, newScale.y), entry.lockAspect, entry.lockAspectRatio);
                         if (i < _objectPreviewInstances.Count && _objectPreviewInstances[i] != null)
                             ApplyEntryToTransform(_objectPreviewInstances[i].transform, entry);
                         changed = true;
