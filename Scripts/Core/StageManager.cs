@@ -182,6 +182,9 @@ public class StageManager : MonoSingleton<StageManager>
         mainCamera.orthographicSize = StageDataSO.ResolveOrthographicSize(
             CurrentStageData.cameraOrthographicSize, mainCamera.aspect);
 
+        mainCamera.clearFlags = CameraClearFlags.SolidColor;
+        mainCamera.backgroundColor = CurrentStageData.backgroundColor;
+
         if (_settleDetector != null)
             _settleDetector.UpdateCameraBounds(mainCamera);
     }

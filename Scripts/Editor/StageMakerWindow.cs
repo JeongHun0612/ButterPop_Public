@@ -15,6 +15,7 @@ public class StageMakerWindow : EditorWindow
         public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 6f;
+        public Color backgroundColor = StageDataSO.DefaultBackgroundColor;
         public List<StageObjectEntry> stageObjects = new();
     }
 
@@ -140,6 +141,8 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.Space(4);
         DrawCameraSettings();
         EditorGUILayout.Space(4);
+        DrawBackgroundSettings();
+        EditorGUILayout.Space(4);
         DrawStageObjects();
 
         EditorGUILayout.EndScrollView();
@@ -178,6 +181,7 @@ public class StageMakerWindow : EditorWindow
         _data.monkeyArmPosition = so.monkeyArmPosition;
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
+        _data.backgroundColor = so.backgroundColor;
 
         _data.stageObjects.Clear();
         if (so.stageObjects != null)
@@ -275,6 +279,31 @@ public class StageMakerWindow : EditorWindow
             _data.cameraOrthoSize = newOrtho;
             if (_isEditMode) SyncGameCamera();
         }
+    }
+
+    private void DrawBackgroundSettings()
+    {
+        EditorGUILayout.LabelField("배경", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUI.BeginChangeCheck();
+        var newColor = EditorGUILayout.ColorField(
+            new GUIContent("Background Color", "카메라 Solid Color 배경색. 기본값 #3C3C3C."),
+            _data.backgroundColor);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("Edit Background Color");
+            _data.backgroundColor = newColor;
+            if (_isEditMode) SyncGameCamera();
+        }
+
+        if (GUILayout.Button("기본값", GUILayout.Width(60)))
+        {
+            RecordUndo("Reset Background Color");
+            _data.backgroundColor = StageDataSO.DefaultBackgroundColor;
+            if (_isEditMode) SyncGameCamera();
+        }
+        EditorGUILayout.EndHorizontal();
     }
 
     private void DrawStageObjects()
@@ -617,6 +646,10 @@ public class StageMakerWindow : EditorWindow
         _mainCamera.transform.position = new Vector3(
             _data.cameraCenter.x, _data.cameraCenter.y, _mainCamera.transform.position.z);
         _mainCamera.orthographicSize = _data.cameraOrthoSize;
+
+        // 배경색도 실시간 반영해 프리뷰에서 최종 배경을 확인할 수 있게 한다.
+        _mainCamera.clearFlags = CameraClearFlags.SolidColor;
+        _mainCamera.backgroundColor = _data.backgroundColor;
     }
 
     private void CleanupPreview()
@@ -913,6 +946,7 @@ public class StageMakerWindow : EditorWindow
         so.monkeyArmPosition = _data.monkeyArmPosition;
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
+        so.backgroundColor = _data.backgroundColor;
 
         EnsureFolder(GeneratedPrefabFolder);
 
@@ -1015,6 +1049,7 @@ public class StageMakerWindow : EditorWindow
         _data.monkeyArmPosition = new Vector2(0f, -2f);
         _data.cameraCenter = Vector2.zero;
         _data.cameraOrthoSize = 6f;
+        _data.backgroundColor = StageDataSO.DefaultBackgroundColor;
         _data.stageObjects.Clear();
 
         Repaint();

@@ -4,15 +4,15 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage/Stage Data")]
 public class StageDataSO : ScriptableObject
 {
-    /// <summary>
-    /// 오브젝트·카메라 배치 기준 화면 비율(가로/세로). 19.5:9 (1170x2532).
-    /// 이 비율에서 의도한 구도가 나오고, 다른 비율은 아래 ResolveOrthographicSize로 타협한다.
-    /// 흔한 범위(19.5:9~20:9)의 중앙값이라 타협하는 기기 수가 가장 적다.
-    /// </summary>
+    // 오브젝트·카메라 배치 기준 화면 비율(가로/세로). 19.5:9 (1170x2532)
     public const float ReferenceAspect = 9f / 19.5f;
 
-    /// <summary>바나나를 가리는 오브젝트(돔 내부 등)에 적용할 Sorting Order. 바나나보다 앞에 그린다.</summary>
+    // 바나나를 가리는 오브젝트에 적용할 Sorting Order
     public const int CoverBananaSortingOrder = 100;
+
+    // 스테이지 기본 배경색
+    public static readonly Color DefaultBackgroundColor =
+        ColorUtility.TryParseHtmlString("#3C3C3C", out var color) ? color : Color.gray;
 
     /// <summary>
     /// 기준 비율에서 잡은 orthographicSize를 실제 기기 비율에 맞춰 보정한다.
@@ -40,6 +40,9 @@ public class StageDataSO : ScriptableObject
     [Header("카메라")]
     public Vector2 cameraCenter;
     public float cameraOrthographicSize = 5f;
+
+    [Header("배경")]
+    public Color backgroundColor = DefaultBackgroundColor;
 
     [Header("스테이지 오브젝트")]
     public StageObjectSpawnData[] stageObjects;
