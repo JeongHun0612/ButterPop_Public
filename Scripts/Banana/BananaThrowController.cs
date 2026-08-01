@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
@@ -17,6 +18,8 @@ public class BananaThrowController : MonoBehaviour
     private HingeJoint2D _hinge;
 
     private bool _released;
+
+    public event Action OnDropped;
 
     private void Awake()
     {
@@ -65,7 +68,7 @@ public class BananaThrowController : MonoBehaviour
         if (_hinge != null)
             _hinge.enabled = false;
 
-        StageManager.Instance.SetState(GameState.Falling);
+        OnDropped?.Invoke();
     }
 
     public void FreezeInPlace() => SetKinematic();

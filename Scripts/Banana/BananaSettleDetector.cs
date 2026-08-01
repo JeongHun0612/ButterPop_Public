@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,9 +10,6 @@ public class BananaSettleDetector : MonoBehaviour
     [SerializeField] private float settleTimeRequired = 0.5f;
     [SerializeField] private float outOfBoundsMargin = 2f;
 
-    [Header("딜레이")]
-    [SerializeField] private float respawnDelay = 0.5f;
-
     private readonly HashSet<StageObject> _touchingStages = new();
 
     private Rigidbody2D _rb;
@@ -19,7 +17,10 @@ public class BananaSettleDetector : MonoBehaviour
     private float _fallXThreshold;
     private float _settleTimer;
     private bool _touchingMonkeyArm;
-    private bool _judged;
+    private bool _judging;
+
+    public event Action<Bounds> OnSettled;
+    public event Action OnFell;
 
     private void Awake()
     {
@@ -28,14 +29,7 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void Update()
     {
-        if (StageManager.Instance == null)
-            return;
-
-        var state = StageManager.Instance.CurrentState;
-        if (state != GameState.Falling && state != GameState.Settling)
-            return;
-
-        if (_judged)
+        if (!_judging)
             return;
 
         var pos = transform.position;
@@ -47,9 +41,6 @@ public class BananaSettleDetector : MonoBehaviour
 
         if (_touchingStages.Count > 0 && !_touchingMonkeyArm && _rb.linearVelocity.magnitude < settleSpeedThreshold)
         {
-            if (state != GameState.Settling)
-                StageManager.Instance.SetState(GameState.Settling);
-
             _settleTimer += Time.deltaTime;
             if (_settleTimer >= settleTimeRequired)
             {
@@ -60,6 +51,12 @@ public class BananaSettleDetector : MonoBehaviour
         {
             _settleTimer = 0f;
         }
+    }
+
+    public void BeginJudging()
+    {
+        ResetState();
+        _judging = true;
     }
 
     public void UpdateCameraBounds(Camera cam)
@@ -73,7 +70,7 @@ public class BananaSettleDetector : MonoBehaviour
 
     public void ResetState()
     {
-        _judged = false;
+        _judging = false;
         _settleTimer = 0f;
         _touchingStages.Clear();
         _touchingMonkeyArm = false;
@@ -94,24 +91,16 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void OnSuccess()
     {
-        _judged = true;
-        StageManager.Instance.BananaController.FreezeInPlace();
-        StageManager.Instance.SetState(GameState.Success);
+        _judging = false;
         Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
+        OnSettled?.Invoke(GetSettledBounds());
     }
 
     private void OnFailed()
     {
-        _judged = true;
-        StageManager.Instance.SetState(GameState.Failed);
+        _judging = false;
         Debug.Log("<color=red>[Result] FAILED - 바나나가 떨어졌습니다!</color>");
-        Invoke(nameof(Respawn), respawnDelay);
-    }
-
-    private void Respawn()
-    {
-        StageManager.Instance.ResetBanana();
-        Debug.Log("[Result] 바나나 리스폰 완료");
+        OnFell?.Invoke();
     }
 
     private static Bounds GetRendererBounds(GameObject go)

@@ -1,9 +1,8 @@
 public enum GameState
 {
+    None,
     StageReady,
     Ready,
     Falling,
-    Settling,
-    Success,
-    Failed
+    Result
 }

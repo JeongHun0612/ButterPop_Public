@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class EyeTracker : MonoBehaviour
+public class EyeTracker : MonoBehaviour, IStageContextReceiver
 {
     [SerializeField] private Transform pupil;
 
@@ -13,6 +13,12 @@ public class EyeTracker : MonoBehaviour
 
     private Vector3 _pupilOrigin;
     private float _maxOffset;
+    private Transform _target;
+
+    public void ReceiveStageContext(StageContext context)
+        => SetTarget(context?.Banana != null ? context.Banana.transform : null);
+
+    public void SetTarget(Transform target) => _target = target;
 
     private void Awake()
     {
@@ -34,16 +40,14 @@ public class EyeTracker : MonoBehaviour
     private void LateUpdate()
     {
         if (pupil == null) return;
-        if (StageManager.Instance == null) return;
 
-        Transform banana = StageManager.Instance.BananaController?.transform;
-        if (banana == null)
+        if (_target == null)
         {
             pupil.localPosition = Vector3.Lerp(pupil.localPosition, _pupilOrigin, Time.deltaTime * followSpeed);
             return;
         }
 
-        Vector3 dirWorld = banana.position - transform.position;
+        Vector3 dirWorld = _target.position - transform.position;
         Vector3 dirLocal = transform.InverseTransformDirection(dirWorld).normalized;
 
         float angle = Mathf.Atan2(dirLocal.y, dirLocal.x) * Mathf.Rad2Deg;

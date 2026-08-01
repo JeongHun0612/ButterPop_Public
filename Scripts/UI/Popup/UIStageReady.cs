@@ -33,6 +33,7 @@ public class UIStageReady : UIPopup
 
     public override void OnAfterHide()
     {
-        StageManager.Instance.SetState(GameState.Ready);
+        if (StageManager.Instance != null)
+            StageManager.Instance.SetState(GameState.Ready);
     }
 }
