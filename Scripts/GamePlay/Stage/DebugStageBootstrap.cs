@@ -55,7 +55,7 @@ public class DebugStageBootstrap : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private Vector2 _scroll;
-    private bool _showList = true;
+    private bool _showList = false;
     private GUIStyle _boxStyle;
     private GUIStyle _labelStyle;
     private GUIStyle _buttonStyle;
