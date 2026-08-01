@@ -14,12 +14,17 @@ public class BananaThrowController : MonoBehaviour
     [SerializeField] private bool clampSpeed = true;
     [SerializeField] private float maxSpeed = 12f;
 
+    [Header("부착 기준점")]
+    [SerializeField] private Transform centerAnchor;
+
     private Rigidbody2D _rb;
     private HingeJoint2D _hinge;
 
     private bool _released;
 
     public event Action OnDropped;
+
+    public Transform CenterAnchor => centerAnchor;
 
     private void Awake()
     {

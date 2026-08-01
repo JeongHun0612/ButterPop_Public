@@ -59,6 +59,8 @@ public class BananaSettleDetector : MonoBehaviour
         _judging = true;
     }
 
+    public void SuspendJudging() => _judging = false;
+
     public void UpdateCameraBounds(Camera cam)
     {
         float halfH = cam.orthographicSize;
@@ -78,15 +80,27 @@ public class BananaSettleDetector : MonoBehaviour
 
     public Bounds GetSettledBounds()
     {
-        var bounds = GetRendererBounds(gameObject);
+        var bounds = RendererUtils.GetWorldBounds(gameObject);
 
         foreach (var stage in _touchingStages)
         {
             if (stage == null) continue;
-            bounds.Encapsulate(GetRendererBounds(stage.gameObject));
+            bounds.Encapsulate(RendererUtils.GetWorldBounds(stage.gameObject));
         }
 
         return bounds;
+    }
+
+    public void ForceSettle(GameObject extraObject = null)
+    {
+        _judging = false;
+
+        var bounds = RendererUtils.GetWorldBounds(gameObject);
+        if (extraObject != null)
+            bounds.Encapsulate(RendererUtils.GetWorldBounds(extraObject));
+
+        Debug.Log("<color=green>[Result] SUCCESS - 외부 기믹에 의한 클리어</color>");
+        OnSettled?.Invoke(bounds);
     }
 
     private void OnSuccess()
@@ -101,19 +115,6 @@ public class BananaSettleDetector : MonoBehaviour
         _judging = false;
         Debug.Log("<color=red>[Result] FAILED - 바나나가 떨어졌습니다!</color>");
         OnFell?.Invoke();
-    }
-
-    private static Bounds GetRendererBounds(GameObject go)
-    {
-        var renderers = go.GetComponentsInChildren<Renderer>();
-        if (renderers.Length == 0)
-            return new Bounds(go.transform.position, Vector3.zero);
-
-        var bounds = renderers[0].bounds;
-        for (int i = 1; i < renderers.Length; i++)
-            bounds.Encapsulate(renderers[i].bounds);
-
-        return bounds;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
