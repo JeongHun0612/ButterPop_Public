@@ -31,7 +31,7 @@ public class StageMakerWindow : EditorWindow
         public bool coverBanana;
 
         // Size X/Y를 원본 비율을 유지하며 함께 조절할지 여부 (에디터 편의용, SO에는 저장하지 않음).
-        public bool lockAspect = false;
+        public bool lockAspect = true;
 
         // 비율 고정 시 기준이 되는 종횡비(X/Y). 락을 켜는 순간 캡처한다.
         // 매번 현재 값에서 파생하지 않고 이 값을 쓰므로, 입력 중 한 축이 0을 스쳐도 비율이 유실되지 않는다.
