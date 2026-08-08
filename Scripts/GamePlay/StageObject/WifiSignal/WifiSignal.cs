@@ -4,8 +4,6 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 // 와이파이 신호 기믹: 프레임을 순차 교체해 누적 점등하고, 마지막 프레임에서 일정 시간 콜라이더가 솔리드가 된다.
-// 비활성 구간에는 콜라이더를 트리거로 두어 바나나가 통과하게 하고, 솔리드로 전환하는 순간 바나나가 안에 박혀
-// 튕겨나가지 않도록 영역이 빌 때까지 대기한 뒤 활성화한다.
 public class WifiSignal : MonoBehaviour
 {
     [Header("신호 프레임")]
