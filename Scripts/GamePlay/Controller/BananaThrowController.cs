@@ -17,14 +17,20 @@ public class BananaThrowController : MonoBehaviour
     [Header("부착 기준점")]
     [SerializeField] private Transform centerAnchor;
 
+    [Header("비주얼")]
+    [Tooltip("실제 바나나 스프라이트 렌더러(BananaVisual)")]
+    [SerializeField] private SpriteRenderer bananaRenderer;
+
     private Rigidbody2D _rb;
     private HingeJoint2D _hinge;
 
+    private Color _originalBananaColor = Color.white;
     private bool _released;
 
     public event Action OnDropped;
 
     public Transform CenterAnchor => centerAnchor;
+    public SpriteRenderer BananaRenderer => bananaRenderer;
 
     private void Awake()
     {
@@ -32,6 +38,9 @@ public class BananaThrowController : MonoBehaviour
         _hinge = GetComponent<HingeJoint2D>();
         _hinge.enabled = false;
         SetKinematic();
+
+        if (bananaRenderer != null)
+            _originalBananaColor = bananaRenderer.color;
     }
 
     private void FixedUpdate()
@@ -47,6 +56,9 @@ public class BananaThrowController : MonoBehaviour
     public void StartSwing()
     {
         _released = false;
+
+        if (bananaRenderer != null)
+            bananaRenderer.color = _originalBananaColor;
 
         if (_hinge != null)
             _hinge.enabled = false;
