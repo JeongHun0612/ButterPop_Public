@@ -10,6 +10,10 @@ public class Fire : MonoBehaviour, IStageContextReceiver
     [Tooltip("완전히 타기까지 걸리는 시간(초)")]
     [SerializeField] private float burnDuration = 2f;
 
+    [Header("사운드")]
+    [Tooltip("타기 시작할 때 한 번 재생할 클립")]
+    [SerializeField] private AudioClip burnClip;
+
     private StageContext _context;
     private Color _baseColor = Color.white;
     private float _burnProgress;
@@ -38,6 +42,8 @@ public class Fire : MonoBehaviour, IStageContextReceiver
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         RunBurn(_cts.Token).Forget();
+
+        PlayBurnSound();
     }
 
     public void StopBurn()
@@ -49,8 +55,6 @@ public class Fire : MonoBehaviour, IStageContextReceiver
 
     private async UniTaskVoid RunBurn(CancellationToken token)
     {
-        // TODO: 타는 효과음 재생
-
         var renderer = _context.Banana.BananaRenderer;
 
         while (_burnProgress < 1f && !token.IsCancellationRequested)
@@ -60,7 +64,13 @@ public class Fire : MonoBehaviour, IStageContextReceiver
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);
         }
+    }
 
-        // TODO: 완전히 탔을 때 효과음 or 처리
+    private void PlayBurnSound()
+    {
+        if (burnClip == null) return;
+
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.PlaySfx(burnClip);
     }
 }

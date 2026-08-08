@@ -15,6 +15,10 @@ public class DeskBell : MonoBehaviour, IBananaHittable
     [Tooltip("감쇠 진동 횟수. 클수록 여러 번 잘게 흔들린다")]
     [SerializeField] private int swayVibrato = 8;
 
+    [Header("사운드")]
+    [Tooltip("종을 칠 때 재생할 종소리 클립")]
+    [SerializeField] private AudioClip ringClip;
+
     [Header("재생 제한")]
     [Tooltip("연속 충돌로 인한 연타를 막는 최소 재생 간격(초)")]
     [SerializeField] private float ringCooldown = 1f;
@@ -57,6 +61,9 @@ public class DeskBell : MonoBehaviour, IBananaHittable
 
     private void PlayRingSound()
     {
-        // TODO: 사운드 시스템 연동 후 종소리 재생
+        if (ringClip == null) return;
+
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.PlaySfx(ringClip);
     }
 }
