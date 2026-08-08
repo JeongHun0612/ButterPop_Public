@@ -132,6 +132,10 @@ public class StageManager : MonoSingleton<StageManager>
         _current.Banana.FreezeInPlace();
         SetState(GameState.Result);
         MarkCleared(CurrentStageIndex);
+
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.PlaySfx(SfxType.StageClear);
+
         OnStageCleared?.Invoke(bounds);
     }
 

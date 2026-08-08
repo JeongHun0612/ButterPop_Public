@@ -107,6 +107,9 @@ public class UIStageSelect : UIPopup
 
     private void OnCellClicked(int index)
     {
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.PlaySfx(SfxType.ButtonClick);
+
         ConfirmAndCloseAsync(index).Forget();
     }
 

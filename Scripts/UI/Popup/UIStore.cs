@@ -17,12 +17,12 @@ public class UIStore : UIPopup
     {
         base.Initialize();
 
-        if (advButton != null ) advButton.onClick.AddListener(OnAdvButtonClicked);
-        if (goldBananaButton != null) goldBananaButton.onClick.AddListener(OnGoldBananaButtonClicked);
-        if (dailyRewardButton != null) dailyRewardButton.onClick.AddListener(OnDailyRewardButtonClicked);
+        if (advButton != null) advButton.OnClickWithSound(OnAdvButtonClicked);
+        if (goldBananaButton != null) goldBananaButton.OnClickWithSound(OnGoldBananaButtonClicked);
+        if (dailyRewardButton != null) dailyRewardButton.OnClickWithSound(OnDailyRewardButtonClicked);
 
-        if (customButton != null) customButton.onClick.AddListener(OnCustomButtonClicked);
-        if (closeButton != null) closeButton.onClick.AddListener(OnClickBack);
+        if (customButton != null) customButton.OnClickWithSound(OnCustomButtonClicked);
+        if (closeButton != null) closeButton.OnClickWithSound(OnClickBack);
     }
 
     // TODO: 광고 제거 인앱결제 연동

@@ -10,6 +10,9 @@ public class BananaSettleDetector : MonoBehaviour
     [SerializeField] private float settleTimeRequired = 0.5f;
     [SerializeField] private float outOfBoundsMargin = 2f;
 
+    [Header("사운드")]
+    [SerializeField] private float hitSoundCooldown = 0.3f;
+
     private readonly HashSet<StageObject> _touchingStages = new();
 
     private Rigidbody2D _rb;
@@ -18,6 +21,7 @@ public class BananaSettleDetector : MonoBehaviour
     private float _settleTimer;
     private bool _touchingMonkeyArm;
     private bool _judging;
+    private float _lastHitSoundTime = float.NegativeInfinity;
 
     public event Action<Bounds> OnSettled;
     public event Action OnFell;
@@ -122,6 +126,14 @@ public class BananaSettleDetector : MonoBehaviour
         if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
         {
             _touchingMonkeyArm = true;
+
+            if (Time.time - _lastHitSoundTime > hitSoundCooldown)
+            {
+                _lastHitSoundTime = Time.time;
+                if (SoundManager.TryGetInstance(out var sound))
+                    sound.PlaySfx(SfxType.BananaThrow);
+            }
+
             return;
         }
 

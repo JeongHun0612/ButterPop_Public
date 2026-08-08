@@ -57,17 +57,17 @@ public class UICustom : UIPopup
         foreach (var tab in tabButtons)
         {
             var captured = tab.category;
-            tab.button.onClick.AddListener(() => SelectTab(captured));
+            tab.button.OnClickWithSound(() => SelectTab(captured));
         }
 
-        if (prevButton != null) prevButton.onClick.AddListener(() => pagedScroll.MovePrev());
-        if (nextButton != null) nextButton.onClick.AddListener(() => pagedScroll.MoveNext());
+        if (prevButton != null) prevButton.OnClickWithSound(() => pagedScroll.MovePrev());
+        if (nextButton != null) nextButton.OnClickWithSound(() => pagedScroll.MoveNext());
 
         pagedScroll.OnPageChanged += OnPageChanged;
 
-        if (saveButton != null) saveButton.onClick.AddListener(OnSave);
-        if (gachaButton != null) gachaButton.onClick.AddListener(OnGacha);
-        if (closeButton != null) closeButton.onClick.AddListener(OnClickBack);
+        if (saveButton != null) saveButton.OnClickWithSound(OnSave);
+        if (gachaButton != null) gachaButton.OnClickWithSound(OnGacha);
+        if (closeButton != null) closeButton.OnClickWithSound(OnClickBack);
 
         // Content 하위에 미리 배치된 페이지들을 풀에 등록
         for (int i = 0; i < content.childCount; i++)

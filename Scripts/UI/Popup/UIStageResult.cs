@@ -31,9 +31,9 @@ public class UIStageResult : UIPopup
     {
         base.Initialize();
 
-        btnRetry.onClick.AddListener(OnClickRetry);
-        btnAdReward.onClick.AddListener(OnClickAdReward);
-        btnNext.onClick.AddListener(OnClickNext);
+        btnRetry.OnClickWithSound(OnClickRetry);
+        btnAdReward.OnClickWithSound(OnClickAdReward);
+        btnNext.OnClickWithSound(OnClickNext);
     }
 
     public override void OnBeforeShow()

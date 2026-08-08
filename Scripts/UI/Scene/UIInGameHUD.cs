@@ -13,9 +13,9 @@ public class UIInGameHUD : UIScene
     {
         base.Initialize();
 
-        customButton.onClick.AddListener(OnCustomButtonClicked);
-        storeButton.onClick.AddListener(OnStoreButtonClicked);
-        stageSelectButton.onClick.AddListener(OnStageSelectButtonClicked);
+        customButton.OnClickWithSound(OnCustomButtonClicked);
+        storeButton.OnClickWithSound(OnStoreButtonClicked);
+        stageSelectButton.OnClickWithSound(OnStageSelectButtonClicked);
     }
 
     private void OnCustomButtonClicked()
