@@ -20,11 +20,11 @@ public class StageManager : MonoSingleton<StageManager>
 
     public GameState CurrentState { get; private set; } = GameState.None;
     public int CurrentStageIndex { get; private set; }
+    public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
     public StageDataSO CurrentStageData => _current?.Data;
     public BananaThrowController BananaController => _current?.Banana;
     public MonkeyArm MonkeyArm => _current?.MonkeyArm;
-
 
     protected override void Awake()
     {
@@ -32,6 +32,12 @@ public class StageManager : MonoSingleton<StageManager>
 
         if (builder != null)
             builder.OnActorsCreated += BindActors;
+    }
+
+    public void LoadSavedStage()
+    {
+        int index = Mathf.Clamp(GetHighestClearedIndex() + 1, 0, StageCount - 1);
+        LoadStage(index);
     }
 
     public void LoadStage(int index)
@@ -85,23 +91,48 @@ public class StageManager : MonoSingleton<StageManager>
         SetState(GameState.Ready);
     }
 
+    public bool IsCleared(int index) => index >= 0 && index <= GetHighestClearedIndex();
+
+    public int GetHighestClearedIndex()
+    {
+        if (!Services.TryGet<ISaveService>(out var save)) return -1;
+        if (save.Data?.stage == null) return -1;
+        return save.Data.stage.highestClearedIndex;
+    }
+
+    private void MarkCleared(int index)
+    {
+        if (!Services.TryGet<ISaveService>(out var save)) return;
+        if (save.Data?.stage == null) return;
+        if (index <= save.Data.stage.highestClearedIndex) return;
+
+        save.Data.stage.highestClearedIndex = index;
+        save.Save();
+        Debug.Log($"[StageManager] 클리어 갱신: {index}");
+    }
+
     private void BindActors(StageContext ctx)
     {
-        ctx.Banana.OnDropped += () =>
-        {
-            SetState(GameState.Falling);
-            ctx.SettleDetector.BeginJudging();
-        };
-
-        ctx.SettleDetector.OnSettled += bounds =>
-        {
-            ctx.Banana.FreezeInPlace();
-            SetState(GameState.Result);
-            OnStageCleared?.Invoke(bounds);
-        };
-
-        ctx.SettleDetector.OnFell += () => RespawnAfterDelayAsync().Forget();
+        ctx.Banana.OnDropped += OnBananaDropped;
+        ctx.SettleDetector.OnSettled += OnBananaSettled;
+        ctx.SettleDetector.OnFell += OnBananaFell;
     }
+
+    private void OnBananaDropped()
+    {
+        SetState(GameState.Falling);
+        _current.SettleDetector.BeginJudging();
+    }
+
+    private void OnBananaSettled(Bounds bounds)
+    {
+        _current.Banana.FreezeInPlace();
+        SetState(GameState.Result);
+        MarkCleared(CurrentStageIndex);
+        OnStageCleared?.Invoke(bounds);
+    }
+
+    private void OnBananaFell() => RespawnAfterDelayAsync().Forget();
 
     private async UniTaskVoid RespawnAfterDelayAsync()
     {

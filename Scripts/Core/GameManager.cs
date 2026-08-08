@@ -3,8 +3,6 @@ using UnityEngine;
 
 public class GameManager : MonoSingleton<GameManager>
 {
-    [SerializeField] private int startStageIndex = 0;
-
     protected override void Awake()
     {
         base.Awake();
@@ -20,9 +18,10 @@ public class GameManager : MonoSingleton<GameManager>
     {
         UIManager.Instance.ShowInitialLoading().Forget();
 
+        await ServiceBootstrap.Initialize();
         await UIManager.Instance.InitializeAsync();
-        StageManager.Instance.LoadStage(startStageIndex);
 
+        StageManager.Instance.LoadSavedStage();
         await UIManager.Instance.ShowScene<UIInGameHUD>();
 
         UIManager.Instance.HideInitialLoading().Forget();
