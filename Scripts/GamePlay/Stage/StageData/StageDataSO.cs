@@ -8,7 +8,7 @@ public class StageDataSO : ScriptableObject
     public const float ReferenceAspect = 9f / 19.5f;
 
     // 바나나를 가리는 오브젝트에 적용할 Sorting Order
-    public const int CoverBananaSortingOrder = 100;
+    public const int CoverBananaSortingOrder = 1000;
 
     // 스테이지 기본 배경색
     public static readonly Color DefaultBackgroundColor =
