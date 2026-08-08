@@ -6,3 +6,13 @@ public enum GameState
     Falling,
     Result
 }
+
+public enum SfxType
+{
+    None,
+    ButtonClick,
+    BananaThrow,
+    BananaSettle,
+    StageClear,
+    StageFail
+}
