@@ -38,8 +38,9 @@ public class UIStageResult : UIPopup
 
     public override void OnBeforeShow()
     {
-        // 마지막 스테이지에서는 다음 스테이지가 없으므로 다음 버튼을 비활성화
-        btnNext.gameObject.SetActive(StageManager.Instance.HasNextStage);
+        var stageManager = StageManager.Instance;
+        Debug.Assert(stageManager != null, "[UIStageResult] StageManager가 없습니다");
+        btnNext.gameObject.SetActive(stageManager.HasNextStage);
     }
 
     protected override async UniTask OnShowAnimation()

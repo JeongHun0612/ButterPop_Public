@@ -16,7 +16,7 @@ public class DebugStageBootstrap : MonoBehaviour
             return;
         }
 
-        if (StageManager.Instance == null)
+        if (!StageManager.TryGetInstance(out var stageManager))
         {
             Debug.LogError("[DebugStageBootstrap] StageManager가 씬에 없습니다.");
             return;
@@ -25,8 +25,8 @@ public class DebugStageBootstrap : MonoBehaviour
         if (debugStageData == null)
         {
             Debug.Log("[DebugStageBootstrap] debugStageData 미지정 → 0번 스테이지 로드");
-            StageManager.Instance.LoadStage(0);
-            StageManager.Instance.ResetBanana();
+            stageManager.LoadStage(0);
+            stageManager.ResetBanana();
             return;
         }
 
@@ -34,14 +34,14 @@ public class DebugStageBootstrap : MonoBehaviour
         if (index < 0)
         {
             Debug.LogWarning($"[DebugStageBootstrap] {debugStageData.stageName}이 stageList에 없습니다. 직접 로드합니다.");
-            StageManager.Instance.LoadStageData(debugStageData);
-            StageManager.Instance.ResetBanana();
+            stageManager.LoadStageData(debugStageData);
+            stageManager.ResetBanana();
             return;
         }
 
         Debug.Log($"[DebugStageBootstrap] 스테이지 {index} 로드: {debugStageData.stageName}");
-        StageManager.Instance.LoadStage(index);
-        StageManager.Instance.ResetBanana();
+        stageManager.LoadStage(index);
+        stageManager.ResetBanana();
     }
 
     private int FindStageIndex(StageDataSO data)
@@ -98,11 +98,9 @@ public class DebugStageBootstrap : MonoBehaviour
 
     private void OnGUI()
     {
-        if (StageManager.Instance == null || stageList == null) return;
+        if (!StageManager.TryGetInstance(out var stageManager) || stageList == null) return;
 
         InitStyles();
-
-        var sm = StageManager.Instance;
         float scale = Mathf.Max(Screen.width / 1080f, 1f);
         float topBarHeight = 110 * scale;
         float panelWidth = 360 * scale;
@@ -112,21 +110,21 @@ public class DebugStageBootstrap : MonoBehaviour
         GUILayout.BeginArea(new Rect(0, 0, Screen.width, topBarHeight));
         GUILayout.BeginHorizontal(_boxStyle);
 
-        string stageLabel = sm.CurrentStageData != null
-            ? $"{sm.CurrentStageIndex}: {sm.CurrentStageData.stageName}"
-            : $"{sm.CurrentStageIndex}";
-        GUILayout.Label($"<b>[{sm.CurrentState}]</b>  {stageLabel}", _labelStyle);
+        string stageLabel = stageManager.CurrentStageData != null
+            ? $"{stageManager.CurrentStageIndex}: {stageManager.CurrentStageData.stageName}"
+            : $"{stageManager.CurrentStageIndex}";
+        GUILayout.Label($"<b>[{stageManager.CurrentState}]</b>  {stageLabel}", _labelStyle);
 
         GUILayout.FlexibleSpace();
 
         if (GUILayout.Button("리셋", _buttonStyle, GUILayout.Width(180 * scale), GUILayout.Height(72 * scale)))
         {
-            sm.ResetBanana();
+            stageManager.ResetBanana();
         }
         if (GUILayout.Button("다음", _buttonStyle, GUILayout.Width(180 * scale), GUILayout.Height(72 * scale)))
         {
-            sm.LoadNextStage();
-            sm.ResetBanana();
+            stageManager.LoadNextStage();
+            stageManager.ResetBanana();
         }
         if (GUILayout.Button(_showList ? "목록 ▲" : "목록 ▼", _buttonStyle, GUILayout.Width(200 * scale), GUILayout.Height(72 * scale)))
             _showList = !_showList;
@@ -146,12 +144,12 @@ public class DebugStageBootstrap : MonoBehaviour
             {
                 var data = stageList.Get(i);
                 string label = $"{i}: {data.stageName}";
-                bool isCurrent = i == sm.CurrentStageIndex;
+                bool isCurrent = i == stageManager.CurrentStageIndex;
 
                 if (GUILayout.Button(label, isCurrent ? _currentButtonStyle : _buttonStyle))
                 {
-                    sm.LoadStage(i);
-                    sm.ResetBanana();
+                    stageManager.LoadStage(i);
+                    stageManager.ResetBanana();
                 }
             }
             GUILayout.EndScrollView();

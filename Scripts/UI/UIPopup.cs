@@ -16,8 +16,10 @@ public abstract class UIPopup : UIPanel
             dimmed.onClick.AddListener(OnClickBack);
     }
 
-    public void OnClickBack()
+    public virtual void OnClickBack()
     {
-        UIManager.Instance.HidePopup().Forget();
+        var uiManager = UIManager.Instance;
+        Debug.Assert(uiManager != null, "[UIPopup] UIManager가 없습니다");
+        uiManager.HidePopup().Forget();
     }
 }

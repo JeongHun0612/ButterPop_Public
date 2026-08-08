@@ -45,7 +45,10 @@ public class UIStore : UIPopup
 
     private async void OnCustomButtonClicked()
     {
-        await UIManager.Instance.HidePopup();
-        UIManager.Instance.ShowPopup<UICustom>().Forget();
+        var uiManager = UIManager.Instance;
+        Debug.Assert(uiManager != null, "[UIStore] UIManager가 없습니다");
+
+        await uiManager.HidePopup();
+        uiManager.ShowPopup<UICustom>().Forget();
     }
 }

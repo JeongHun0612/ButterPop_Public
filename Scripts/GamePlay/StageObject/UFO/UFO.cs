@@ -42,7 +42,8 @@ public class UFO : MonoBehaviour, IStageContextReceiver
     {
         if (_abducting) return;
         if (_context?.Banana == null || _context.SettleDetector == null) return;
-        if (StageManager.Instance == null || StageManager.Instance.CurrentState != GameState.Falling) return;
+        Debug.Assert(StageManager.Instance != null, "[UFO] StageManager가 없습니다");
+        if (StageManager.Instance.CurrentState != GameState.Falling) return;
 
         _abducting = true;
         AbductAsync().Forget();

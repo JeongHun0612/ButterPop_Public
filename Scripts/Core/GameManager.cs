@@ -21,15 +21,21 @@ public class GameManager : MonoSingleton<GameManager>
 
     private async UniTask InitializeAsync()
     {
-        UIManager.Instance.ShowInitialLoading().Forget();
+        var uiManager = UIManager.Instance;
+        Debug.Assert(uiManager != null, "[GameManager] UIManager가 없습니다");
+
+        uiManager.ShowInitialLoading().Forget();
 
         await ServiceBootstrap.Initialize();
-        await UIManager.Instance.InitializeAsync();
+        await uiManager.InitializeAsync();
 
-        StageManager.Instance.LoadSavedStage();
-        await UIManager.Instance.ShowScene<UIInGameHUD>();
+        var stageManager = StageManager.Instance;
+        Debug.Assert(stageManager != null, "[GameManager] StageManager가 없습니다");
+        stageManager.LoadSavedStage();
 
-        UIManager.Instance.HideInitialLoading().Forget();
+        await uiManager.ShowScene<UIInGameHUD>();
+
+        uiManager.HideInitialLoading().Forget();
     }
 
     // 진행 중이거나 대기 중인 저장을 완료까지 기다려 유실을 막는다(flush).

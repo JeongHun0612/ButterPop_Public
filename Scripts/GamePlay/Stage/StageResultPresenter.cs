@@ -26,18 +26,18 @@ public class StageResultPresenter : MonoBehaviour
 
     private void OnEnable()
     {
-        if (StageManager.Instance == null) return;
+        if (!StageManager.TryGetInstance(out var stageManager)) return;
 
-        StageManager.Instance.OnStateChanged += HandleStateChanged;
-        StageManager.Instance.OnStageCleared += HandleStageCleared;
+        stageManager.OnStateChanged += HandleStateChanged;
+        stageManager.OnStageCleared += HandleStageCleared;
     }
 
     private void OnDisable()
     {
-        if (StageManager.Instance == null) return;
+        if (!StageManager.TryGetInstance(out var stageManager)) return;
 
-        StageManager.Instance.OnStateChanged -= HandleStateChanged;
-        StageManager.Instance.OnStageCleared -= HandleStageCleared;
+        stageManager.OnStateChanged -= HandleStateChanged;
+        stageManager.OnStageCleared -= HandleStageCleared;
     }
 
     private void OnDestroy()
@@ -59,25 +59,29 @@ public class StageResultPresenter : MonoBehaviour
 
     private async UniTaskVoid ShowStageReadyAsync()
     {
-        if (UIManager.Instance == null || StageManager.Instance == null) return;
+        var uiManager = UIManager.Instance;
+        var stageManager = StageManager.Instance;
+        Debug.Assert(uiManager != null, "[StageResultPresenter] UIManager가 없습니다");
+        Debug.Assert(stageManager != null, "[StageResultPresenter] StageManager가 없습니다");
 
-        var popup = UIManager.Instance.GetPanel<UIStageReady>();
-        popup.Refresh(StageManager.Instance.CurrentStageIndex, StageManager.Instance.CurrentStageData.stageDescription);
-        await UIManager.Instance.ShowPopup<UIStageReady>();
+        var popup = uiManager.GetPanel<UIStageReady>();
+        popup.Refresh(stageManager.CurrentStageIndex, stageManager.CurrentStageData.stageDescription);
+        await uiManager.ShowPopup<UIStageReady>();
     }
 
     private async UniTaskVoid ShowStageResultAsync(Bounds captureBounds)
     {
-        if (UIManager.Instance == null) return;
+        var uiManager = UIManager.Instance;
+        Debug.Assert(uiManager != null, "[StageResultPresenter] UIManager가 없습니다");
 
         if (captureCamera != null)
         {
             CaptureScene(captureBounds);
 
-            var resultUI = UIManager.Instance.GetPanel<UIStageResult>();
+            var resultUI = uiManager.GetPanel<UIStageResult>();
             resultUI.SetCaptureTexture(_captureRT);
-            UIManager.Instance.HideAllPopups().Forget();
-            await UIManager.Instance.ShowPopup<UIStageResult>();
+            uiManager.HideAllPopups().Forget();
+            await uiManager.ShowPopup<UIStageResult>();
         }
     }
 

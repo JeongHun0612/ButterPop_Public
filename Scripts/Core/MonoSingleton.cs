@@ -16,4 +16,10 @@ public abstract class MonoSingleton<T> : MonoBehaviour where T : MonoBehaviour
         Instance = this as T;
         DontDestroyOnLoad(gameObject);
     }
+
+    public static bool TryGetInstance(out T instance)
+    {
+        instance = Instance;
+        return instance != null;
+    }
 }

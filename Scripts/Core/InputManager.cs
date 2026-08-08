@@ -9,22 +9,19 @@ public class InputManager : MonoBehaviour
 
     private void Update()
     {
-        if (StageManager.Instance == null)
-            return;
-
-        if (IsPointerOverUI())
-            return;
+        var stageManager = StageManager.Instance;
+        Debug.Assert(stageManager != null, "[InputManager] StageManager가 없습니다");
+        if (IsPointerOverUI()) return;
 
         if (_bananaController == null)
-            _bananaController = StageManager.Instance.BananaController;
+            _bananaController = stageManager.BananaController;
 
         if (_monkeyArm == null)
-            _monkeyArm = StageManager.Instance.MonkeyArm;
+            _monkeyArm = stageManager.MonkeyArm;
 
-        if (_bananaController == null)
-            return;
+        if (_bananaController == null) return;
 
-        var state = StageManager.Instance.CurrentState;
+        var state = stageManager.CurrentState;
 
         if (state == GameState.Ready && WasPressed())
         {
