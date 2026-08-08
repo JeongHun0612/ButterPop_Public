@@ -91,6 +91,9 @@ public class StageManager : MonoSingleton<StageManager>
         SetState(GameState.Ready);
     }
 
+    public StageDataSO GetStageData(int index) =>
+        stageList != null && stageList.IsValidIndex(index) ? stageList.Get(index) : null;
+
     public bool IsCleared(int index) => index >= 0 && index <= GetHighestClearedIndex();
 
     public int GetHighestClearedIndex()

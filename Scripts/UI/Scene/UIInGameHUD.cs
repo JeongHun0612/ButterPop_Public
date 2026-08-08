@@ -7,6 +7,7 @@ public class UIInGameHUD : UIScene
     [Header("Buttons")]
     [SerializeField] private Button customButton;
     [SerializeField] private Button storeButton;
+    [SerializeField] private Button stageSelectButton;
 
     public override void Initialize()
     {
@@ -14,6 +15,7 @@ public class UIInGameHUD : UIScene
 
         customButton.onClick.AddListener(OnCustomButtonClicked);
         storeButton.onClick.AddListener(OnStoreButtonClicked);
+        stageSelectButton.onClick.AddListener(OnStageSelectButtonClicked);
     }
 
     private void OnCustomButtonClicked()
@@ -24,5 +26,10 @@ public class UIInGameHUD : UIScene
     private void OnStoreButtonClicked()
     {
         UIManager.Instance.ShowPopup<UIStore>().Forget();
+    }
+
+    private void OnStageSelectButtonClicked()
+    {
+        UIManager.Instance.ShowPopup<UIStageSelect>().Forget();
     }
 }
