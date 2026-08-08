@@ -17,7 +17,7 @@ public class SkinPage : MonoBehaviour
     public void Bind(
         IReadOnlyList<SkinDataSO> skins,
         int startIndex,
-        SkinService service,
+        ISkinService service,
         SkinCategory category,
         SkinDataSO selected,
         Action<SkinDataSO> onSelect)

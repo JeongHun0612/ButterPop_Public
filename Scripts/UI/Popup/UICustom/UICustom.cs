@@ -40,7 +40,7 @@ public class UICustom : UIPopup
     [SerializeField] private Button gachaButton;
     [SerializeField] private Button closeButton;
 
-    private readonly SkinService _service = new();
+    private ISkinService _service;
     private readonly List<SkinPage> _pagePool = new();
 
     private int _activePageCount;
@@ -51,6 +51,8 @@ public class UICustom : UIPopup
     public override void Initialize()
     {
         base.Initialize();
+
+        _service = Services.Get<ISkinService>();
 
         foreach (var tab in tabButtons)
         {
@@ -236,7 +238,6 @@ public class UICustom : UIPopup
         if (_selected != null)
             _service.Equip(_currentTab.category, _selected);
 
-        // TODO(세이브 연동): 여기서 영속화 + 성공 피드백
         BuildPages();
     }
 
@@ -259,18 +260,3 @@ public class UICustom : UIPopup
     }
 }
 
-public class SkinService
-{
-    private readonly HashSet<string> _owned = new();
-    private readonly Dictionary<SkinCategory, string> _equipped = new();
-
-    public bool IsOwned(SkinDataSO skin) => _owned.Contains(skin.id);
-
-    public bool IsEquipped(SkinCategory category, SkinDataSO skin) =>
-        _equipped.TryGetValue(category, out var id) && id == skin.id;
-
-    public void Equip(SkinCategory category, SkinDataSO skin) =>
-        _equipped[category] = skin.id;
-
-    public void Grant(SkinDataSO skin) => _owned.Add(skin.id);
-}
