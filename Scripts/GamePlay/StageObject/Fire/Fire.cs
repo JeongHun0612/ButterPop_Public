@@ -29,7 +29,7 @@ public class Fire : MonoBehaviour, IStageContextReceiver
         _context = context;
         _burnProgress = 0f;
 
-        // 태우기 기준색은 바나나 원본 색. 재접촉 시 이어서 타도록 진행도는 유지한다.
+        // 태우기 기준색은 바나나 원본 색.
         if (_context?.Banana != null && _context.Banana.BananaRenderer != null)
             _baseColor = _context.Banana.BananaRenderer.color;
     }
@@ -51,6 +51,8 @@ public class Fire : MonoBehaviour, IStageContextReceiver
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
+
+        _burnProgress = 0f;
     }
 
     private async UniTaskVoid RunBurn(CancellationToken token)
