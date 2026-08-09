@@ -13,15 +13,23 @@ public class StageManager : MonoSingleton<StageManager>
     [Header("리스폰")]
     [SerializeField] private float respawnDelay = 0.5f;
 
+    [Header("스킵")]
+    [Tooltip("이 횟수만큼 실패하면 스킵 버튼이 활성화된다")]
+    [Min(1)]
+    [SerializeField] private int skipTryThreshold = 3;
+
     private StageContext _current;
+    private int _currentTryCount;
 
     public event Action<GameState> OnStateChanged;
     public event Action<Bounds> OnStageCleared;
+    public event Action<bool> OnSkipAvailabilityChanged;
 
     public GameState CurrentState { get; private set; } = GameState.None;
     public int CurrentStageIndex { get; private set; }
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
+    public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
     public StageDataSO CurrentStageData => _current?.Data;
     public BananaThrowController BananaController => _current?.Banana;
     public MonkeyArm MonkeyArm => _current?.MonkeyArm;
@@ -40,6 +48,19 @@ public class StageManager : MonoSingleton<StageManager>
         LoadStage(index);
     }
 
+    public void LoadNextStage()
+    {
+        if (HasNextStage)
+        {
+            LoadStage(CurrentStageIndex + 1);
+        }
+        else
+        {
+            Debug.Log("[StageManager] 마지막 스테이지입니다.");
+            LoadStage(CurrentStageIndex);
+        }
+    }
+
     public void LoadStage(int index)
     {
         if (stageList == null || !stageList.IsValidIndex(index))
@@ -56,21 +77,16 @@ public class StageManager : MonoSingleton<StageManager>
     {
         _current = builder.Build(data);
         builder.ResetBanana(_current);
+        ResetTryCount();
         SetState(GameState.StageReady);
         Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName}");
     }
 
-    public void LoadNextStage()
+    public void SkipCurrentStage()
     {
-        if (HasNextStage)
-        {
-            LoadStage(CurrentStageIndex + 1);
-        }
-        else
-        {
-            Debug.Log("[StageManager] 마지막 스테이지입니다.");
-            LoadStage(CurrentStageIndex);
-        }
+        Debug.Log($"[StageManager] 스테이지 스킵: {CurrentStageIndex}");
+        MarkCleared(CurrentStageIndex);
+        LoadNextStage();
     }
 
     public void SetState(GameState newState)
@@ -114,6 +130,22 @@ public class StageManager : MonoSingleton<StageManager>
         Debug.Log($"[StageManager] 클리어 갱신: {index}");
     }
 
+    private void IncrementTryCount()
+    {
+        bool wasAvailable = IsSkipAvailable;
+        _currentTryCount++;
+        Debug.Log($"[StageManager] 실패 트라이: {_currentTryCount}/{skipTryThreshold}");
+
+        if (!wasAvailable && IsSkipAvailable)
+            OnSkipAvailabilityChanged?.Invoke(true);
+    }
+
+    private void ResetTryCount()
+    {
+        _currentTryCount = 0;
+        OnSkipAvailabilityChanged?.Invoke(false);
+    }
+
     private void BindActors(StageContext ctx)
     {
         ctx.Banana.OnDropped += OnBananaDropped;
@@ -139,7 +171,11 @@ public class StageManager : MonoSingleton<StageManager>
         OnStageCleared?.Invoke(bounds);
     }
 
-    private void OnBananaFell() => RespawnAfterDelayAsync().Forget();
+    private void OnBananaFell()
+    {
+        IncrementTryCount();
+        RespawnAfterDelayAsync().Forget();
+    }
 
     private async UniTaskVoid RespawnAfterDelayAsync()
     {

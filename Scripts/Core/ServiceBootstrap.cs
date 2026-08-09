@@ -16,6 +16,11 @@ public static class ServiceBootstrap
         var purchase = new PurchaseService(save);
         Services.Register<IPurchaseService>(purchase);
         await purchase.InitializeAsync();
+
+        // 광고 서비스: 리워드 광고(스테이지 스킵 등)를 재생한다.
+        var ads = new AdsService();
+        Services.Register<IAdsService>(ads);
+        await ads.InitializeAsync();
     }
 }
 
