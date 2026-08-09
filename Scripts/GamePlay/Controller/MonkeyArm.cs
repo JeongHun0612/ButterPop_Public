@@ -24,6 +24,8 @@ public class MonkeyArm : MonoBehaviour
     private float _angle;
     private float _simVel;
 
+    public bool IsRaising => _raising;
+
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();

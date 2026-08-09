@@ -123,11 +123,13 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
+        var monkeyArm = collision.gameObject.GetComponentInParent<MonkeyArm>();
+        if (monkeyArm != null)
         {
             _touchingMonkeyArm = true;
 
-            if (Time.time - _lastHitSoundTime > hitSoundCooldown)
+            // 팔을 올려칠 때 닿은 경우에만 타격음 재생 (바나나가 팔 위에서 흔들리는 접촉은 제외)
+            if (monkeyArm.IsRaising && Time.time - _lastHitSoundTime > hitSoundCooldown)
             {
                 _lastHitSoundTime = Time.time;
                 if (SoundManager.TryGetInstance(out var sound))
