@@ -127,10 +127,6 @@ public class MenuCustomPanel : MonoBehaviour
 
     private void OnCellSelected(SkinDataSO data)
     {
-        // TODO(AudioManager): 미리듣기 재생 — 같은 셀을 다시 눌러도 재생
-        if (data.PreviewClip != null)
-            Debug.Log($"[MenuCustomPanel] 미리듣기: {data.displayName}");
-
         if (_selected == data) return;
 
         _selected = data;

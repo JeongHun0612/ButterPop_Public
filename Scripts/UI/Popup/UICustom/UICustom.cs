@@ -90,7 +90,6 @@ public class UICustom : UIPopup
 
     protected override UniTask OnHide()
     {
-        // TODO(AudioManager): 미리듣기 정지
         return UniTask.CompletedTask;
     }
 
@@ -99,8 +98,6 @@ public class UICustom : UIPopup
     private void SelectTab(SkinCategory category)
     {
         if (_currentTab != null && _currentTab.category == category) return;
-
-        // TODO(AudioManager): 미리듣기 정지
 
         _currentTab = database.GetTab(category);
 
@@ -210,10 +207,6 @@ public class UICustom : UIPopup
 
     private void OnCellSelected(SkinDataSO data)
     {
-        // TODO(AudioManager): 미리듣기 재생 — 같은 셀을 다시 눌러도 재생
-        if (data.PreviewClip != null)
-            Debug.Log($"[UICustom] 미리듣기: {data.displayName}");
-
         if (_selected == data) return;
 
         _selected = data;

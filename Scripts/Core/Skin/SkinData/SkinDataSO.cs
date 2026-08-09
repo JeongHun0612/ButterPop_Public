@@ -13,6 +13,4 @@ public class SkinDataSO : ScriptableObject
 
     [Header("가격")]
     public int price;
-
-    public virtual AudioClip PreviewClip => null;
 }
