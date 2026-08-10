@@ -33,13 +33,13 @@ public class DebugStageBootstrap : MonoBehaviour
         int index = FindStageIndex(debugStageData);
         if (index < 0)
         {
-            Debug.LogWarning($"[DebugStageBootstrap] {debugStageData.stageName}이 stageList에 없습니다. 직접 로드합니다.");
+            Debug.LogWarning($"[DebugStageBootstrap] {debugStageData.stageId}이 stageList에 없습니다. 직접 로드합니다.");
             stageManager.LoadStageData(debugStageData);
             stageManager.ResetBanana();
             return;
         }
 
-        Debug.Log($"[DebugStageBootstrap] 스테이지 {index} 로드: {debugStageData.stageName}");
+        Debug.Log($"[DebugStageBootstrap] 스테이지 {index} 로드: {debugStageData.stageId}");
         stageManager.LoadStage(index);
         stageManager.ResetBanana();
     }
@@ -111,7 +111,7 @@ public class DebugStageBootstrap : MonoBehaviour
         GUILayout.BeginHorizontal(_boxStyle);
 
         string stageLabel = stageManager.CurrentStageData != null
-            ? $"{stageManager.CurrentStageIndex}: {stageManager.CurrentStageData.stageName}"
+            ? $"{stageManager.CurrentStageIndex}: {stageManager.CurrentStageData.stageId}"
             : $"{stageManager.CurrentStageIndex}";
         GUILayout.Label($"<b>[{stageManager.CurrentState}]</b>  {stageLabel}", _labelStyle);
 
@@ -143,7 +143,7 @@ public class DebugStageBootstrap : MonoBehaviour
             for (int i = 0; i < stageList.Count; i++)
             {
                 var data = stageList.Get(i);
-                string label = $"{i}: {data.stageName}";
+                string label = $"{i}: {data.stageId}";
                 bool isCurrent = i == stageManager.CurrentStageIndex;
 
                 if (GUILayout.Button(label, isCurrent ? _currentButtonStyle : _buttonStyle))

@@ -9,7 +9,8 @@ public class StageMakerWindow : EditorWindow
     // Undo 지원을 위한 Serializable 작업 데이터 (에셋으로 저장하지 않음)
     private class WorkingData : ScriptableObject
     {
-        public string stageName = DefaultStageName;
+        public string stageId = DefaultStageId;
+        public string stageName = "";
         public string stageDescription = "";
         public Vector2 bananaSpawnPosition = DefaultBananaSpawnPosition;
         public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
@@ -55,7 +56,7 @@ public class StageMakerWindow : EditorWindow
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
     // 신규 작업의 기본 스테이지 이름. 첫 오브젝트 추가 시 이름 자동 설정 여부 판별에도 사용한다.
-    private const string DefaultStageName = "New Stage";
+    private const string DefaultStageId = "New Stage";
 
     // 바나나 낙하 시작점 · 원숭이 팔의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
     private static readonly Vector2 DefaultBananaSpawnPosition = new(-1.4f, 2.5f);
@@ -180,6 +181,7 @@ public class StageMakerWindow : EditorWindow
     {
         RecordUndo("Load StageData");
 
+        _data.stageId = so.stageId;
         _data.stageName = so.stageName;
         _data.stageDescription = so.stageDescription;
         _data.bananaSpawnPosition = so.bananaSpawnPosition;
@@ -216,11 +218,13 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.LabelField("스테이지 정보", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
+        string newId = EditorGUILayout.TextField("Stage Id", _data.stageId);
         string newName = EditorGUILayout.TextField("Stage Name", _data.stageName);
         string newDescription = EditorGUILayout.TextArea(_data.stageDescription, GUILayout.MinHeight(60));
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Edit Stage Info");
+            _data.stageId = newId;
             _data.stageName = newName;
             _data.stageDescription = newDescription;
         }
@@ -398,10 +402,10 @@ public class StageMakerWindow : EditorWindow
                 bool visualChanged = entry.prefab != newPrefab || entry.sprite != newSprite;
                 entry.prefab = newPrefab;
                 entry.sprite = newSprite;
-                if (visualChanged && i == 0 && _data.stageName == DefaultStageName)
+                if (visualChanged && i == 0 && _data.stageId == DefaultStageId)
                 {
-                    if (newPrefab != null) _data.stageName = newPrefab.name;
-                    else if (newSprite != null) _data.stageName = newSprite.name;
+                    if (newPrefab != null) _data.stageId = newPrefab.name;
+                    else if (newSprite != null) _data.stageId = newSprite.name;
                 }
                 entry.position = newPosition;
                 entry.rotation = newRotation;
@@ -916,7 +920,7 @@ public class StageMakerWindow : EditorWindow
 
     private void CreateNewSO()
     {
-        string defaultName = $"StageData_{_data.stageName}";
+        string defaultName = $"StageData_{_data.stageId}";
         string path = EditorUtility.SaveFilePanelInProject(
             "StageData 저장", defaultName, "asset",
             "StageData SO를 저장할 위치를 선택하세요.",
@@ -956,7 +960,9 @@ public class StageMakerWindow : EditorWindow
 
     private void ApplyWorkingDataToSO(StageDataSO so)
     {
-        so.stageName = _data.stageName;
+        so.stageId = _data.stageId;
+        // 표시 이름이 비어 있으면 식별자를 그대로 사용한다.
+        so.stageName = string.IsNullOrEmpty(_data.stageName) ? _data.stageId : _data.stageName;
         so.stageDescription = _data.stageDescription;
         so.bananaSpawnPosition = _data.bananaSpawnPosition;
         so.monkeyArmPosition = _data.monkeyArmPosition;
@@ -1059,7 +1065,8 @@ public class StageMakerWindow : EditorWindow
         _loadedSO = null;
 
         RecordUndo("Reset Stage Maker");
-        _data.stageName = DefaultStageName;
+        _data.stageId = DefaultStageId;
+        _data.stageName = "";
         _data.stageDescription = "";
         _data.bananaSpawnPosition = DefaultBananaSpawnPosition;
         _data.monkeyArmPosition = DefaultMonkeyArmPosition;

@@ -79,7 +79,7 @@ public class StageManager : MonoSingleton<StageManager>
         builder.ResetBanana(_current);
         ResetTryCount();
         SetState(GameState.StageReady);
-        Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageName}");
+        Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageId}");
     }
 
     public void SkipCurrentStage()
