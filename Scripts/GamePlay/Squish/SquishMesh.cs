@@ -88,6 +88,8 @@ public class SquishMesh : MonoBehaviour
 
     private void Awake()
     {
+        if (body == null) body = GetComponent<SquishBody>();
+
         if (body == null || body.Shape == null || body.Shape.sprite == null)
         {
             Debug.LogError("[SquishMesh] body / Shape / sprite가 지정되지 않았습니다.");
