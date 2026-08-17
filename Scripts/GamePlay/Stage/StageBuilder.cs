@@ -5,7 +5,7 @@ using UnityEngine;
 public class StageBuilder : MonoBehaviour
 {
     [Header("프리팹")]
-    [SerializeField] private GameObject bananaPrefab;
+    [SerializeField] private GameObject squishPrefab;
     [SerializeField] private GameObject monkeyArmPrefab;
 
     [Header("참조")]
@@ -14,7 +14,7 @@ public class StageBuilder : MonoBehaviour
     private readonly List<GameObject> _spawnedStageObjects = new();
     private readonly List<IStageContextReceiver> _contextReceivers = new();
 
-    private GameObject _bananaInstance;
+    private GameObject _squishInstance;
     private GameObject _monkeyArmInstance;
 
     private StageContext _context;
@@ -34,7 +34,7 @@ public class StageBuilder : MonoBehaviour
         ClearStageObjects();
         SpawnStageObjects(data);
         SpawnMonkeyArm(data);
-        SpawnBanana(data);
+        SpawnSquish(data);
         SetupCamera(data);
 
         _context.Data = data;
@@ -53,12 +53,12 @@ public class StageBuilder : MonoBehaviour
         return _context;
     }
 
-    public void ResetBanana(StageContext ctx)
+    public void ResetSquish(StageContext ctx)
     {
-        if (ctx?.Banana == null) return;
+        if (ctx?.Squish == null) return;
 
-        ctx.Banana.transform.position = ctx.Data.bananaSpawnPosition;
-        ctx.Banana.StartSwing();
+        ctx.Squish.transform.position = ctx.Data.squishSpawnPosition;
+        ctx.Squish.StartSwing();
 
         if (ctx.SettleDetector != null)
             ctx.SettleDetector.ResetState();
@@ -78,10 +78,10 @@ public class StageBuilder : MonoBehaviour
             float scaleX = objData.flipX ? -objData.scale.x : objData.scale.x;
             instance.transform.localScale = new Vector3(scaleX, objData.scale.y, 1f);
 
-            if (objData.coverBanana)
+            if (objData.coverSquish)
             {
                 foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
-                    sr.sortingOrder += StageDataSO.CoverBananaSortingOrder;
+                    sr.sortingOrder += StageDataSO.CoverSquishSortingOrder;
             }
 
             foreach (var receiver in instance.GetComponentsInChildren<IStageContextReceiver>(true))
@@ -125,20 +125,20 @@ public class StageBuilder : MonoBehaviour
             _context.MonkeyArm.ResetArm();
     }
 
-    private void SpawnBanana(StageDataSO data)
+    private void SpawnSquish(StageDataSO data)
     {
-        if (bananaPrefab == null) return;
+        if (squishPrefab == null) return;
 
-        if (_bananaInstance == null)
+        if (_squishInstance == null)
         {
-            _bananaInstance = Instantiate(bananaPrefab);
+            _squishInstance = Instantiate(squishPrefab);
             EnsureContext();
-            _context.Banana = _bananaInstance.GetComponentInChildren<BananaThrowController>();
-            _context.SettleDetector = _bananaInstance.GetComponentInChildren<BananaSettleDetector>();
+            _context.Squish = _squishInstance.GetComponentInChildren<SquishThrowController>();
+            _context.SettleDetector = _squishInstance.GetComponentInChildren<SquishSettleDetector>();
         }
 
-        _bananaInstance.transform.position = new Vector3(
-            data.bananaSpawnPosition.x, data.bananaSpawnPosition.y, 0f);
+        _squishInstance.transform.position = new Vector3(
+            data.squishSpawnPosition.x, data.squishSpawnPosition.y, 0f);
     }
 
     private void ClearStageObjects()

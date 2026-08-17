@@ -26,7 +26,7 @@ public class DebugStageBootstrap : MonoBehaviour
         {
             Debug.Log("[DebugStageBootstrap] debugStageData 미지정 → 0번 스테이지 로드");
             stageManager.LoadStage(0);
-            stageManager.ResetBanana();
+            stageManager.ResetSquish();
             return;
         }
 
@@ -35,13 +35,13 @@ public class DebugStageBootstrap : MonoBehaviour
         {
             Debug.LogWarning($"[DebugStageBootstrap] {debugStageData.stageId}이 stageList에 없습니다. 직접 로드합니다.");
             stageManager.LoadStageData(debugStageData);
-            stageManager.ResetBanana();
+            stageManager.ResetSquish();
             return;
         }
 
         Debug.Log($"[DebugStageBootstrap] 스테이지 {index} 로드: {debugStageData.stageId}");
         stageManager.LoadStage(index);
-        stageManager.ResetBanana();
+        stageManager.ResetSquish();
     }
 
     private int FindStageIndex(StageDataSO data)
@@ -119,12 +119,12 @@ public class DebugStageBootstrap : MonoBehaviour
 
         if (GUILayout.Button("리셋", _buttonStyle, GUILayout.Width(180 * scale), GUILayout.Height(72 * scale)))
         {
-            stageManager.ResetBanana();
+            stageManager.ResetSquish();
         }
         if (GUILayout.Button("다음", _buttonStyle, GUILayout.Width(180 * scale), GUILayout.Height(72 * scale)))
         {
             stageManager.LoadNextStage();
-            stageManager.ResetBanana();
+            stageManager.ResetSquish();
         }
         if (GUILayout.Button(_showList ? "목록 ▲" : "목록 ▼", _buttonStyle, GUILayout.Width(200 * scale), GUILayout.Height(72 * scale)))
             _showList = !_showList;
@@ -149,7 +149,7 @@ public class DebugStageBootstrap : MonoBehaviour
                 if (GUILayout.Button(label, isCurrent ? _currentButtonStyle : _buttonStyle))
                 {
                     stageManager.LoadStage(i);
-                    stageManager.ResetBanana();
+                    stageManager.ResetSquish();
                 }
             }
             GUILayout.EndScrollView();

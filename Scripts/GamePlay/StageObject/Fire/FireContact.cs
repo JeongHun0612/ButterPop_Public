@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 불꽃 영역(트리거)에 붙어, 바나나가 들어오면 부모 Fire에 태우기 시작/정지를 알린다.
+// 불꽃 영역(트리거)에 붙어, 스퀴시가 들어오면 부모 Fire에 태우기 시작/정지를 알린다.
 [RequireComponent(typeof(Collider2D))]
 public class FireContact : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class FireContact : MonoBehaviour
         if (fire == null)
             fire = GetComponentInParent<Fire>();
 
-        // 불꽃은 바나나가 통과하며 타는 영역이므로 트리거로 강제한다.
+        // 불꽃은 스퀴시가 통과하며 타는 영역이므로 트리거로 강제한다.
         _collider = GetComponent<Collider2D>();
         _collider.isTrigger = true;
     }
@@ -22,7 +22,7 @@ public class FireContact : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (fire == null) return;
-        if (other.GetComponentInParent<BananaThrowController>() == null) return;
+        if (other.GetComponentInParent<SquishThrowController>() == null) return;
 
         fire.StartBurn();
     }
@@ -30,7 +30,7 @@ public class FireContact : MonoBehaviour
     private void OnTriggerExit2D(Collider2D other)
     {
         if (fire == null) return;
-        if (other.GetComponentInParent<BananaThrowController>() == null) return;
+        if (other.GetComponentInParent<SquishThrowController>() == null) return;
 
         fire.StopBurn();
     }

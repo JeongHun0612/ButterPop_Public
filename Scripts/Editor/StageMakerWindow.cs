@@ -12,7 +12,7 @@ public class StageMakerWindow : EditorWindow
         public string stageId = DefaultStageId;
         public string stageName = "";
         public string stageDescription = "";
-        public Vector2 bananaSpawnPosition = DefaultBananaSpawnPosition;
+        public Vector2 squishSpawnPosition = DefaultSquishSpawnPosition;
         public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 6f;
@@ -29,7 +29,7 @@ public class StageMakerWindow : EditorWindow
         public float rotation;
         public Vector2 scale = Vector2.one;
         public bool flipX;
-        public bool coverBanana;
+        public bool coverSquish;
 
         // Size X/Y를 원본 비율을 유지하며 함께 조절할지 여부 (에디터 편의용, SO에는 저장하지 않음).
         public bool lockAspect = true;
@@ -44,13 +44,13 @@ public class StageMakerWindow : EditorWindow
 
     private bool _isEditMode;
     private GameObject _previewParent;
-    private GameObject _bananaPreviewInstance;
+    private GameObject _squishPreviewInstance;
     private GameObject _monkeyArmPreviewInstance;
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
     private float _lastKnownAspect;
 
-    private const string BananaPrefabPath = "Assets/03. Prefabs/Controllers/Banana.prefab";
+    private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/Squish.prefab";
     private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
@@ -59,7 +59,7 @@ public class StageMakerWindow : EditorWindow
     private const string DefaultStageId = "New Stage";
 
     // 바나나 낙하 시작점 · 원숭이 팔의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
-    private static readonly Vector2 DefaultBananaSpawnPosition = new(-1.4f, 2.5f);
+    private static readonly Vector2 DefaultSquishSpawnPosition = new(-1.4f, 2.5f);
     private static readonly Vector2 DefaultMonkeyArmPosition = new(-2.4f, -2f);
 
     private Vector2 _scrollPos;
@@ -139,7 +139,7 @@ public class StageMakerWindow : EditorWindow
 
         DrawStageInfo();
         EditorGUILayout.Space(4);
-        DrawBananaSpawn();
+        DrawSquishSpawn();
         EditorGUILayout.Space(4);
         DrawMonkeyArm();
         EditorGUILayout.Space(2);
@@ -184,7 +184,7 @@ public class StageMakerWindow : EditorWindow
         _data.stageId = so.stageId;
         _data.stageName = so.stageName;
         _data.stageDescription = so.stageDescription;
-        _data.bananaSpawnPosition = so.bananaSpawnPosition;
+        _data.squishSpawnPosition = so.squishSpawnPosition;
         _data.monkeyArmPosition = so.monkeyArmPosition;
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
@@ -203,7 +203,7 @@ public class StageMakerWindow : EditorWindow
                     rotation = obj.rotation,
                     scale = obj.scale,
                     flipX = obj.flipX,
-                    coverBanana = obj.coverBanana
+                    coverSquish = obj.coverSquish
                 });
             }
         }
@@ -230,17 +230,17 @@ public class StageMakerWindow : EditorWindow
         }
     }
 
-    private void DrawBananaSpawn()
+    private void DrawSquishSpawn()
     {
         EditorGUILayout.LabelField("바나나 낙하 시작점", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
-        var newPos = EditorGUILayout.Vector2Field("Spawn Position", _data.bananaSpawnPosition);
+        var newPos = EditorGUILayout.Vector2Field("Spawn Position", _data.squishSpawnPosition);
         if (EditorGUI.EndChangeCheck())
         {
-            RecordUndo("Move Banana Spawn");
-            _data.bananaSpawnPosition = newPos;
-            if (_isEditMode) UpdateBananaPreviewPosition();
+            RecordUndo("Move Squish Spawn");
+            _data.squishSpawnPosition = newPos;
+            if (_isEditMode) UpdateSquishPreviewPosition();
         }
     }
 
@@ -264,11 +264,11 @@ public class StageMakerWindow : EditorWindow
         if (!GUILayout.Button("바나나·원숭이 팔 위치 기본값으로", GUILayout.Height(22))) return;
 
         RecordUndo("Reset Spawn Positions");
-        _data.bananaSpawnPosition = DefaultBananaSpawnPosition;
+        _data.squishSpawnPosition = DefaultSquishSpawnPosition;
         _data.monkeyArmPosition = DefaultMonkeyArmPosition;
         if (_isEditMode)
         {
-            UpdateBananaPreviewPosition();
+            UpdateSquishPreviewPosition();
             UpdateMonkeyArmPreviewPosition();
         }
         SceneView.RepaintAll();
@@ -392,9 +392,9 @@ public class StageMakerWindow : EditorWindow
             EditorGUIUtility.wideMode = prevWideMode;
 
             bool newFlipX = EditorGUILayout.Toggle("Flip X", entry.flipX);
-            bool newCoverBanana = EditorGUILayout.Toggle(
+            bool newCoverSquish = EditorGUILayout.Toggle(
                 new GUIContent("바나나 가리기", "체크 시 Sorting Order를 높여 바나나를 가립니다 (돔 내부 등)."),
-                entry.coverBanana);
+                entry.coverSquish);
 
             if (EditorGUI.EndChangeCheck())
             {
@@ -412,7 +412,7 @@ public class StageMakerWindow : EditorWindow
                 entry.scale = newScale;
                 entry.lockAspect = newLockAspect;
                 entry.flipX = newFlipX;
-                entry.coverBanana = newCoverBanana;
+                entry.coverSquish = newCoverSquish;
 
                 if (_isEditMode)
                 {
@@ -497,14 +497,14 @@ public class StageMakerWindow : EditorWindow
         _previewParent = new GameObject(PreviewParentName);
         _previewParent.hideFlags = HideFlags.DontSave;
 
-        var bananaPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BananaPrefabPath);
-        if (bananaPrefab != null)
+        var squishPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SquishPrefabPath);
+        if (squishPrefab != null)
         {
-            _bananaPreviewInstance = (GameObject)PrefabUtility.InstantiatePrefab(bananaPrefab, _previewParent.transform);
-            _bananaPreviewInstance.name = "[StageMaker] Banana";
-            _bananaPreviewInstance.hideFlags = HideFlags.DontSave;
-            SetPreviewStatic(_bananaPreviewInstance);
-            UpdateBananaPreviewPosition();
+            _squishPreviewInstance = (GameObject)PrefabUtility.InstantiatePrefab(squishPrefab, _previewParent.transform);
+            _squishPreviewInstance.name = "[StageMaker] Squish";
+            _squishPreviewInstance.hideFlags = HideFlags.DontSave;
+            SetPreviewStatic(_squishPreviewInstance);
+            UpdateSquishPreviewPosition();
         }
 
         var monkeyArmPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MonkeyArmPrefabPath);
@@ -554,7 +554,7 @@ public class StageMakerWindow : EditorWindow
         }
 
         ApplyEntryToTransform(go.transform, entry);
-        ApplyCoverBanana(go, entry);
+        ApplyCoverSquish(go, entry);
         return go;
     }
 
@@ -589,9 +589,9 @@ public class StageMakerWindow : EditorWindow
     // 프리뷰에서도 바나나 가리기 여부에 따라 Sorting Order를 반영해 실제 그려지는 순서를 확인할 수 있게 한다.
     // 원본 프리팹의 Order in Layer(흰자·검은자 등 내부 상대 순서)를 유지하기 위해 덮어쓰지 않고 오프셋만 더한다.
     // 원본 값을 기준으로 계산하므로 이동·회전 등으로 반복 호출돼도 누적되지 않는다(idempotent).
-    private void ApplyCoverBanana(GameObject go, StageObjectEntry entry)
+    private void ApplyCoverSquish(GameObject go, StageObjectEntry entry)
     {
-        int offset = entry.coverBanana ? StageDataSO.CoverBananaSortingOrder : 0;
+        int offset = entry.coverSquish ? StageDataSO.CoverSquishSortingOrder : 0;
         foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true))
         {
             var source = PrefabUtility.GetCorrespondingObjectFromSource(sr);
@@ -611,11 +611,11 @@ public class StageMakerWindow : EditorWindow
         }
     }
 
-    private void UpdateBananaPreviewPosition()
+    private void UpdateSquishPreviewPosition()
     {
-        if (_bananaPreviewInstance != null)
-            _bananaPreviewInstance.transform.position = new Vector3(
-                _data.bananaSpawnPosition.x, _data.bananaSpawnPosition.y, 0f);
+        if (_squishPreviewInstance != null)
+            _squishPreviewInstance.transform.position = new Vector3(
+                _data.squishSpawnPosition.x, _data.squishSpawnPosition.y, 0f);
     }
 
     private void UpdateMonkeyArmPreviewPosition()
@@ -639,7 +639,7 @@ public class StageMakerWindow : EditorWindow
         }
 
         ApplyEntryToTransform(instance.transform, entry);
-        ApplyCoverBanana(instance, entry);
+        ApplyCoverSquish(instance, entry);
 
         if (entry.prefab != null) return;
 
@@ -674,7 +674,7 @@ public class StageMakerWindow : EditorWindow
 
     private void CleanupPreview()
     {
-        _bananaPreviewInstance = null;
+        _squishPreviewInstance = null;
         _monkeyArmPreviewInstance = null;
         _objectPreviewInstances.Clear();
         _previewParent = null;
@@ -693,7 +693,7 @@ public class StageMakerWindow : EditorWindow
 
         bool changed = false;
 
-        changed |= HandleBananaSpawn();
+        changed |= HandleSquishSpawn();
         changed |= HandleMonkeyArm();
         changed |= HandleCameraCenter();
         DrawCameraRect();
@@ -707,15 +707,15 @@ public class StageMakerWindow : EditorWindow
         }
     }
 
-    private bool HandleBananaSpawn()
+    private bool HandleSquishSpawn()
     {
-        Vector3 pos = new Vector3(_data.bananaSpawnPosition.x, _data.bananaSpawnPosition.y, 0f);
+        Vector3 pos = new Vector3(_data.squishSpawnPosition.x, _data.squishSpawnPosition.y, 0f);
 
         // 낙하 방향 화살표
         Handles.color = Color.yellow;
         Handles.DrawDottedLine(pos, pos + Vector3.down * 1.5f, 4f);
         Handles.ConeHandleCap(0, pos + Vector3.down * 1.5f, Quaternion.Euler(180f, 0f, 0f), 0.2f, EventType.Repaint);
-        Handles.Label(pos + Vector3.up * 0.4f, "Banana Drop",
+        Handles.Label(pos + Vector3.up * 0.4f, "Squish Drop",
             new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = Color.yellow } });
 
         if (Tools.current != Tool.Move) return false;
@@ -724,9 +724,9 @@ public class StageMakerWindow : EditorWindow
         var newPos = Handles.PositionHandle(pos, Quaternion.identity);
         if (EditorGUI.EndChangeCheck())
         {
-            RecordUndo("Move Banana Spawn");
-            _data.bananaSpawnPosition = new Vector2(newPos.x, newPos.y);
-            UpdateBananaPreviewPosition();
+            RecordUndo("Move Squish Spawn");
+            _data.squishSpawnPosition = new Vector2(newPos.x, newPos.y);
+            UpdateSquishPreviewPosition();
             return true;
         }
         return false;
@@ -825,8 +825,8 @@ public class StageMakerWindow : EditorWindow
         float cx = _data.cameraCenter.x;
         float cy = _data.cameraCenter.y;
 
-        var bananaPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BananaPrefabPath);
-        var detector = bananaPrefab != null ? bananaPrefab.GetComponent<BananaSettleDetector>() : null;
+        var squishPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SquishPrefabPath);
+        var detector = squishPrefab != null ? squishPrefab.GetComponent<SquishSettleDetector>() : null;
         var so = detector != null ? new SerializedObject(detector) : null;
         var marginProp = so?.FindProperty("outOfBoundsMargin");
         float margin = marginProp != null ? marginProp.floatValue : 2f;
@@ -964,7 +964,7 @@ public class StageMakerWindow : EditorWindow
         // 표시 이름이 비어 있으면 식별자를 그대로 사용한다.
         so.stageName = string.IsNullOrEmpty(_data.stageName) ? _data.stageId : _data.stageName;
         so.stageDescription = _data.stageDescription;
-        so.bananaSpawnPosition = _data.bananaSpawnPosition;
+        so.squishSpawnPosition = _data.squishSpawnPosition;
         so.monkeyArmPosition = _data.monkeyArmPosition;
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
@@ -982,7 +982,7 @@ public class StageMakerWindow : EditorWindow
                 rotation = entry.rotation,
                 scale = entry.scale,
                 flipX = entry.flipX,
-                coverBanana = entry.coverBanana
+                coverSquish = entry.coverSquish
             };
 
             if (entry.prefab != null)
@@ -1068,7 +1068,7 @@ public class StageMakerWindow : EditorWindow
         _data.stageId = DefaultStageId;
         _data.stageName = "";
         _data.stageDescription = "";
-        _data.bananaSpawnPosition = DefaultBananaSpawnPosition;
+        _data.squishSpawnPosition = DefaultSquishSpawnPosition;
         _data.monkeyArmPosition = DefaultMonkeyArmPosition;
         _data.cameraCenter = Vector2.zero;
         _data.cameraOrthoSize = 6f;

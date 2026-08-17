@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage/Stage Data")]
 public class StageDataSO : ScriptableObject
@@ -7,8 +8,8 @@ public class StageDataSO : ScriptableObject
     // 오브젝트·카메라 배치 기준 화면 비율(가로/세로). 19.5:9 (1170x2532)
     public const float ReferenceAspect = 9f / 19.5f;
 
-    // 바나나를 가리는 오브젝트에 적용할 Sorting Order
-    public const int CoverBananaSortingOrder = 1000;
+    // 스퀴시를 가리는 오브젝트에 적용할 Sorting Order
+    public const int CoverSquishSortingOrder = 1000;
 
     // 스테이지 기본 배경색
     public static readonly Color DefaultBackgroundColor =
@@ -34,8 +35,9 @@ public class StageDataSO : ScriptableObject
     public string stageName;
     [TextArea] public string stageDescription;
 
-    [Header("바나나 낙하 시작점")]
-    public Vector2 bananaSpawnPosition;
+    [Header("스퀴시 낙하 시작점")]
+    [FormerlySerializedAs("bananaSpawnPosition")]
+    public Vector2 squishSpawnPosition;
 
     [Header("원숭이 팔")]
     public Vector2 monkeyArmPosition;
@@ -61,6 +63,7 @@ public class StageObjectSpawnData
     public Vector2 scale = Vector2.one;
     public bool flipX;
 
-    // true면 Sorting Order를 높여(StageDataSO.CoverBananaSortingOrder) 바나나를 가린다. 돔 내부 등에 사용.
-    public bool coverBanana;
+    // true면 Sorting Order를 높여(StageDataSO.CoverSquishSortingOrder) 스퀴시를 가린다. 돔 내부 등에 사용.
+    [FormerlySerializedAs("coverBanana")]
+    public bool coverSquish;
 }

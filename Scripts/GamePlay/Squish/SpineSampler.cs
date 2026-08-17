@@ -16,7 +16,11 @@ public static class SpineSampler
     private const int SubdivPerSegment = 16;   // Catmull-Rom 세분화 밀도
 
     // control 제어점을 count개로 호 길이 균등 리샘플링. count>=2.
-    public static SpineSample[] Resample(SquishShapeSO.SpinePoint[] control, int count, bool smooth)
+    // startInset/endInset: 양 끝에서 호 길이만큼 안으로 당겨 샘플링(월드 단위).
+    //   물리 뼈는 끝단 반폭만큼 인셋해 원형 캡이 비주얼 밖으로 튀어나오지 않게 한다(캡슐 모델).
+    //   비주얼 격자는 인셋 0으로 스파인 전체를 덮는다.
+    public static SpineSample[] Resample(SquishShapeSO.SpinePoint[] control, int count, bool smooth,
+        float startInset = 0f, float endInset = 0f)
     {
         count = Mathf.Max(count, 2);
 
@@ -43,11 +47,21 @@ public static class SpineSampler
             return result;
         }
 
-        // 3) 호 길이 균등 샘플링.
+        // 3) 인셋 적용한 샘플링 구간 [lo, hi] 산출. 인셋이 과하면 중점으로 수렴시켜 뒤집힘 방지.
+        float lo = Mathf.Clamp(startInset, 0f, total);
+        float hi = Mathf.Clamp(total - endInset, 0f, total);
+        if (hi < lo)
+        {
+            float mid = 0.5f * (lo + hi);
+            lo = hi = mid;
+        }
+        float span = hi - lo;
+
+        // 4) 호 길이 균등 샘플링.
         int k = 0;
         for (int j = 0; j < count; j++)
         {
-            float target = (j / (float)(count - 1)) * total;
+            float target = lo + (j / (float)(count - 1)) * span;
 
             while (k < fn - 2 && cum[k + 1] < target) k++;
 

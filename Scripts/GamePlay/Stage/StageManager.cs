@@ -31,7 +31,7 @@ public class StageManager : MonoSingleton<StageManager>
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
     public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
     public StageDataSO CurrentStageData => _current?.Data;
-    public BananaThrowController BananaController => _current?.Banana;
+    public SquishThrowController SquishController => _current?.Squish;
     public MonkeyArm MonkeyArm => _current?.MonkeyArm;
 
     protected override void Awake()
@@ -76,7 +76,7 @@ public class StageManager : MonoSingleton<StageManager>
     public void LoadStageData(StageDataSO data)
     {
         _current = builder.Build(data);
-        builder.ResetBanana(_current);
+        builder.ResetSquish(_current);
         ResetTryCount();
         SetState(GameState.StageReady);
         Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageId}");
@@ -101,9 +101,9 @@ public class StageManager : MonoSingleton<StageManager>
         OnStateChanged?.Invoke(newState);
     }
 
-    public void ResetBanana()
+    public void ResetSquish()
     {
-        builder.ResetBanana(_current);
+        builder.ResetSquish(_current);
         SetState(GameState.Ready);
     }
 
@@ -148,20 +148,20 @@ public class StageManager : MonoSingleton<StageManager>
 
     private void BindActors(StageContext ctx)
     {
-        ctx.Banana.OnDropped += OnBananaDropped;
-        ctx.SettleDetector.OnSettled += OnBananaSettled;
-        ctx.SettleDetector.OnFell += OnBananaFell;
+        ctx.Squish.OnDropped += OnSquishDropped;
+        ctx.SettleDetector.OnSettled += OnSquishSettled;
+        ctx.SettleDetector.OnFell += OnSquishFell;
     }
 
-    private void OnBananaDropped()
+    private void OnSquishDropped()
     {
         SetState(GameState.Falling);
         _current.SettleDetector.BeginJudging();
     }
 
-    private void OnBananaSettled(Bounds bounds)
+    private void OnSquishSettled(Bounds bounds)
     {
-        _current.Banana.FreezeInPlace();
+        _current.Squish.FreezeInPlace();
         SetState(GameState.Result);
         MarkCleared(CurrentStageIndex);
 
@@ -171,7 +171,7 @@ public class StageManager : MonoSingleton<StageManager>
         OnStageCleared?.Invoke(bounds);
     }
 
-    private void OnBananaFell()
+    private void OnSquishFell()
     {
         IncrementTryCount();
         RespawnAfterDelayAsync().Forget();
@@ -180,6 +180,6 @@ public class StageManager : MonoSingleton<StageManager>
     private async UniTaskVoid RespawnAfterDelayAsync()
     {
         await UniTask.Delay((int)(respawnDelay * 1000));
-        ResetBanana();
+        ResetSquish();
     }
 }

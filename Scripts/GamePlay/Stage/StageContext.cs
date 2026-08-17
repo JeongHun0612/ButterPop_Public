@@ -2,7 +2,7 @@
 public class StageContext
 {
     public StageDataSO Data;
-    public BananaThrowController Banana;
-    public BananaSettleDetector SettleDetector;
+    public SquishThrowController Squish;
+    public SquishSettleDetector SettleDetector;
     public MonkeyArm MonkeyArm;
 }

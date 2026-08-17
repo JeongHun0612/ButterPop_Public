@@ -51,13 +51,13 @@ public class WifiSignal : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.GetComponentInParent<BananaThrowController>() != null)
+        if (other.GetComponentInParent<SquishThrowController>() != null)
             _bananaInside = true;
     }
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (other.GetComponentInParent<BananaThrowController>() != null)
+        if (other.GetComponentInParent<SquishThrowController>() != null)
             _bananaInside = false;
     }
 

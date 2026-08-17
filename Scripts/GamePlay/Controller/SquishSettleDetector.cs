@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody2D))]
-public class BananaSettleDetector : MonoBehaviour
+// 스퀴시 오브젝트의 안착/낙하 판정기. SquishBody 뼈 체인 기반.
+// - 충돌은 뼈마다 분산되므로 SquishBody의 Enter/Exit 이벤트를 구독해 접촉을 refcount로 추적한다.
+// - 속도는 SquishBody.AggregateSpeed, 위치·경계는 WorldBounds를 사용한다(루트 transform은 뼈를 따라가지 않음).
+[RequireComponent(typeof(SquishBody))]
+public class SquishSettleDetector : MonoBehaviour
 {
     [Header("판정")]
     [SerializeField] private float settleSpeedThreshold = 0.3f;
@@ -13,13 +16,13 @@ public class BananaSettleDetector : MonoBehaviour
     [Header("사운드")]
     [SerializeField] private float hitSoundCooldown = 0.3f;
 
-    private readonly HashSet<StageObject> _touchingStages = new();
+    private readonly Dictionary<StageObject, int> _stageContacts = new();
 
-    private Rigidbody2D _rb;
+    private SquishBody _body;
+    private int _monkeyArmContacts;
     private float _fallYThreshold;
     private float _fallXThreshold;
     private float _settleTimer;
-    private bool _touchingMonkeyArm;
     private bool _judging;
     private float _lastHitSoundTime = float.NegativeInfinity;
 
@@ -28,7 +31,16 @@ public class BananaSettleDetector : MonoBehaviour
 
     private void Awake()
     {
-        _rb = GetComponent<Rigidbody2D>();
+        _body = GetComponent<SquishBody>();
+        _body.OnSegmentCollisionEnter += OnSegmentEnter;
+        _body.OnSegmentCollisionExit += OnSegmentExit;
+    }
+
+    private void OnDestroy()
+    {
+        if (_body == null) return;
+        _body.OnSegmentCollisionEnter -= OnSegmentEnter;
+        _body.OnSegmentCollisionExit -= OnSegmentExit;
     }
 
     private void Update()
@@ -36,14 +48,14 @@ public class BananaSettleDetector : MonoBehaviour
         if (!_judging)
             return;
 
-        var pos = transform.position;
-        if (pos.y < _fallYThreshold || Mathf.Abs(pos.x) > _fallXThreshold)
+        var center = _body.WorldBounds.center;
+        if (center.y < _fallYThreshold || Mathf.Abs(center.x) > _fallXThreshold)
         {
             OnFailed();
             return;
         }
 
-        if (_touchingStages.Count > 0 && !_touchingMonkeyArm && _rb.linearVelocity.magnitude < settleSpeedThreshold)
+        if (_stageContacts.Count > 0 && _monkeyArmContacts == 0 && _body.AggregateSpeed < settleSpeedThreshold)
         {
             _settleTimer += Time.deltaTime;
             if (_settleTimer >= settleTimeRequired)
@@ -78,15 +90,15 @@ public class BananaSettleDetector : MonoBehaviour
     {
         _judging = false;
         _settleTimer = 0f;
-        _touchingStages.Clear();
-        _touchingMonkeyArm = false;
+        _stageContacts.Clear();
+        _monkeyArmContacts = 0;
     }
 
     public Bounds GetSettledBounds()
     {
-        var bounds = RendererUtils.GetWorldBounds(gameObject);
+        var bounds = _body.WorldBounds;
 
-        foreach (var stage in _touchingStages)
+        foreach (var stage in _stageContacts.Keys)
         {
             if (stage == null) continue;
             bounds.Encapsulate(RendererUtils.GetWorldBounds(stage.gameObject));
@@ -99,7 +111,7 @@ public class BananaSettleDetector : MonoBehaviour
     {
         _judging = false;
 
-        var bounds = RendererUtils.GetWorldBounds(gameObject);
+        var bounds = _body.WorldBounds;
         if (extraObject != null)
             bounds.Encapsulate(RendererUtils.GetWorldBounds(extraObject));
 
@@ -110,30 +122,30 @@ public class BananaSettleDetector : MonoBehaviour
     private void OnSuccess()
     {
         _judging = false;
-        Debug.Log("<color=green>[Result] SUCCESS - 바나나가 스테이지에 안착했습니다!</color>");
+        Debug.Log("<color=green>[Result] SUCCESS - 스퀴시가 스테이지에 안착했습니다!</color>");
         OnSettled?.Invoke(GetSettledBounds());
     }
 
     private void OnFailed()
     {
         _judging = false;
-        Debug.Log("<color=red>[Result] FAILED - 바나나가 떨어졌습니다!</color>");
+        Debug.Log("<color=red>[Result] FAILED - 스퀴시가 떨어졌습니다!</color>");
         OnFell?.Invoke();
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnSegmentEnter(Collision2D collision)
     {
         var monkeyArm = collision.gameObject.GetComponentInParent<MonkeyArm>();
         if (monkeyArm != null)
         {
-            _touchingMonkeyArm = true;
+            _monkeyArmContacts++;
 
-            // 팔을 올려칠 때 닿은 경우에만 타격음 재생 (바나나가 팔 위에서 흔들리는 접촉은 제외)
+            // 팔을 올려칠 때 닿은 경우에만 타격음 재생 (스퀴시가 팔 위에서 흔들리는 접촉은 제외)
             if (monkeyArm.IsRaising && Time.time - _lastHitSoundTime > hitSoundCooldown)
             {
                 _lastHitSoundTime = Time.time;
                 if (SoundManager.TryGetInstance(out var sound))
-                    sound.PlaySfx(SfxType.BananaThrow);
+                    sound.PlaySfx(SfxType.SquishHit);
             }
 
             return;
@@ -141,19 +153,22 @@ public class BananaSettleDetector : MonoBehaviour
 
         var stage = collision.gameObject.GetComponent<StageObject>();
         if (stage != null)
-            _touchingStages.Add(stage);
+            _stageContacts[stage] = _stageContacts.TryGetValue(stage, out var c) ? c + 1 : 1;
     }
 
-    private void OnCollisionExit2D(Collision2D collision)
+    private void OnSegmentExit(Collision2D collision)
     {
         if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
         {
-            _touchingMonkeyArm = false;
+            _monkeyArmContacts = Mathf.Max(0, _monkeyArmContacts - 1);
             return;
         }
 
         var stage = collision.gameObject.GetComponent<StageObject>();
-        if (stage != null)
-            _touchingStages.Remove(stage);
+        if (stage != null && _stageContacts.TryGetValue(stage, out var c))
+        {
+            if (c <= 1) _stageContacts.Remove(stage);
+            else _stageContacts[stage] = c - 1;
+        }
     }
 }

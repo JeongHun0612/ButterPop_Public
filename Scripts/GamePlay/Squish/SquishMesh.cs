@@ -9,6 +9,8 @@ public class SquishMesh : MonoBehaviour
 {
     [Header("참조")]
     [SerializeField] private SquishBody body;
+    [Tooltip("비주얼 스킨. 스프라이트·불투명영역을 여기서 우선 읽고, 없으면 Shape의 것을 사용(하위호환). SquishSound와 같은 SO를 물려 사용.")]
+    [SerializeField] private SquishSkinSO skin;
     [SerializeField] private string sortingLayerName = "Default";
     [SerializeField] private int sortingOrder = 0;
 
@@ -90,12 +92,21 @@ public class SquishMesh : MonoBehaviour
     {
         if (body == null) body = GetComponent<SquishBody>();
 
-        if (body == null || body.Shape == null || body.Shape.sprite == null)
+        if (body == null || body.Shape == null || ResolveSprite() == null)
         {
-            Debug.LogError("[SquishMesh] body / Shape / sprite가 지정되지 않았습니다.");
+            Debug.LogError("[SquishMesh] body / Shape / sprite(skin 또는 Shape)가 지정되지 않았습니다.");
             enabled = false;
         }
     }
+
+    // 스프라이트/불투명영역은 skin 우선, 없으면 Shape 폴백(하위호환).
+    private Sprite ResolveSprite()
+        => (skin != null && skin.sprite != null) ? skin.sprite
+            : (body != null && body.Shape != null) ? body.Shape.sprite : null;
+
+    private Rect ResolveOpaqueUVRect()
+        => (skin != null && skin.sprite != null) ? skin.opaqueUVRect
+            : (body != null && body.Shape != null) ? body.Shape.opaqueUVRect : new Rect(0f, 0f, 1f, 1f);
 
     private void Start()
     {
@@ -138,9 +149,17 @@ public class SquishMesh : MonoBehaviour
         _impulses.Clear();
     }
 
+    // 정점 컬러로 전체를 균일 틴트한다(Unlit 셰이더가 텍스처 × 정점컬러). 타는 연출 등에서 사용.
+    // 정점 컬러는 시뮬/WriteMesh가 덮어쓰지 않으므로 한 번 설정하면 유지된다. 원복은 Color.white.
+    public void SetTint(Color c)
+    {
+        if (_mesh == null) return;
+        _mesh.colors = SolidColors(c);
+    }
+
     private void BuildMesh()
     {
-        var sprite = body.Shape.sprite;
+        var sprite = ResolveSprite();
 
         var meshGo = new GameObject("SquishMesh");
         meshGo.transform.SetParent(null);   // 월드 공간 렌더
@@ -228,7 +247,7 @@ public class SquishMesh : MonoBehaviour
     {
         var tex = sprite.texture;
         var r = sprite.rect;
-        Rect o = body.Shape.opaqueUVRect;
+        Rect o = ResolveOpaqueUVRect();
 
         // 스프라이트 rect → 그 안의 불투명 서브영역 (텍스처 0~1).
         Vector2 spriteUvMin = new Vector2(r.xMin / tex.width, r.yMin / tex.height);

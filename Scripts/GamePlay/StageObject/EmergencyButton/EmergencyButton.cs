@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class EmergencyButton : MonoBehaviour, IBananaHittable
+public class EmergencyButton : MonoBehaviour, ISquishHittable
 {
     [Header("사운드")]
     [Tooltip("버튼을 누를 때 재생할 딸깍 클립")]
@@ -12,7 +12,7 @@ public class EmergencyButton : MonoBehaviour, IBananaHittable
 
     private float _lastPressTime = float.NegativeInfinity;
 
-    public void OnBananaHit(Collision2D collision) => PressButton();
+    public void OnSquishHit(Collision2D collision) => PressButton();
 
     // 버튼을 누른다: 딸깍 소리를 한 번 재생한다. 쿨다운 중이면 무시한다.
     public void PressButton()

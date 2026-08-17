@@ -1,7 +1,7 @@
 using DG.Tweening;
 using UnityEngine;
 
-public class DeskBell : MonoBehaviour, IBananaHittable
+public class DeskBell : MonoBehaviour, ISquishHittable
 {
     [Header("흔들림 대상")]
     [Tooltip("좌우로 흔들릴 가운데 벨 Transform")]
@@ -32,7 +32,7 @@ public class DeskBell : MonoBehaviour, IBananaHittable
             _bodyOriginRotation = bellBody.localEulerAngles;
     }
 
-    public void OnBananaHit(Collision2D collision) => RingBell();
+    public void OnSquishHit(Collision2D collision) => RingBell();
 
     // 종을 울린다: 가운데 벨을 좌우로 흔들고 사운드를 재생한다. 쿨다운 중이면 무시한다.
     public void RingBell()

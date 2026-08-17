@@ -2,7 +2,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-// 불씨 기믹: 바나나가 불꽃에 닿아 있는 동안 점점 타는 연출
+// 불씨 기믹: 스퀴시가 불꽃에 닿아 있는 동안 점점 타는 연출
 // 트리거 감지는 자식 FireContact가 담당하고, 이 스크립트는 태우기 로직만 보유한다.
 public class Fire : MonoBehaviour, IStageContextReceiver
 {
@@ -15,7 +15,6 @@ public class Fire : MonoBehaviour, IStageContextReceiver
     [SerializeField] private AudioClip burnClip;
 
     private StageContext _context;
-    private Color _baseColor = Color.white;
     private float _burnProgress;
     private CancellationTokenSource _cts;
 
@@ -28,15 +27,11 @@ public class Fire : MonoBehaviour, IStageContextReceiver
     {
         _context = context;
         _burnProgress = 0f;
-
-        // 태우기 기준색은 바나나 원본 색.
-        if (_context?.Banana != null && _context.Banana.BananaRenderer != null)
-            _baseColor = _context.Banana.BananaRenderer.color;
     }
 
     public void StartBurn()
     {
-        if (_context?.Banana == null || _context.Banana.BananaRenderer == null) return;
+        if (_context?.Squish == null || _context.Squish.Mesh == null) return;
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -57,12 +52,13 @@ public class Fire : MonoBehaviour, IStageContextReceiver
 
     private async UniTaskVoid RunBurn(CancellationToken token)
     {
-        var renderer = _context.Banana.BananaRenderer;
+        var mesh = _context.Squish.Mesh;
 
         while (_burnProgress < 1f && !token.IsCancellationRequested)
         {
             _burnProgress = Mathf.Clamp01(_burnProgress + Time.deltaTime / burnDuration);
-            renderer.color = Color.Lerp(_baseColor, Color.black, _burnProgress);
+            // 정점 컬러를 흰색→검정으로 낮춰 스퀴시 전체를 균일하게 태운다(원복은 StartSwing).
+            mesh.SetTint(Color.Lerp(Color.white, Color.black, _burnProgress));
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);
         }

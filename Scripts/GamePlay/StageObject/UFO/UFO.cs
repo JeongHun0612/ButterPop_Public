@@ -3,14 +3,16 @@ using DG.Tweening;
 using UnityEngine;
 
 // 우주선(UFO) 스테이지 오브젝트.
-// 하단 빔(UfoBeam)에 바나나가 닿으면 바나나를 접시 아래로 빨아올려(어브덕션) 스테이지를 클리어한다.
+// 하단 빔(UfoBeam)에 스퀴시가 닿으면 접시 아래로 빨아올려(어브덕션) 스테이지를 클리어한다.
+// 스퀴시는 뼈 체인(독립 rigidbody)이라 루트 transform 이동이 아니라 SquishBody를 kinematic으로 얼려
+// ResetLayout으로 매 틱 재배치한다.
 public class UFO : MonoBehaviour, IStageContextReceiver
 {
     [Header("어브덕션 목표")]
-    [Tooltip("바나나가 빨려 올라가 멈출 지점. 빔과 우주선이 연결되는 부위에 배치하고, 우주선 하위에 두면 회전도 함께 따라간다. 비우면 이 오브젝트 위치를 사용")]
+    [Tooltip("스퀴시가 빨려 올라가 멈출 지점. 빔과 우주선이 연결되는 부위에 배치하고, 우주선 하위에 두면 회전도 함께 따라간다. 비우면 이 오브젝트 위치를 사용")]
     [SerializeField] private Transform abductPoint;
-    [Tooltip("abductPoint 기준으로 바나나가 취할 로컬 각도(도). 최종 각도 = abductPoint 각도 + 이 값. 예: 가로로 눕히는 오프셋")]
-    [SerializeField] private float bananaLocalAngle = 90f;
+    [Tooltip("abductPoint 기준으로 스퀴시가 취할 로컬 각도(도). 최종 각도 = abductPoint 각도 + 이 값. 예: 가로로 눕히는 오프셋")]
+    [SerializeField] private float squishLocalAngle = 90f;
     [Tooltip("빔 가운데 X를 구할 빔 콜라이더. 이미지 피벗이 어긋나 있어도 콜라이더 실제 형태 기준으로 중앙을 계산한다. 비우면 abductPoint의 X를 사용")]
     [SerializeField] private Collider2D beamCollider;
 
@@ -41,7 +43,7 @@ public class UFO : MonoBehaviour, IStageContextReceiver
     public void Abduct()
     {
         if (_abducting) return;
-        if (_context?.Banana == null || _context.SettleDetector == null) return;
+        if (_context?.Squish == null || _context.SettleDetector == null) return;
         Debug.Assert(StageManager.Instance != null, "[UFO] StageManager가 없습니다");
         if (StageManager.Instance.CurrentState != GameState.Falling) return;
 
@@ -51,56 +53,51 @@ public class UFO : MonoBehaviour, IStageContextReceiver
 
     private async UniTaskVoid AbductAsync()
     {
-        var banana = _context.Banana;
+        var squish = _context.Squish;
+        var body = squish.Body;
         var detector = _context.SettleDetector;
 
         detector.SuspendJudging();
-        banana.FreezeInPlace();
+        squish.FreezeInPlace();   // 뼈를 kinematic으로 고정한 뒤 스크립트로 옮긴다.
 
-        var bananaTf = banana.transform;
         Transform targetRef = abductPoint != null ? abductPoint : transform;
 
-        // 피벗(꼭지)이 아니라 몸체 중앙이 목표에 오도록 오프셋을 보정한다. 앵커 없으면 렌더러 중심.
-        Vector3 startCenter = banana.CenterAnchor != null
-            ? banana.CenterAnchor.position
-            : RendererUtils.GetVisualCenter(banana.gameObject);
-        Vector3 localCenterOffset = Quaternion.Inverse(bananaTf.rotation) * (startCenter - bananaTf.position);
-        Vector3 target = targetRef.position;
+        // rest 중심(shape-local centroid). ResetLayout 기준점에서 이만큼 떨어져 몸체 중앙이 놓인다.
+        Vector2 centroidRest = ComputeCentroidRest(body);
 
-        // 어떤 각도로 들어왔든 항상 같은 포즈로 정렬. Z축만 쓰므로 각도 덧셈으로 축약된다.
-        float startAngle = bananaTf.eulerAngles.z;
-        float targetAngle = targetRef.eulerAngles.z + bananaLocalAngle;
+        Vector2 startCenter = body.WorldBounds.center;
+        float startAngle = RecoverBaseAngle(body);
+        float targetAngle = targetRef.eulerAngles.z + squishLocalAngle;
+
+        Vector3 target = targetRef.position;
 
         // 진입 높이에서의 빔 단면 중앙 X. 위쪽 좁은 구간으로 들어와도 빔 안에 정렬되도록 그 Y에서 구한다.
         float centerX = beamCollider != null
             ? GetBeamCenterX(beamCollider, startCenter.y, target.x)
             : target.x;
-        Vector3 alignCenter = new Vector3(centerX, startCenter.y, startCenter.z);
+        Vector2 alignCenter = new Vector2(centerX, startCenter.y);
 
-        bananaTf.DOKill();
-
-        // 몸체 중앙이 원하는 위치·각도에 오도록 회전만큼 오프셋을 되돌려 피벗 위치를 역산한다.
-        void PlaceByCenter(Vector3 center, float angle)
+        // 몸체 중앙이 원하는 위치·각도에 오도록 ResetLayout 기준점을 역산해 배치한다.
+        void PlaceByCenter(Vector2 center, float angle)
         {
-            Quaternion rot = Quaternion.Euler(0f, 0f, angle);
-            Vector3 pos = center - rot * localCenterOffset;
-            pos.z = startCenter.z;
-            bananaTf.SetPositionAndRotation(pos, rot);
+            float rad = angle * Mathf.Deg2Rad;
+            Vector2 basePos = center - Rotate(centroidRest, rad);
+            body.ResetLayout(basePos, angle);
         }
 
         // 1단계(정렬): 빔 중심으로 수평 이동 + 목표 자세로 회전.
         await DOTween.To(() => 0f, t =>
-                PlaceByCenter(Vector3.Lerp(startCenter, alignCenter, t), Mathf.LerpAngle(startAngle, targetAngle, t)),
+                PlaceByCenter(Vector2.Lerp(startCenter, alignCenter, t), Mathf.LerpAngle(startAngle, targetAngle, t)),
                 1f, alignDuration)
-            .SetEase(Ease.InOutSine).SetLink(bananaTf.gameObject).ToUniTask();
+            .SetEase(Ease.InOutSine).SetLink(squish.gameObject).ToUniTask();
 
         // 2단계(상승): 상승 동안만 빔 깜빡임(Yoyo) + 중심축 따라 등속 상승.
         Tween flicker = beamRenderer != null
             ? beamRenderer.DOFade(beamFlickerMinAlpha, beamFlickerInterval).SetLoops(-1, LoopType.Yoyo).SetLink(beamRenderer.gameObject)
             : null;
 
-        await DOTween.To(() => 0f, t => PlaceByCenter(Vector3.Lerp(alignCenter, target, t), targetAngle), 1f, riseDuration)
-            .SetEase(Ease.Linear).SetLink(bananaTf.gameObject).ToUniTask();
+        await DOTween.To(() => 0f, t => PlaceByCenter(Vector2.Lerp(alignCenter, (Vector2)target, t), targetAngle), 1f, riseDuration)
+            .SetEase(Ease.Linear).SetLink(squish.gameObject).ToUniTask();
 
         if (beamRenderer != null)
         {
@@ -113,10 +110,37 @@ public class UFO : MonoBehaviour, IStageContextReceiver
         // 어브덕션 중 스테이지가 재구성되면 참조가 사라질 수 있으니 방어.
         if (detector == null) return;
 
-        // 바나나 + 우주선을 함께 담아 결과 캡처가 어브덕션 장면을 잡도록 한다.
+        // 스퀴시 + 우주선을 함께 담아 결과 캡처가 어브덕션 장면을 잡도록 한다.
         detector.ForceSettle(gameObject);
 
         _abducting = false;
+    }
+
+    // rest 뼈 위치들의 평균(shape-local 중심).
+    private static Vector2 ComputeCentroidRest(SquishBody body)
+    {
+        var rest = body.BoneRestSamples;
+        if (rest == null || rest.Count == 0) return Vector2.zero;
+
+        Vector2 sum = Vector2.zero;
+        for (int i = 0; i < rest.Count; i++)
+            sum += rest[i].position;
+        return sum / rest.Count;
+    }
+
+    // 현재 뼈 포즈에서 ResetLayout 기준 각도를 역산한다(0번 뼈 기준).
+    private static float RecoverBaseAngle(SquishBody body)
+    {
+        var rest = body.BoneRestSamples;
+        var bones = body.Bones;
+        if (rest == null || rest.Count == 0 || bones.Count == 0) return 0f;
+        return bones[0].rotation - rest[0].angleDeg;
+    }
+
+    private static Vector2 Rotate(Vector2 v, float rad)
+    {
+        float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
+        return new Vector2(c * v.x - s * v.y, s * v.x + c * v.y);
     }
 
     // 주어진 높이(worldY)에서 빔 콜라이더 단면의 좌우 끝을 훑어 가운데 X를 구한다. 못 찾으면 fallbackX.

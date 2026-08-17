@@ -11,8 +11,8 @@ public enum SfxType
 {
     None,
     ButtonClick,
-    BananaThrow,
-    BananaSettle,
+    SquishHit,
+    SquishSettle,
     StageClear,
     StageFail
 }

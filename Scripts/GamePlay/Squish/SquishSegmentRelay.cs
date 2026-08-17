@@ -11,6 +11,12 @@ public class SquishSegmentRelay : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (_body == null) return;
-        _body.ReportCollision(collision);
+        _body.ReportCollisionEnter(collision);
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (_body == null) return;
+        _body.ReportCollisionExit(collision);
     }
 }

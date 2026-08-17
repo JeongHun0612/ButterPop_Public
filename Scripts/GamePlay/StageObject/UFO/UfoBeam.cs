@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 우주선 하단 빔. 바나나가 빔 영역에 진입하면 부모 UFO에 알려 어브덕션을 시작한다.
+// 우주선 하단 빔. 스퀴시가 빔 영역에 진입하면 부모 UFO에 알려 어브덕션을 시작한다.
 [RequireComponent(typeof(Collider2D))]
 public class UfoBeam : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class UfoBeam : MonoBehaviour
         if (ufo == null)
             ufo = GetComponentInParent<UFO>();
 
-        // 빔은 바나나가 통과하며 감지되는 영역이므로 트리거로 강제한다.
+        // 빔은 스퀴시가 통과하며 감지되는 영역이므로 트리거로 강제한다.
         _collider = GetComponent<Collider2D>();
         _collider.isTrigger = true;
     }
@@ -22,7 +22,7 @@ public class UfoBeam : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (ufo == null) return;
-        if (other.GetComponentInParent<BananaThrowController>() == null) return;
+        if (other.GetComponentInParent<SquishThrowController>() == null) return;
 
         ufo.Abduct();
     }

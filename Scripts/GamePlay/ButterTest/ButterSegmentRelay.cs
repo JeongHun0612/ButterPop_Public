@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 세그먼트 각각의 충돌을 부모 ButterBody로 올려주는 릴레이. (BananaContactRelay와 동일 패턴)
+// 세그먼트 각각의 충돌을 부모 ButterBody로 올려주는 릴레이. (SquishContactRelay와 동일 패턴)
 [RequireComponent(typeof(Rigidbody2D))]
 public class ButterSegmentRelay : MonoBehaviour
 {

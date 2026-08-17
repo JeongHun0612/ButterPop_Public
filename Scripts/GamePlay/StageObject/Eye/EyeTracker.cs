@@ -14,11 +14,36 @@ public class EyeTracker : MonoBehaviour, IStageContextReceiver
     private Vector3 _pupilOrigin;
     private float _maxOffset;
     private Transform _target;
+    private SquishBody _targetBody;
 
     public void ReceiveStageContext(StageContext context)
-        => SetTarget(context?.Banana != null ? context.Banana.transform : null);
+    {
+        // 스퀴시는 뼈 체인이라 루트 transform이 움직이지 않는다 → WorldBounds 중심을 추적한다.
+        _targetBody = context?.Squish != null ? context.Squish.Body : null;
+        _target = null;
+    }
 
-    public void SetTarget(Transform target) => _target = target;
+    public void SetTarget(Transform target)
+    {
+        _target = target;
+        _targetBody = null;
+    }
+
+    private bool TryGetTargetPosition(out Vector3 position)
+    {
+        if (_targetBody != null)
+        {
+            position = _targetBody.WorldBounds.center;
+            return true;
+        }
+        if (_target != null)
+        {
+            position = _target.position;
+            return true;
+        }
+        position = default;
+        return false;
+    }
 
     private void Awake()
     {
@@ -41,13 +66,13 @@ public class EyeTracker : MonoBehaviour, IStageContextReceiver
     {
         if (pupil == null) return;
 
-        if (_target == null)
+        if (!TryGetTargetPosition(out var targetPos))
         {
             pupil.localPosition = Vector3.Lerp(pupil.localPosition, _pupilOrigin, Time.deltaTime * followSpeed);
             return;
         }
 
-        Vector3 dirWorld = _target.position - transform.position;
+        Vector3 dirWorld = targetPos - transform.position;
         Vector3 dirLocal = transform.InverseTransformDirection(dirWorld).normalized;
 
         float angle = Mathf.Atan2(dirLocal.y, dirLocal.x) * Mathf.Rad2Deg;

@@ -25,6 +25,8 @@ public class SquishBody : MonoBehaviour
     private bool _appliedBend;
 
     public event Action<Vector2, Vector2, float> OnSegmentCollision;
+    public event Action<Collision2D> OnSegmentCollisionEnter;
+    public event Action<Collision2D> OnSegmentCollisionExit;
 
     public SquishShapeSO Shape => shape;
     public IReadOnlyList<Rigidbody2D> Bones => _bones;
@@ -124,17 +126,32 @@ public class SquishBody : MonoBehaviour
             _bones[i].MovePosition(_bones[i].position + worldDelta);
     }
 
-    internal void ReportCollision(Collision2D collision)
+    internal void ReportCollisionEnter(Collision2D collision)
     {
+        // 접촉 추적용(상대 콜라이더 포함) 이벤트 — SquishSettleDetector가 구독.
+        OnSegmentCollisionEnter?.Invoke(collision);
+
+        // 타격음/임펄스용(접점 정보) 이벤트 — SquishSound/SquishMesh가 구독.
         if (collision.contactCount == 0) return;
 
         var contact = collision.GetContact(0);
         OnSegmentCollision?.Invoke(contact.point, contact.normal, collision.relativeVelocity.magnitude);
     }
 
+    internal void ReportCollisionExit(Collision2D collision) => OnSegmentCollisionExit?.Invoke(collision);
+
     private void Build()
     {
-        _boneRest = SpineSampler.Resample(shape.controlPoints, shape.boneCount, shape.smoothSpine);
+        // 물리 뼈는 끝단 반폭만큼 인셋 → 원형 콜라이더 캡이 비주얼 밖으로 튀지 않는다(캡슐 모델).
+        // 비주얼 격자(SquishMesh)는 인셋 없이 스파인 전체를 덮으므로 끝 정점은 끝 뼈에서 바깥으로 스키닝된다.
+        float insetStart = 0f, insetEnd = 0f;
+        if (shape.controlPoints != null && shape.controlPoints.Length > 0)
+        {
+            insetStart = shape.controlPoints[0].halfWidth;
+            insetEnd = shape.controlPoints[shape.controlPoints.Length - 1].halfWidth;
+        }
+
+        _boneRest = SpineSampler.Resample(shape.controlPoints, shape.boneCount, shape.smoothSpine, insetStart, insetEnd);
         int n = _boneRest.Length;
 
         var mat = new PhysicsMaterial2D("Squishy") { bounciness = shape.bounciness, friction = shape.friction };
