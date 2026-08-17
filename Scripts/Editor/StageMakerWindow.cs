@@ -50,7 +50,7 @@ public class StageMakerWindow : EditorWindow
     private Camera _mainCamera;
     private float _lastKnownAspect;
 
-    private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/Squish.prefab";
+    private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/HandRig.prefab";
     private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
@@ -826,7 +826,7 @@ public class StageMakerWindow : EditorWindow
         float cy = _data.cameraCenter.y;
 
         var squishPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SquishPrefabPath);
-        var detector = squishPrefab != null ? squishPrefab.GetComponent<SquishSettleDetector>() : null;
+        var detector = squishPrefab != null ? squishPrefab.GetComponentInChildren<SquishSettleDetector>() : null;
         var so = detector != null ? new SerializedObject(detector) : null;
         var marginProp = so?.FindProperty("outOfBoundsMargin");
         float margin = marginProp != null ? marginProp.floatValue : 2f;

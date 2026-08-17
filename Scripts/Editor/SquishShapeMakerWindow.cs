@@ -1,17 +1,14 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-// 스퀴시 셰이프(SquishShapeSO) 저작 툴 — 자체 캔버스 방식(Unity Sprite Editor 스타일).
-// - 씬/런타임에 의존하지 않는 독립 EditorWindow. 스프라이트 한 장을 캔버스에 띄우고
-//   그 위에서 스파인 제어점(중심선 + 국소 폭)을 찍어 SquishShapeSO로 저장한다.
+// 스퀴시 셰이프 저작 툴 — 자체 캔버스 방식(Unity Sprite Editor 스타일).
+// - 스프라이트 한 장을 캔버스에 띄우고 그 위에서 스파인 제어점(중심선 + 국소 폭)을 찍어
+//   SquishBody 컴포넌트에 직접 저장한다.
 // - Auto 생성: 불투명 픽셀 중심선(medial)을 곡률 기반으로 데시메이션해 제어점 시드를 만든다.
 public class SquishShapeMakerWindow : EditorWindow
 {
-    private const string ShapeDir = "Assets/08. ScriptableObjects/SquishShapes";
-    private const byte AlphaThreshold = 25;        // 불투명 판정 알파
     private const float HandlePickRadius = 10f;    // 제어점 마우스 히트 반경(px)
     private const float SidebarWidth = 264f;
 
@@ -19,7 +16,7 @@ public class SquishShapeMakerWindow : EditorWindow
     private class WorkingData : ScriptableObject
     {
         public Sprite sprite;
-        public List<SquishShapeSO.SpinePoint> controlPoints = new();
+        public List<SpinePoint> controlPoints = new();
         public bool smoothSpine = true;
         public bool bendEnabled = false;
         public int boneCount = 11;
@@ -30,7 +27,7 @@ public class SquishShapeMakerWindow : EditorWindow
         public float maxBendAnglePerJoint = 18f;
         public float totalMass = 1.2f;
         public float gravityScale = 1.5f;
-        public SquishShapeSO target;
+        public SquishBody target;
     }
 
     private WorkingData _data;
@@ -60,11 +57,20 @@ public class SquishShapeMakerWindow : EditorWindow
         w.Show();
     }
 
+    public static void Open(SquishBody target)
+    {
+        var w = GetWindow<SquishShapeMakerWindow>("Squish Shape Maker");
+        w.minSize = new Vector2(720f, 460f);
+        w.EnsureData();
+        w._data.target = target;
+        w.LoadFromBody();
+        w.Show();
+    }
+
     private void OnEnable()
     {
         EnsureData();
 
-        // 프로젝트에서 스프라이트를 선택 중이면 자동 로드.
         if (Selection.activeObject is Sprite s) _data.sprite = s;
         else if (Selection.activeObject is Texture2D tex)
         {
@@ -145,14 +151,14 @@ public class SquishShapeMakerWindow : EditorWindow
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("저장 / 불러오기", EditorStyles.boldLabel);
-            _data.target = (SquishShapeSO)EditorGUILayout.ObjectField("대상 SO", _data.target, typeof(SquishShapeSO), false);
+            _data.target = (SquishBody)EditorGUILayout.ObjectField("대상 SquishBody", _data.target, typeof(SquishBody), true);
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                using (new EditorGUI.DisabledScope(_data.sprite == null || _data.controlPoints.Count < 2))
-                    if (GUILayout.Button("▶ SO에 저장", GUILayout.Height(26))) SaveToSO();
+                using (new EditorGUI.DisabledScope(_data.sprite == null || _data.controlPoints.Count < 2 || _data.target == null))
+                    if (GUILayout.Button("▶ Body에 저장", GUILayout.Height(26))) SaveToBody();
                 using (new EditorGUI.DisabledScope(_data.target == null))
-                    if (GUILayout.Button("SO에서 불러오기", GUILayout.Height(26))) LoadFromSO();
+                    if (GUILayout.Button("Body에서 불러오기", GUILayout.Height(26))) LoadFromBody();
             }
 
             EditorGUILayout.Space();
@@ -182,7 +188,7 @@ public class SquishShapeMakerWindow : EditorWindow
         EnsureViewInit();
         ComputeFit();
 
-        GUI.BeginClip(canvas);   // 이하 좌표는 캔버스 원점(0,0) 기준
+        GUI.BeginClip(canvas);
         if (Event.current.type == EventType.Repaint)
         {
             DrawSpriteTexture();
@@ -243,12 +249,10 @@ public class SquishShapeMakerWindow : EditorWindow
         var arr = cps.ToArray();
         var samples = SpineSampler.Resample(arr, Mathf.Max(_data.meshCols, 24), _data.smoothSpine);
 
-        // 스파인 중심선
         Handles.color = Color.cyan;
         for (int i = 0; i < samples.Length - 1; i++)
             Handles.DrawAAPolyLine(3f, ToV3(LocalToCanvas(samples[i].position)), ToV3(LocalToCanvas(samples[i + 1].position)));
 
-        // 리본 외곽 (±법선*폭)
         Handles.color = new Color(1f, 0.15f, 0.9f, 1f);
         for (int i = 0; i < samples.Length - 1; i++)
         {
@@ -256,7 +260,6 @@ public class SquishShapeMakerWindow : EditorWindow
             DrawRibbonEdge(samples[i], samples[i + 1], -1f);
         }
 
-        // 리샘플된 뼈
         var bones = SpineSampler.Resample(arr, _data.boneCount, _data.smoothSpine);
         Handles.color = new Color(0.2f, 1f, 0.4f, 0.85f);
         foreach (var bpt in bones)
@@ -279,7 +282,6 @@ public class SquishShapeMakerWindow : EditorWindow
         {
             Vector2 p = LocalToCanvas(cps[i].position);
 
-            // 폭 핸들 연결선 + 점
             Vector2 n = LocalNormal(i);
             Vector2 wp = LocalToCanvas(cps[i].position + n * cps[i].halfWidth);
             Handles.color = new Color(0.3f, 0.6f, 1f, 0.5f);
@@ -287,7 +289,6 @@ public class SquishShapeMakerWindow : EditorWindow
             Handles.color = (i == _dragPoint && _dragWidth) ? Color.yellow : new Color(0.3f, 0.6f, 1f);
             Handles.DrawSolidDisc(ToV3(wp), Vector3.forward, 4f);
 
-            // 제어점
             Handles.color = (i == _dragPoint && !_dragWidth) ? Color.yellow : Color.white;
             Handles.DrawSolidDisc(ToV3(p), Vector3.forward, 5f);
         }
@@ -307,7 +308,7 @@ public class SquishShapeMakerWindow : EditorWindow
                 break;
 
             case EventType.MouseDown:
-                if (e.button == 2 || (e.button == 0 && e.alt)) { e.Use(); break; }   // 팬은 드래그에서 처리
+                if (e.button == 2 || (e.button == 0 && e.alt)) { e.Use(); break; }
                 if (e.button == 1)
                 {
                     int hit = PickPoint(m);
@@ -326,7 +327,7 @@ public class SquishShapeMakerWindow : EditorWindow
                     {
                         Undo.RecordObject(_data, "Add Spine Point");
                         var cps = _data.controlPoints;
-                        _data.controlPoints.Add(new SquishShapeSO.SpinePoint
+                        _data.controlPoints.Add(new SpinePoint
                         {
                             position = CanvasToLocal(m),
                             halfWidth = cps.Count > 0 ? cps[cps.Count - 1].halfWidth : 0.25f
@@ -418,8 +419,8 @@ public class SquishShapeMakerWindow : EditorWindow
         float half = _data.sprite.bounds.extents.x * 0.7f;
         float hw = _data.sprite.bounds.extents.y * 0.4f;
         _data.controlPoints.Clear();
-        _data.controlPoints.Add(new SquishShapeSO.SpinePoint { position = new Vector2(-half, 0f), halfWidth = hw });
-        _data.controlPoints.Add(new SquishShapeSO.SpinePoint { position = new Vector2(half, 0f), halfWidth = hw });
+        _data.controlPoints.Add(new SpinePoint { position = new Vector2(-half, 0f), halfWidth = hw });
+        _data.controlPoints.Add(new SpinePoint { position = new Vector2(half, 0f), halfWidth = hw });
         Repaint();
     }
 
@@ -428,11 +429,11 @@ public class SquishShapeMakerWindow : EditorWindow
         Undo.RecordObject(_data, "Add Spine Point");
         var cps = _data.controlPoints;
         if (cps.Count == 0) { InitLine(); return; }
-        if (cps.Count == 1) { cps.Add(new SquishShapeSO.SpinePoint { position = cps[0].position + Vector2.right, halfWidth = cps[0].halfWidth }); return; }
+        if (cps.Count == 1) { cps.Add(new SpinePoint { position = cps[0].position + Vector2.right, halfWidth = cps[0].halfWidth }); return; }
 
         var last = cps[cps.Count - 1];
         var prev = cps[cps.Count - 2];
-        cps.Add(new SquishShapeSO.SpinePoint { position = last.position + (last.position - prev.position), halfWidth = last.halfWidth });
+        cps.Add(new SpinePoint { position = last.position + (last.position - prev.position), halfWidth = last.halfWidth });
         Repaint();
     }
 
@@ -444,8 +445,6 @@ public class SquishShapeMakerWindow : EditorWindow
         Repaint();
     }
 
-    // ---------- Auto 생성 (스프라이트 → 중심선 → 곡률 기반 데시메이션) ----------
-
     private void AutoGenerateFromSprite()
     {
         if (_data.sprite == null)
@@ -454,227 +453,109 @@ public class SquishShapeMakerWindow : EditorWindow
             return;
         }
 
-        if (!TryBuildMedial(_data.sprite, out var medial, out var half))
-        {
-            Debug.LogWarning("[Squish] Auto 생성 실패: 불투명 픽셀을 찾지 못했습니다. (텍스처 읽기 실패 또는 알파가 전부 투명)");
+        if (!SquishSpineAutoGenerator.TryGenerate(_data.sprite, _autoTargetPoints, out var points))
             return;
-        }
-
-        SmoothHalf(half, 2);
-
-        float ppu = Mathf.Max(0.0001f, _data.sprite.pixelsPerUnit);
-        float axisLen = Vector2.Distance(medial[0], medial[medial.Count - 1]);
-        float epsilon = Mathf.Max(1f / ppu, axisLen * 0.0075f);   // 이보다 작은 굴곡은 무시 → 직선은 2점으로 수렴
-
-        var keep = DecimateByCurvature(medial, _autoTargetPoints, epsilon);
 
         Undo.RecordObject(_data, "Auto Generate Spine");
         _data.controlPoints.Clear();
-        foreach (int i in keep)
-            _data.controlPoints.Add(new SquishShapeSO.SpinePoint
-            {
-                position = medial[i],
-                halfWidth = Mathf.Max(0.02f, half[i])
-            });
+        foreach (var pt in points)
+            _data.controlPoints.Add(pt);
 
         Repaint();
-        Debug.Log($"[Squish] Auto 생성 완료: 중심선 {medial.Count}칼럼 → 제어점 {_data.controlPoints.Count}개 (목표 {_autoTargetPoints}).");
-    }
-
-    // 스프라이트 불투명 영역을 스캔해 긴 축을 따라 중심선(medial) 점 + 국소 반폭을 sprite-local로 뽑는다.
-    private static bool TryBuildMedial(Sprite sprite, out List<Vector2> medial, out List<float> half)
-    {
-        medial = new List<Vector2>();
-        half = new List<float>();
-
-        string path = AssetDatabase.GetAssetPath(sprite.texture);
-        Texture2D readable = null;
-        Color32[] px;
-        int texW, texH;
-        try
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-            readable = new Texture2D(2, 2);
-            if (!readable.LoadImage(bytes)) { Object.DestroyImmediate(readable); return false; }
-            px = readable.GetPixels32();
-            texW = readable.width;
-            texH = readable.height;
-        }
-        catch { if (readable != null) Object.DestroyImmediate(readable); return false; }
-        Object.DestroyImmediate(readable);
-
-        Rect r = sprite.rect;
-        int rx = Mathf.RoundToInt(r.x), ry = Mathf.RoundToInt(r.y);
-        int rw = Mathf.RoundToInt(r.width), rh = Mathf.RoundToInt(r.height);
-        if (rw <= 1 || rh <= 1 || rx < 0 || ry < 0 || rx + rw > texW || ry + rh > texH) return false;
-
-        var mask = new bool[rw * rh];
-        int minX = rw, maxX = -1, minY = rh, maxY = -1;
-        for (int y = 0; y < rh; y++)
-            for (int x = 0; x < rw; x++)
-            {
-                bool op = px[(ry + y) * texW + (rx + x)].a > AlphaThreshold;
-                mask[y * rw + x] = op;
-                if (op)
-                {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        if (maxX < 0) return false;
-
-        bool horizontal = (maxX - minX) >= (maxY - minY);
-        float ppu = Mathf.Max(0.0001f, sprite.pixelsPerUnit);
-        Vector2 pivot = sprite.pivot;   // rect 좌하단 기준 픽셀
-
-        if (horizontal)
-        {
-            for (int x = minX; x <= maxX; x++)
-            {
-                int lo = -1, hi = -1;
-                for (int y = minY; y <= maxY; y++)
-                    if (mask[y * rw + x]) { if (lo < 0) lo = y; hi = y; }
-                if (lo < 0) continue;   // 불투명 없는 칼럼(구멍)은 건너뜀
-                medial.Add(new Vector2((x + 0.5f - pivot.x) / ppu, ((lo + hi) * 0.5f + 0.5f - pivot.y) / ppu));
-                half.Add((hi - lo + 1) * 0.5f / ppu);
-            }
-        }
-        else
-        {
-            for (int y = minY; y <= maxY; y++)
-            {
-                int lo = -1, hi = -1;
-                for (int x = minX; x <= maxX; x++)
-                    if (mask[y * rw + x]) { if (lo < 0) lo = x; hi = x; }
-                if (lo < 0) continue;
-                medial.Add(new Vector2(((lo + hi) * 0.5f + 0.5f - pivot.x) / ppu, (y + 0.5f - pivot.y) / ppu));
-                half.Add((hi - lo + 1) * 0.5f / ppu);
-            }
-        }
-
-        return medial.Count >= 2;
-    }
-
-    // 인접 반폭 이동평균(±window)으로 픽셀 단위 지터를 완화.
-    private static void SmoothHalf(List<float> half, int window)
-    {
-        if (half.Count < 3 || window < 1) return;
-        var src = new List<float>(half);
-        for (int i = 0; i < half.Count; i++)
-        {
-            float sum = 0f; int cnt = 0;
-            for (int k = -window; k <= window; k++)
-            {
-                int j = i + k;
-                if (j >= 0 && j < src.Count) { sum += src[j]; cnt++; }
-            }
-            half[i] = sum / cnt;
-        }
-    }
-
-    // 우선순위 Douglas-Peucker: 편차가 가장 큰 점부터 targetCount개까지 유지. 편차 < epsilon이면 조기 종료.
-    private static List<int> DecimateByCurvature(IReadOnlyList<Vector2> pts, int targetCount, float epsilon)
-    {
-        int n = pts.Count;
-        var kept = new List<int> { 0, n - 1 };
-        targetCount = Mathf.Clamp(targetCount, 2, n);
-        if (n <= 2 || targetCount <= 2) return kept;
-
-        var segments = new List<(int a, int b)> { (0, n - 1) };
-        while (kept.Count < targetCount)
-        {
-            float best = -1f; int bestSeg = -1, bestPt = -1;
-            for (int s = 0; s < segments.Count; s++)
-            {
-                var (a, b) = segments[s];
-                if (b - a < 2) continue;
-                MaxDeviation(pts, a, b, out int mi, out float md);
-                if (md > best) { best = md; bestSeg = s; bestPt = mi; }
-            }
-            if (bestSeg < 0 || best < epsilon) break;
-
-            var seg = segments[bestSeg];
-            segments.RemoveAt(bestSeg);
-            segments.Add((seg.a, bestPt));
-            segments.Add((bestPt, seg.b));
-            kept.Add(bestPt);
-        }
-
-        kept.Sort();
-        return kept;
-    }
-
-    // 선분 (a,b)에서 수직 편차가 최대인 내부 점 인덱스와 거리.
-    private static void MaxDeviation(IReadOnlyList<Vector2> pts, int a, int b, out int idx, out float dist)
-    {
-        idx = -1; dist = -1f;
-        Vector2 pa = pts[a], pb = pts[b];
-        Vector2 ab = pb - pa;
-        float abLen = ab.magnitude;
-        for (int i = a + 1; i < b; i++)
-        {
-            float d = abLen < 1e-6f
-                ? Vector2.Distance(pts[i], pa)
-                : Mathf.Abs((pts[i].x - pa.x) * ab.y - (pts[i].y - pa.y) * ab.x) / abLen;
-            if (d > dist) { dist = d; idx = i; }
-        }
     }
 
     // ---------- 저장 / 불러오기 ----------
 
-    private void SaveToSO()
+    private void SaveToBody()
     {
-        var so = _data.target;
-        if (so == null)
-        {
-            string defaultName = (_data.sprite != null ? _data.sprite.name : "Squish") + "_Shape";
-            string path = EditorUtility.SaveFilePanelInProject("SquishShape 저장", defaultName, "asset", "", ShapeDir);
-            if (string.IsNullOrEmpty(path)) return;
+        var body = _data.target;
+        if (body == null) return;
 
-            so = CreateInstance<SquishShapeSO>();
-            AssetDatabase.CreateAsset(so, path);
-            _data.target = so;
+        // SquishBody에 스파인 + 물리 파라미터 저장 (SerializedObject로 private 필드 접근)
+        var bodySo = new SerializedObject(body);
+
+        var cpProp = bodySo.FindProperty("controlPoints");
+        cpProp.arraySize = _data.controlPoints.Count;
+        for (int i = 0; i < _data.controlPoints.Count; i++)
+        {
+            var elem = cpProp.GetArrayElementAtIndex(i);
+            elem.FindPropertyRelative("position").vector2Value = _data.controlPoints[i].position;
+            elem.FindPropertyRelative("halfWidth").floatValue = _data.controlPoints[i].halfWidth;
+        }
+        bodySo.FindProperty("smoothSpine").boolValue = _data.smoothSpine;
+        bodySo.FindProperty("bendEnabled").boolValue = _data.bendEnabled;
+        bodySo.FindProperty("boneCount").intValue = _data.boneCount;
+        bodySo.FindProperty("totalMass").floatValue = _data.totalMass;
+        bodySo.FindProperty("gravityScale").floatValue = _data.gravityScale;
+        bodySo.FindProperty("bendStiffness").floatValue = _data.bendStiffness;
+        bodySo.FindProperty("bendDamping").floatValue = _data.bendDamping;
+        bodySo.FindProperty("maxBendAnglePerJoint").floatValue = _data.maxBendAnglePerJoint;
+
+        bodySo.ApplyModifiedProperties();
+
+        // 같은 GO의 SquishMesh에 메쉬 해상도 저장
+        var mesh = body.GetComponent<SquishMesh>();
+        if (mesh != null)
+        {
+            var meshSo = new SerializedObject(mesh);
+            meshSo.FindProperty("meshCols").intValue = _data.meshCols;
+            meshSo.FindProperty("meshRows").intValue = _data.meshRows;
+            meshSo.ApplyModifiedProperties();
         }
 
-        so.sprite = _data.sprite;
-        so.controlPoints = _data.controlPoints.ToArray();
-        so.smoothSpine = _data.smoothSpine;
-        so.bendEnabled = _data.bendEnabled;
-        so.boneCount = _data.boneCount;
-        so.meshCols = _data.meshCols;
-        so.meshRows = _data.meshRows;
-        so.bendStiffness = _data.bendStiffness;
-        so.bendDamping = _data.bendDamping;
-        so.maxBendAnglePerJoint = _data.maxBendAnglePerJoint;
-        so.totalMass = _data.totalMass;
-        so.gravityScale = _data.gravityScale;
-        so.opaqueUVRect = SquishSpriteUtil.ComputeOpaqueUVRect(_data.sprite);
+        // SquishSkinSO에 불투명영역 저장
+        if (mesh != null && mesh.SkinSO != null && _data.sprite != null)
+        {
+            mesh.SkinSO.opaqueUVRect = SquishSpriteUtil.ComputeOpaqueUVRect(_data.sprite);
+            EditorUtility.SetDirty(mesh.SkinSO);
+        }
 
-        EditorUtility.SetDirty(so);
-        AssetDatabase.SaveAssets();
-        Debug.Log($"[Squish] SO 저장 완료: {AssetDatabase.GetAssetPath(so)}  (불투명영역 {so.opaqueUVRect})");
+        Debug.Log($"[Squish] Body 저장 완료: {body.name}  (제어점 {_data.controlPoints.Count}개)");
     }
 
-    private void LoadFromSO()
+    private void LoadFromBody()
     {
-        var so = _data.target;
-        if (so == null) return;
+        var body = _data.target;
+        if (body == null) return;
 
         Undo.RecordObject(_data, "Load Shape");
-        _data.sprite = so.sprite;
-        _data.controlPoints = new List<SquishShapeSO.SpinePoint>(so.controlPoints ?? new SquishShapeSO.SpinePoint[0]);
-        _data.smoothSpine = so.smoothSpine;
-        _data.bendEnabled = so.bendEnabled;
-        _data.boneCount = so.boneCount;
-        _data.meshCols = so.meshCols;
-        _data.meshRows = so.meshRows;
-        _data.bendStiffness = so.bendStiffness;
-        _data.bendDamping = so.bendDamping;
-        _data.maxBendAnglePerJoint = so.maxBendAnglePerJoint;
-        _data.totalMass = so.totalMass;
-        _data.gravityScale = so.gravityScale;
+
+        // SquishBody에서 읽기 (SerializedObject로 private 필드 접근)
+        var bodySo = new SerializedObject(body);
+
+        var cpProp = bodySo.FindProperty("controlPoints");
+        _data.controlPoints.Clear();
+        for (int i = 0; i < cpProp.arraySize; i++)
+        {
+            var elem = cpProp.GetArrayElementAtIndex(i);
+            _data.controlPoints.Add(new SpinePoint
+            {
+                position = elem.FindPropertyRelative("position").vector2Value,
+                halfWidth = elem.FindPropertyRelative("halfWidth").floatValue
+            });
+        }
+        _data.smoothSpine = bodySo.FindProperty("smoothSpine").boolValue;
+        _data.bendEnabled = bodySo.FindProperty("bendEnabled").boolValue;
+        _data.boneCount = bodySo.FindProperty("boneCount").intValue;
+        _data.totalMass = bodySo.FindProperty("totalMass").floatValue;
+        _data.gravityScale = bodySo.FindProperty("gravityScale").floatValue;
+        _data.bendStiffness = bodySo.FindProperty("bendStiffness").floatValue;
+        _data.bendDamping = bodySo.FindProperty("bendDamping").floatValue;
+        _data.maxBendAnglePerJoint = bodySo.FindProperty("maxBendAnglePerJoint").floatValue;
+
+        // SquishMesh에서 메쉬 해상도 읽기
+        var mesh = body.GetComponent<SquishMesh>();
+        if (mesh != null)
+        {
+            var meshSo = new SerializedObject(mesh);
+            _data.meshCols = meshSo.FindProperty("meshCols").intValue;
+            _data.meshRows = meshSo.FindProperty("meshRows").intValue;
+        }
+
+        // SquishSkinSO에서 스프라이트 읽기
+        if (mesh != null && mesh.SkinSO != null && mesh.SkinSO.sprite != null)
+            _data.sprite = mesh.SkinSO.sprite;
+
         _viewInit = false;
         Repaint();
     }

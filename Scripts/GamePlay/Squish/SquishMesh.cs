@@ -3,16 +3,24 @@ using UnityEngine;
 
 // 스퀴시 오브젝트의 "살"(일반형). SquishBody 뼈 체인에 스파인 스윕 격자를 스키닝하고,
 // 그 위에서 PBD(Verlet) + 면적보존 압력으로 눌리고 출렁이게 한다.
-// - ButterSquishMesh를 임의 형태로 일반화: rest = 스파인 스윕, UV = 평면 매핑, 바인딩 = 호 파라미터 매칭.
-// - 소프트바디 시뮬(구속 투영)은 ButterSquishMesh와 동일 — goal만 스파인 스윕으로 바뀐다.
 public class SquishMesh : MonoBehaviour
 {
     [Header("참조")]
     [SerializeField] private SquishBody body;
-    [Tooltip("비주얼 스킨. 스프라이트·불투명영역을 여기서 우선 읽고, 없으면 Shape의 것을 사용(하위호환). SquishSound와 같은 SO를 물려 사용.")]
+    [Tooltip("비주얼 스킨 (스프라이트 + 타격음). SquishSound와 같은 SO를 물려 사용.")]
     [SerializeField] private SquishSkinSO skin;
-    [SerializeField] private string sortingLayerName = "Default";
-    [SerializeField] private int sortingOrder = 0;
+
+    [Header("비주얼 오브젝트")]
+    [Tooltip("프리팹에 미리 배치한 비주얼 오브젝트. MeshFilter + MeshRenderer가 달린 자식 GO를 지정. 비우면 런타임에 자동 생성.")]
+    [SerializeField] private MeshRenderer visualRenderer;
+
+    [Header("스퀴시 메쉬 해상도")]
+    [Tooltip("스파인 방향 정점 수 (표면 매끈함)")]
+    [Range(2, 64)]
+    [SerializeField] private int meshCols = 20;
+    [Tooltip("폭 방향 정점 수 (스퀴시 볼륨)")]
+    [Range(2, 16)]
+    [SerializeField] private int meshRows = 5;
 
     [Header("스퀴시 On/Off")]
     [Tooltip("끄면 정점이 뼈대 목표에 딱 붙어 출렁임·눌림이 사라진다(딱딱한 스킨). 굽힘은 그대로. (실시간 토글)")]
@@ -69,6 +77,7 @@ public class SquishMesh : MonoBehaviour
     }
 
     private Mesh _mesh;
+    private GameObject _visualGo;
 
     private Skin[] _skin;
     private Vector2[] _pos;
@@ -88,25 +97,26 @@ public class SquishMesh : MonoBehaviour
     private int _rows;
     private int VertexCount => _cols * _rows;
 
+    public int MeshCols => meshCols;
+    public int MeshRows => meshRows;
+    public SquishSkinSO SkinSO => skin;
+    public MeshRenderer VisualRenderer => visualRenderer;
+
     private void Awake()
     {
         if (body == null) body = GetComponent<SquishBody>();
 
-        if (body == null || body.Shape == null || ResolveSprite() == null)
+        if (body == null || ResolveSprite() == null)
         {
-            Debug.LogError("[SquishMesh] body / Shape / sprite(skin 또는 Shape)가 지정되지 않았습니다.");
+            Debug.LogError("[SquishMesh] body / skin sprite가 지정되지 않았습니다.");
             enabled = false;
         }
     }
 
-    // 스프라이트/불투명영역은 skin 우선, 없으면 Shape 폴백(하위호환).
-    private Sprite ResolveSprite()
-        => (skin != null && skin.sprite != null) ? skin.sprite
-            : (body != null && body.Shape != null) ? body.Shape.sprite : null;
+    private Sprite ResolveSprite() => (skin != null) ? skin.sprite : null;
 
     private Rect ResolveOpaqueUVRect()
-        => (skin != null && skin.sprite != null) ? skin.opaqueUVRect
-            : (body != null && body.Shape != null) ? body.Shape.opaqueUVRect : new Rect(0f, 0f, 1f, 1f);
+        => (skin != null && skin.sprite != null) ? skin.opaqueUVRect : new Rect(0f, 0f, 1f, 1f);
 
     private void Start()
     {
@@ -114,8 +124,8 @@ public class SquishMesh : MonoBehaviour
 
         _bones = body.Bones;
         _boneRest = body.BoneRestSamples;
-        _cols = body.Shape.meshCols;
-        _rows = body.Shape.meshRows;
+        _cols = meshCols;
+        _rows = meshRows;
 
         BuildMesh();
         BuildConstraints();
@@ -133,6 +143,9 @@ public class SquishMesh : MonoBehaviour
     {
         if (body != null)
             body.OnSegmentCollision -= OnSegmentCollision;
+
+        if (_visualGo != null)
+            Destroy(_visualGo);
     }
 
     public void ResetShape()
@@ -149,8 +162,6 @@ public class SquishMesh : MonoBehaviour
         _impulses.Clear();
     }
 
-    // 정점 컬러로 전체를 균일 틴트한다(Unlit 셰이더가 텍스처 × 정점컬러). 타는 연출 등에서 사용.
-    // 정점 컬러는 시뮬/WriteMesh가 덮어쓰지 않으므로 한 번 설정하면 유지된다. 원복은 Color.white.
     public void SetTint(Color c)
     {
         if (_mesh == null) return;
@@ -161,19 +172,35 @@ public class SquishMesh : MonoBehaviour
     {
         var sprite = ResolveSprite();
 
-        var meshGo = new GameObject("SquishMesh");
-        meshGo.transform.SetParent(null);   // 월드 공간 렌더
-        meshGo.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-        meshGo.transform.localScale = Vector3.one;
+        MeshFilter filter;
+        MeshRenderer renderer;
 
-        var filter = meshGo.AddComponent<MeshFilter>();
-        var renderer = meshGo.AddComponent<MeshRenderer>();
-        renderer.sortingLayerName = sortingLayerName;
-        renderer.sortingOrder = sortingOrder;
-        renderer.sharedMaterial = CreateMaterial(sprite);
+        if (visualRenderer != null)
+        {
+            // 프리팹에 미리 배치된 비주얼 오브젝트 사용
+            _visualGo = visualRenderer.gameObject;
+            filter = _visualGo.GetComponent<MeshFilter>();
+            if (filter == null) filter = _visualGo.AddComponent<MeshFilter>();
+            renderer = visualRenderer;
+        }
+        else
+        {
+            // 비주얼 오브젝트 자동 생성
+            _visualGo = new GameObject("SquishVisual");
+            filter = _visualGo.AddComponent<MeshFilter>();
+            renderer = _visualGo.AddComponent<MeshRenderer>();
+        }
 
-        // 스파인을 메쉬 열 수로 리샘플링 → 스윕으로 rest 정점 생성.
-        var cols = SpineSampler.Resample(body.Shape.controlPoints, _cols, body.Shape.smoothSpine);
+        // 월드 공간 렌더 (정점이 월드 좌표라 부모 트랜스폼과 겹치면 이중 오프셋 → 원점 identity로 떼어냄)
+        _visualGo.transform.SetParent(null);
+        _visualGo.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        _visualGo.transform.localScale = Vector3.one;
+
+        ApplyMaterial(renderer, sprite);
+
+        // rest 지오메트리(정점·UV·삼각형). 뼈가 스폰 스케일로 구워지므로 메쉬 그리드도 동일 스케일(EffectiveControlPoints)로 맞춘다.
+        BuildRestGeometry(body.EffectiveControlPoints, body.SmoothSpine, _cols, _rows, sprite, ResolveOpaqueUVRect(),
+            out _verts, out var uvs, out var tris);
 
         int vc = VertexCount;
         _skin = new Skin[vc];
@@ -181,37 +208,90 @@ public class SquishMesh : MonoBehaviour
         _prevPos = new Vector2[vc];
         _goal = new Vector2[vc];
         _prevGoal = new Vector2[vc];
-        _verts = new Vector3[vc];
-        var rest = new Vector2[vc];
 
+        // 정점을 뼈에 스키닝 바인딩 (뼈 rest 포즈 필요 → 런타임 전용).
         for (int col = 0; col < _cols; col++)
         {
-            var s = cols[col];
-            Vector2 normal = new Vector2(-Mathf.Sin(s.angleDeg * Mathf.Deg2Rad), Mathf.Cos(s.angleDeg * Mathf.Deg2Rad));
             float fc = _cols > 1 ? col / (float)(_cols - 1) : 0f;
-
             for (int row = 0; row < _rows; row++)
             {
-                float v = _rows > 1 ? Mathf.Lerp(-1f, 1f, row / (float)(_rows - 1)) : 0f;
                 int i = row * _cols + col;
-
-                rest[i] = s.position + normal * (v * s.halfWidth);
-                _skin[i] = BindSkin(fc, rest[i]);
-                _verts[i] = rest[i];
+                _skin[i] = BindSkin(fc, _verts[i]);
             }
         }
 
         _mesh = new Mesh { name = "SquishMesh" };
         _mesh.MarkDynamic();
         _mesh.vertices = _verts;
-        _mesh.uv = BuildUVs(sprite, rest);
+        _mesh.uv = uvs;
         _mesh.colors = SolidColors(Color.white);
-        _mesh.triangles = BuildTriangles();
+        _mesh.triangles = tris;
         _mesh.RecalculateBounds();
         filter.mesh = _mesh;
     }
 
-    // rest 정점을 호 파라미터(fc)로 인접한 뼈 2개에 바인딩. 각 뼈 rest 프레임의 로컬 오프셋 저장.
+    // 미리 배정된 재질이 있으면 재사용(인스턴스화 후 텍스처만 스킨으로 교체) → 런타임 Shader.Find 제거.
+    // 없으면 기존처럼 런타임 생성.
+    private void ApplyMaterial(MeshRenderer renderer, Sprite sprite)
+    {
+        if (renderer.sharedMaterial != null)
+        {
+            renderer.material.mainTexture = sprite.texture;
+            return;
+        }
+        renderer.sharedMaterial = CreateMaterial(sprite);
+    }
+
+    // rest 지오메트리를 컨트롤 포인트+스프라이트만으로 생성한다(뼈 무관).
+    // 런타임 BuildMesh와 에디터 프리뷰 메쉬 굽기가 공유해 동일한 형태를 보장한다.
+    public static void BuildRestGeometry(SpinePoint[] controlPoints, bool smooth, int cols, int rows,
+        Sprite sprite, Rect opaqueUVRect,
+        out Vector3[] verts, out Vector2[] uvs, out int[] tris)
+    {
+        cols = Mathf.Max(cols, 2);
+        rows = Mathf.Max(rows, 2);
+        int vc = cols * rows;
+
+        var samples = SpineSampler.Resample(controlPoints, cols, smooth);
+        verts = new Vector3[vc];
+        var rest = new Vector2[vc];
+
+        for (int col = 0; col < cols; col++)
+        {
+            var s = samples[col];
+            Vector2 normal = new Vector2(-Mathf.Sin(s.angleDeg * Mathf.Deg2Rad), Mathf.Cos(s.angleDeg * Mathf.Deg2Rad));
+            for (int row = 0; row < rows; row++)
+            {
+                float v = rows > 1 ? Mathf.Lerp(-1f, 1f, row / (float)(rows - 1)) : 0f;
+                int i = row * cols + col;
+                rest[i] = s.position + normal * (v * s.halfWidth);
+                verts[i] = rest[i];
+            }
+        }
+
+        uvs = BuildUVs(sprite, opaqueUVRect, rest);
+        tris = BuildTriangles(cols, rows);
+    }
+
+    // 에디터에서 프리팹 MeshFilter에 넣을 rest 메쉬 자산을 만든다.
+    public static Mesh BuildPreviewMesh(SpinePoint[] controlPoints, bool smooth, int cols, int rows,
+        Sprite sprite, Rect opaqueUVRect)
+    {
+        BuildRestGeometry(controlPoints, smooth, cols, rows, sprite, opaqueUVRect,
+            out var verts, out var uvs, out var tris);
+
+        var mesh = new Mesh { name = "SquishMesh" };
+        var colors = new Color[verts.Length];
+        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
+
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.colors = colors;
+        mesh.triangles = tris;
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
     private Skin BindSkin(float fc, Vector2 rest)
     {
         int n = _boneRest.Count;
@@ -241,15 +321,11 @@ public class SquishMesh : MonoBehaviour
         return Vector2.Lerp(gA, gB, s.weight);
     }
 
-    // UV: rest 위치의 bounding box를 스프라이트의 불투명(아트) 영역에 평면 매핑.
-    // opaqueUVRect로 여백이 큰 스프라이트도 실제 그림 영역에만 정확히 정합된다.
-    private Vector2[] BuildUVs(Sprite sprite, Vector2[] rest)
+    private static Vector2[] BuildUVs(Sprite sprite, Rect o, Vector2[] rest)
     {
         var tex = sprite.texture;
         var r = sprite.rect;
-        Rect o = ResolveOpaqueUVRect();
 
-        // 스프라이트 rect → 그 안의 불투명 서브영역 (텍스처 0~1).
         Vector2 spriteUvMin = new Vector2(r.xMin / tex.width, r.yMin / tex.height);
         Vector2 spriteUvSize = new Vector2(r.width / tex.width, r.height / tex.height);
         Vector2 uvMin = spriteUvMin + new Vector2(o.xMin * spriteUvSize.x, o.yMin * spriteUvSize.y);
@@ -275,16 +351,16 @@ public class SquishMesh : MonoBehaviour
         return uvs;
     }
 
-    private int[] BuildTriangles()
+    private static int[] BuildTriangles(int cols, int rows)
     {
-        var tris = new List<int>((_cols - 1) * (_rows - 1) * 6);
-        for (int row = 0; row < _rows - 1; row++)
+        var tris = new List<int>((cols - 1) * (rows - 1) * 6);
+        for (int row = 0; row < rows - 1; row++)
         {
-            for (int col = 0; col < _cols - 1; col++)
+            for (int col = 0; col < cols - 1; col++)
             {
-                int i0 = row * _cols + col;
+                int i0 = row * cols + col;
                 int i1 = i0 + 1;
-                int i2 = i0 + _cols;
+                int i2 = i0 + cols;
                 int i3 = i2 + 1;
                 tris.Add(i0); tris.Add(i2); tris.Add(i1);
                 tris.Add(i1); tris.Add(i2); tris.Add(i3);

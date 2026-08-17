@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class StageBuilder : MonoBehaviour
 {
     [Header("프리팹")]
-    [SerializeField] private GameObject squishPrefab;
+    [Tooltip("붙잡는 손 + 중첩 Squish를 담은 HandRig 프리팹. 루트 원점 = 매달림 점(손끝).")]
+    [FormerlySerializedAs("squishPrefab")]
+    [SerializeField] private GameObject squishRigPrefab;
     [SerializeField] private GameObject monkeyArmPrefab;
 
     [Header("참조")]
@@ -14,7 +17,7 @@ public class StageBuilder : MonoBehaviour
     private readonly List<GameObject> _spawnedStageObjects = new();
     private readonly List<IStageContextReceiver> _contextReceivers = new();
 
-    private GameObject _squishInstance;
+    private GameObject _squishRigInstance;
     private GameObject _monkeyArmInstance;
 
     private StageContext _context;
@@ -57,7 +60,10 @@ public class StageBuilder : MonoBehaviour
     {
         if (ctx?.Squish == null) return;
 
-        ctx.Squish.transform.position = ctx.Data.squishSpawnPosition;
+        // HandRig 루트(손+중첩 Squish 통째)를 매달림 점으로 되돌린다. 중첩 Squish는 손 기준 오프셋을 유지해야 하므로 건드리지 않는다.
+        if (_squishRigInstance != null)
+            _squishRigInstance.transform.position = ctx.Data.squishSpawnPosition;
+
         ctx.Squish.StartSwing();
 
         if (ctx.SettleDetector != null)
@@ -127,17 +133,18 @@ public class StageBuilder : MonoBehaviour
 
     private void SpawnSquish(StageDataSO data)
     {
-        if (squishPrefab == null) return;
+        if (squishRigPrefab == null) return;
 
-        if (_squishInstance == null)
+        if (_squishRigInstance == null)
         {
-            _squishInstance = Instantiate(squishPrefab);
+            _squishRigInstance = Instantiate(squishRigPrefab);
             EnsureContext();
-            _context.Squish = _squishInstance.GetComponentInChildren<SquishThrowController>();
-            _context.SettleDetector = _squishInstance.GetComponentInChildren<SquishSettleDetector>();
+            _context.Squish = _squishRigInstance.GetComponentInChildren<SquishThrowController>();
+            _context.SettleDetector = _squishRigInstance.GetComponentInChildren<SquishSettleDetector>();
         }
 
-        _squishInstance.transform.position = new Vector3(
+        // rig 루트 원점 = 매달림 점(손끝). 스폰 좌표에 놓으면 손 + 중첩 Squish가 통째로 정렬된다.
+        _squishRigInstance.transform.position = new Vector3(
             data.squishSpawnPosition.x, data.squishSpawnPosition.y, 0f);
     }
 
