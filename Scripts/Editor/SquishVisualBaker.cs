@@ -30,15 +30,18 @@ public static class SquishVisualBaker
             return false;
         }
 
-        var cp = body.ControlPoints;
-        if (cp == null || cp.Length < 2)
+        if (body.Length <= 0f || body.Width <= 0f)
         {
-            Debug.LogError("[SquishVisualBaker] controlPoints가 2개 이상 필요합니다.");
+            Debug.LogError("[SquishVisualBaker] length·width는 0보다 커야 합니다.");
             return false;
         }
 
+        // 0) 스킨 불투명 영역 갱신 (형태 저작 툴 제거 후, 굽기 시점에 스프라이트에서 계산)
+        skin.opaqueUVRect = SquishSpriteUtil.ComputeOpaqueUVRect(skin.sprite);
+        EditorUtility.SetDirty(skin);
+
         // 1) rest 메쉬 자산 (런타임과 동일한 지오메트리 생성기 사용 → 형태 일치 보장)
-        var baked = SquishMesh.BuildPreviewMesh(cp, body.SmoothSpine, mesh.MeshCols, mesh.MeshRows,
+        var baked = SquishMesh.BuildPreviewMesh(body.Length, body.Width, mesh.MeshCols, mesh.MeshRows,
             skin.sprite, skin.opaqueUVRect);
         var meshAsset = SaveOrUpdateMeshAsset(baked, skin);
 
@@ -51,6 +54,11 @@ public static class SquishVisualBaker
         var renderer = GetOrAdd<MeshRenderer>(visual);
         filter.sharedMesh = meshAsset;
         renderer.sharedMaterial = mat;
+        renderer.transform.localScale = Vector3.one;   // 메쉬를 length×width로 구웠으므로 미리보기 배율은 1 (OnValidate가 이후 값 변경 시 조절)
+
+        // 정렬값도 구워 에디트 모드에서 런타임과 동일한 순서로 보이게 한다(런타임 BuildMesh와 동일 소스).
+        renderer.sortingLayerName = mesh.SortingLayerName;
+        renderer.sortingOrder = mesh.SortingOrder;
 
         // 4) visualRenderer 배선
         var so = new SerializedObject(mesh);
@@ -80,10 +88,17 @@ public static class SquishVisualBaker
             return newMesh;
         }
 
-        // 기존 자산 내용만 갱신 → MeshFilter 참조 유지.
-        EditorUtility.CopySerialized(newMesh, existing);
+        // 기존 자산을 직접 변형해 갱신 → MeshFilter 참조 유지 + 렌더 버퍼 즉시 재업로드.
+        // (CopySerialized는 직렬화 데이터만 갱신하고 로드된 메쉬의 렌더 갱신을 트리거하지 않아 뷰에 반영되지 않음.)
+        existing.Clear();
+        existing.vertices = newMesh.vertices;
+        existing.uv = newMesh.uv;
+        existing.colors = newMesh.colors;
+        existing.triangles = newMesh.triangles;
+        existing.RecalculateBounds();
         EditorUtility.SetDirty(existing);
         AssetDatabase.SaveAssets();
+        Object.DestroyImmediate(newMesh);   // 임시로 만든 메쉬는 버린다(에셋은 existing).
         return existing;
     }
 

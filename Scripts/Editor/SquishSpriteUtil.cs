@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEngine;
 
 // 스프라이트 픽셀에서 불투명(아트) 영역을 계산하는 에디터 공용 유틸.
-// SquishShapeMakerWindow · SquishSkinSOEditor가 공유한다.
+// SquishVisualBaker(굽기 시점) · SquishSkinSOEditor가 공유한다.
 public static class SquishSpriteUtil
 {
     public const byte AlphaThreshold = 25;   // 불투명 판정 알파

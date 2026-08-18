@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 스퀴시 오브젝트의 "살"(일반형). SquishBody 뼈 체인에 스파인 스윕 격자를 스키닝하고,
-// 그 위에서 PBD(Verlet) + 면적보존 압력으로 눌리고 출렁이게 한다.
+// SquishBody 뼈 체인 위에 스키닝되는 스퀴시 메쉬.
 public class SquishMesh : MonoBehaviour
 {
     [Header("참조")]
@@ -53,6 +52,12 @@ public class SquishMesh : MonoBehaviour
     [SerializeField] private float impulseRadius = 0.4f;
     [SerializeField] private float maxImpulse = 6f;
 
+    [Header("렌더 정렬")]
+    [Tooltip("비주얼 메쉬의 Sorting Layer. Handle 등 다른 SpriteRenderer와 같은 축으로 비교된다.")]
+    [SerializeField] private string sortingLayerName = "Default";
+    [Tooltip("Order in Layer. Handle Sprite보다 크게 주면 위로 올라온다.")]
+    [SerializeField] private int sortingOrder = 10;
+
     private struct DistanceConstraint
     {
         public int a;
@@ -99,6 +104,8 @@ public class SquishMesh : MonoBehaviour
 
     public int MeshCols => meshCols;
     public int MeshRows => meshRows;
+    public string SortingLayerName => sortingLayerName;
+    public int SortingOrder => sortingOrder;
     public SquishSkinSO SkinSO => skin;
     public MeshRenderer VisualRenderer => visualRenderer;
 
@@ -121,8 +128,14 @@ public class SquishMesh : MonoBehaviour
     private void Start()
     {
         if (!enabled) return;
+        if (!body.IsReady || body.BoneRigidbodies.Count < 2 || body.BoneRestSamples.Count < 2)
+        {
+            Debug.LogError("[SquishMesh] SquishBody가 준비되지 않았습니다. 뼈를 굽고 프리팹 구성을 확인하세요.");
+            enabled = false;
+            return;
+        }
 
-        _bones = body.Bones;
+        _bones = body.BoneRigidbodies;
         _boneRest = body.BoneRestSamples;
         _cols = meshCols;
         _rows = meshRows;
@@ -177,7 +190,6 @@ public class SquishMesh : MonoBehaviour
 
         if (visualRenderer != null)
         {
-            // 프리팹에 미리 배치된 비주얼 오브젝트 사용
             _visualGo = visualRenderer.gameObject;
             filter = _visualGo.GetComponent<MeshFilter>();
             if (filter == null) filter = _visualGo.AddComponent<MeshFilter>();
@@ -185,21 +197,22 @@ public class SquishMesh : MonoBehaviour
         }
         else
         {
-            // 비주얼 오브젝트 자동 생성
             _visualGo = new GameObject("SquishVisual");
             filter = _visualGo.AddComponent<MeshFilter>();
             renderer = _visualGo.AddComponent<MeshRenderer>();
         }
 
-        // 월드 공간 렌더 (정점이 월드 좌표라 부모 트랜스폼과 겹치면 이중 오프셋 → 원점 identity로 떼어냄)
+        // 정점은 월드 좌표로 쓰므로 렌더러 Transform은 원점에 둔다.
         _visualGo.transform.SetParent(null);
         _visualGo.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         _visualGo.transform.localScale = Vector3.one;
 
         ApplyMaterial(renderer, sprite);
 
-        // rest 지오메트리(정점·UV·삼각형). 뼈가 스폰 스케일로 구워지므로 메쉬 그리드도 동일 스케일(EffectiveControlPoints)로 맞춘다.
-        BuildRestGeometry(body.EffectiveControlPoints, body.SmoothSpine, _cols, _rows, sprite, ResolveOpaqueUVRect(),
+        renderer.sortingLayerName = sortingLayerName;
+        renderer.sortingOrder = sortingOrder;
+
+        BuildRestGeometry(body.Length, body.Width, _cols, _rows, sprite, ResolveOpaqueUVRect(),
             out _verts, out var uvs, out var tris);
 
         int vc = VertexCount;
@@ -209,7 +222,6 @@ public class SquishMesh : MonoBehaviour
         _goal = new Vector2[vc];
         _prevGoal = new Vector2[vc];
 
-        // 정점을 뼈에 스키닝 바인딩 (뼈 rest 포즈 필요 → 런타임 전용).
         for (int col = 0; col < _cols; col++)
         {
             float fc = _cols > 1 ? col / (float)(_cols - 1) : 0f;
@@ -230,8 +242,7 @@ public class SquishMesh : MonoBehaviour
         filter.mesh = _mesh;
     }
 
-    // 미리 배정된 재질이 있으면 재사용(인스턴스화 후 텍스처만 스킨으로 교체) → 런타임 Shader.Find 제거.
-    // 없으면 기존처럼 런타임 생성.
+    // 프리팹 재질이 있으면 텍스처만 현재 스킨으로 교체한다.
     private void ApplyMaterial(MeshRenderer renderer, Sprite sprite)
     {
         if (renderer.sharedMaterial != null)
@@ -242,9 +253,8 @@ public class SquishMesh : MonoBehaviour
         renderer.sharedMaterial = CreateMaterial(sprite);
     }
 
-    // rest 지오메트리를 컨트롤 포인트+스프라이트만으로 생성한다(뼈 무관).
-    // 런타임 BuildMesh와 에디터 프리뷰 메쉬 굽기가 공유해 동일한 형태를 보장한다.
-    public static void BuildRestGeometry(SpinePoint[] controlPoints, bool smooth, int cols, int rows,
+    // 런타임 메쉬와 에디터 프리뷰가 공유하는 rest 직사각형 지오메트리.
+    public static void BuildRestGeometry(float length, float width, int cols, int rows,
         Sprite sprite, Rect opaqueUVRect,
         out Vector3[] verts, out Vector2[] uvs, out int[] tris)
     {
@@ -252,32 +262,34 @@ public class SquishMesh : MonoBehaviour
         rows = Mathf.Max(rows, 2);
         int vc = cols * rows;
 
-        var samples = SpineSampler.Resample(controlPoints, cols, smooth);
+        float hx = length * 0.5f;
+        float hy = width * 0.5f;
+        ComputeUVRect(sprite, opaqueUVRect, out Vector2 uvMin, out Vector2 uvSize);
+
         verts = new Vector3[vc];
-        var rest = new Vector2[vc];
+        uvs = new Vector2[vc];
 
         for (int col = 0; col < cols; col++)
         {
-            var s = samples[col];
-            Vector2 normal = new Vector2(-Mathf.Sin(s.angleDeg * Mathf.Deg2Rad), Mathf.Cos(s.angleDeg * Mathf.Deg2Rad));
+            float fu = col / (float)(cols - 1);
+            float x = Mathf.Lerp(-hx, hx, fu);
             for (int row = 0; row < rows; row++)
             {
-                float v = rows > 1 ? Mathf.Lerp(-1f, 1f, row / (float)(rows - 1)) : 0f;
+                float fv = row / (float)(rows - 1);
+                float y = Mathf.Lerp(-hy, hy, fv);
                 int i = row * cols + col;
-                rest[i] = s.position + normal * (v * s.halfWidth);
-                verts[i] = rest[i];
+                verts[i] = new Vector3(x, y, 0f);
+                uvs[i] = uvMin + new Vector2(fu * uvSize.x, fv * uvSize.y);
             }
         }
 
-        uvs = BuildUVs(sprite, opaqueUVRect, rest);
         tris = BuildTriangles(cols, rows);
     }
 
-    // 에디터에서 프리팹 MeshFilter에 넣을 rest 메쉬 자산을 만든다.
-    public static Mesh BuildPreviewMesh(SpinePoint[] controlPoints, bool smooth, int cols, int rows,
+    public static Mesh BuildPreviewMesh(float length, float width, int cols, int rows,
         Sprite sprite, Rect opaqueUVRect)
     {
-        BuildRestGeometry(controlPoints, smooth, cols, rows, sprite, opaqueUVRect,
+        BuildRestGeometry(length, width, cols, rows, sprite, opaqueUVRect,
             out var verts, out var uvs, out var tris);
 
         var mesh = new Mesh { name = "SquishMesh" };
@@ -305,8 +317,8 @@ public class SquishMesh : MonoBehaviour
             boneA = a,
             boneB = b,
             weight = w,
-            offsetA = InverseRotate(rest - _boneRest[a].position, _boneRest[a].angleDeg),
-            offsetB = InverseRotate(rest - _boneRest[b].position, _boneRest[b].angleDeg)
+            offsetA = rest - _boneRest[a].position,
+            offsetB = rest - _boneRest[b].position
         };
     }
 
@@ -321,34 +333,16 @@ public class SquishMesh : MonoBehaviour
         return Vector2.Lerp(gA, gB, s.weight);
     }
 
-    private static Vector2[] BuildUVs(Sprite sprite, Rect o, Vector2[] rest)
+    // 스프라이트 내부 불투명 영역을 텍스처 UV로 변환한다.
+    private static void ComputeUVRect(Sprite sprite, Rect o, out Vector2 uvMin, out Vector2 uvSize)
     {
         var tex = sprite.texture;
         var r = sprite.rect;
 
         Vector2 spriteUvMin = new Vector2(r.xMin / tex.width, r.yMin / tex.height);
         Vector2 spriteUvSize = new Vector2(r.width / tex.width, r.height / tex.height);
-        Vector2 uvMin = spriteUvMin + new Vector2(o.xMin * spriteUvSize.x, o.yMin * spriteUvSize.y);
-        Vector2 uvSize = new Vector2(o.width * spriteUvSize.x, o.height * spriteUvSize.y);
-
-        Vector2 min = Vector2.positiveInfinity, max = Vector2.negativeInfinity;
-        for (int i = 0; i < rest.Length; i++)
-        {
-            min = Vector2.Min(min, rest[i]);
-            max = Vector2.Max(max, rest[i]);
-        }
-        Vector2 size = max - min;
-        if (size.x < 1e-5f) size.x = 1f;
-        if (size.y < 1e-5f) size.y = 1f;
-
-        var uvs = new Vector2[rest.Length];
-        for (int i = 0; i < rest.Length; i++)
-        {
-            float nx = (rest[i].x - min.x) / size.x;
-            float ny = (rest[i].y - min.y) / size.y;
-            uvs[i] = uvMin + new Vector2(nx * uvSize.x, ny * uvSize.y);
-        }
-        return uvs;
+        uvMin = spriteUvMin + new Vector2(o.xMin * spriteUvSize.x, o.yMin * spriteUvSize.y);
+        uvSize = new Vector2(o.width * spriteUvSize.x, o.height * spriteUvSize.y);
     }
 
     private static int[] BuildTriangles(int cols, int rows)
@@ -595,8 +589,6 @@ public class SquishMesh : MonoBehaviour
         float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
         return new Vector2(c * v.x - s * v.y, s * v.x + c * v.y);
     }
-
-    private static Vector2 InverseRotate(Vector2 v, float angleDeg) => Rotate(v, -angleDeg * Mathf.Deg2Rad);
 
     private void OnDrawGizmosSelected()
     {

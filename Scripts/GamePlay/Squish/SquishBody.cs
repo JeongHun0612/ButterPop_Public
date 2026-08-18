@@ -2,22 +2,39 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 스퀴시 오브젝트의 물리 뼈대(일반형). 스파인 제어점을 리샘플링해 강체 세그먼트 체인을 만든다.
-// - 굽힘 스프링 rest각 = 스파인의 원래 곡률 → 버터는 직선, 바나나는 초승달을 유지하며 그 주위로 말랑거린다.
-// - 시각(스퀴시)은 SquishMesh가 이 뼈들에 스키닝해 입힌다.
+// 뼈 rest 포즈의 스키닝 기준점.
+public struct SpineSample
+{
+    public Vector2 position;
+    public float halfWidth;
+}
+
+// 스퀴시 오브젝트의 물리 뼈대. 프리팹에 구운 강체 세그먼트 체인을 채택해 구동한다.
 public class SquishBody : MonoBehaviour
 {
-    [Header("스파인 (끌대 중심선) — sprite-local, 순서대로")]
-    [SerializeField] private SpinePoint[] controlPoints;
-    [Tooltip("제어점 사이를 Catmull-Rom으로 매끄럽게 이을지. 끄면 직선 연결.")]
-    [SerializeField] private bool smoothSpine = true;
+    private sealed class Bone
+    {
+        public Rigidbody2D Rigidbody;
+        public CircleCollider2D Collider;
+        public HingeJoint2D Hinge;
+        public SpineSample Rest;
+    }
+
+    [Header("형태 (고정 직사각형, shape-local · 월드 단위)")]
+    [Tooltip("긴 축(중심선) 전체 길이")]
+    [Min(0.01f)]
+    [SerializeField] private float length = 14.3f;
+    [Tooltip("짧은 축 전체 폭(두께)")]
+    [Min(0.01f)]
+    [SerializeField] private float width = 3.3f;
 
     [Header("물리 뼈")]
-    [Tooltip("스파인을 리샘플링해 만들 강체 세그먼트 수 (9~11 권장)")]
+    [Tooltip("중심선을 리샘플링해 만들 강체 세그먼트 수 (5~11 권장)")]
     [Range(2, 32)]
-    [SerializeField] private int boneCount = 11;
+    [SerializeField] private int boneCount = 6;
 
     [Header("질량 / 중력 / 물성")]
+    [Min(0.001f)]
     [SerializeField] private float totalMass = 1.2f;
     [SerializeField] private float gravityScale = 1.5f;
     [Range(0f, 1f)]
@@ -26,38 +43,30 @@ public class SquishBody : MonoBehaviour
     [SerializeField] private float friction = 0.6f;
 
     [Header("굽힘")]
-    [Tooltip("구부러질지 여부. 끄면 rest 곡률을 유지하는 뻣뻣한 스퀴시. 버터/베이컨처럼 드레이핑이 필요하면 켠다. 런타임 토글 가능.")]
-    [SerializeField] private bool bendEnabled = true;
-    [Tooltip("스파인 원래 곡률로 되돌리는 세기.")]
+    [Tooltip("평평한 직선(rest각 0)으로 되돌리는 세기.")]
+    [Min(0f)]
     [SerializeField] private float bendStiffness = 60f;
+    [Min(0f)]
     [SerializeField] private float bendDamping = 8f;
-    [Tooltip("이음새 하나가 rest 각에서 벗어날 수 있는 최대 각(도)")]
+    [Tooltip("이음새 하나가 rest 각(0)에서 벗어날 수 있는 최대 각(도)")]
+    [Range(0f, 180f)]
     [SerializeField] private float maxBendAnglePerJoint = 18f;
 
-    private const float MinRadius = 0.05f;
-    private const float MinScale = 0.01f;
-
-    private readonly List<Rigidbody2D> _bones = new();
-    private readonly List<Collider2D> _colliders = new();
-    private readonly List<HingeJoint2D> _hinges = new();
-    private SpineSample[] _boneRest;   // 뼈 rest 포즈 (shape-local, 스폰 스케일 반영됨)
-    private SpinePoint[] _scaledControl;   // controlPoints × spawnScale (Build 1회)
-    private float _spawnScale = 1f;
-    private float _spawnRotationDeg = 0f;
-    private float[] _restRelAngle;     // 이음새별 rest 상대각 (곡률)
-    private bool _appliedBend;
+    private readonly List<Bone> _bones = new();
+    private readonly List<Rigidbody2D> _rigidbodies = new();
+    private readonly List<SpineSample> _restSamples = new();
+    private bool _isReady;
 
     public event Action<Vector2, Vector2, float> OnSegmentCollision;
     public event Action<Collision2D> OnSegmentCollisionEnter;
     public event Action<Collision2D> OnSegmentCollisionExit;
 
-    public SpinePoint[] ControlPoints => controlPoints;              // 원본(native) — 에디터 프리뷰·기즈모용
-    public SpinePoint[] EffectiveControlPoints => _scaledControl ?? controlPoints;   // 스폰 스케일 반영 — 런타임 메쉬용
-    public bool SmoothSpine => smoothSpine;
-    public float SpawnScale => _spawnScale;
-    public float SpawnRotationDeg => _spawnRotationDeg;
-    public IReadOnlyList<Rigidbody2D> Bones => _bones;
-    public IReadOnlyList<SpineSample> BoneRestSamples => _boneRest;
+    public float Length => length;
+    public float Width => width;
+    public int BoneCount => boneCount;
+    public bool IsReady => _isReady;
+    public IReadOnlyList<Rigidbody2D> BoneRigidbodies => _rigidbodies;
+    public IReadOnlyList<SpineSample> BoneRestSamples => _restSamples;
 
     public float AggregateSpeed
     {
@@ -65,7 +74,7 @@ public class SquishBody : MonoBehaviour
         {
             float max = 0f;
             for (int i = 0; i < _bones.Count; i++)
-                max = Mathf.Max(max, _bones[i].linearVelocity.magnitude);
+                max = Mathf.Max(max, _bones[i].Rigidbody.linearVelocity.magnitude);
             return max;
         }
     }
@@ -74,19 +83,19 @@ public class SquishBody : MonoBehaviour
     {
         get
         {
-            if (_colliders.Count == 0) return new Bounds(transform.position, Vector3.zero);
-            Bounds b = _colliders[0].bounds;
-            for (int i = 1; i < _colliders.Count; i++)
-                b.Encapsulate(_colliders[i].bounds);
+            if (_bones.Count == 0) return new Bounds(transform.position, Vector3.zero);
+            Bounds b = _bones[0].Collider.bounds;
+            for (int i = 1; i < _bones.Count; i++)
+                b.Encapsulate(_bones[i].Collider.bounds);
             return b;
         }
     }
 
     private void Awake()
     {
-        if (controlPoints == null || controlPoints.Length < 2)
+        if (length <= 0f || width <= 0f)
         {
-            Debug.LogError("[SquishBody] controlPoints가 2개 이상 필요합니다.");
+            Debug.LogError("[SquishBody] length·width는 0보다 커야 합니다.");
             enabled = false;
             return;
         }
@@ -94,29 +103,32 @@ public class SquishBody : MonoBehaviour
         Build();
     }
 
-    private void FixedUpdate()
+    private void FixedUpdate() => ApplyBendingSprings();
+
+    // 뼈 전체를 rest 포즈 기준으로 즉시 배치한다.
+    public void SnapPose(Vector2 originWorld, float angleDeg)
     {
-        if (bendEnabled != _appliedBend)
-            ApplyBendState();
-
-        if (bendEnabled)
-            ApplyBendingSprings();
-    }
-
-    // shape-local 원점을 basePosition에 놓고 그 점을 중심으로 회전시켜 배치하는 간편 오버로드.
-    public void ResetLayout(Vector2 basePosition, float rotationDeg)
-        => ResetLayout(basePosition, Vector2.zero, rotationDeg);
-
-    // 임의의 피벗 점을 중심으로 rest 포즈를 rotationDeg만큼 회전시켜 배치한다.
-    // pivotWorld: 회전 중심의 월드 좌표. pivotLocal: 같은 피벗의 shape-local 좌표.
-    public void ResetLayout(Vector2 pivotWorld, Vector2 pivotLocal, float rotationDeg)
-    {
-        float rad = rotationDeg * Mathf.Deg2Rad;
+        float rad = angleDeg * Mathf.Deg2Rad;
         for (int i = 0; i < _bones.Count; i++)
         {
-            var rb = _bones[i];
-            rb.position = pivotWorld + Rotate(_boneRest[i].position - pivotLocal, rad);
-            rb.rotation = rotationDeg + _boneRest[i].angleDeg;
+            var rb = _bones[i].Rigidbody;
+            rb.position = originWorld + Rotate(_bones[i].Rest.position, rad);
+            rb.rotation = angleDeg;
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        }
+    }
+
+    public void RotatePoseAround(Vector2 pivotWorld, float angleDeg)
+    {
+        if (Mathf.Approximately(angleDeg, 0f)) return;
+
+        float rad = angleDeg * Mathf.Deg2Rad;
+        for (int i = 0; i < _bones.Count; i++)
+        {
+            var rb = _bones[i].Rigidbody;
+            rb.position = pivotWorld + Rotate(rb.position - pivotWorld, rad);
+            rb.rotation += angleDeg;
             rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;
         }
@@ -127,35 +139,14 @@ public class SquishBody : MonoBehaviour
         var type = kinematic ? RigidbodyType2D.Kinematic : RigidbodyType2D.Dynamic;
         for (int i = 0; i < _bones.Count; i++)
         {
-            _bones[i].bodyType = type;
+            var rb = _bones[i].Rigidbody;
+            rb.bodyType = type;
             if (kinematic)
             {
-                _bones[i].linearVelocity = Vector2.zero;
-                _bones[i].angularVelocity = 0f;
+                rb.linearVelocity = Vector2.zero;
+                rb.angularVelocity = 0f;
             }
         }
-    }
-
-    public void SetLinearVelocityAll(Vector2 velocity)
-    {
-        for (int i = 0; i < _bones.Count; i++)
-            _bones[i].linearVelocity = velocity;
-    }
-
-    public void AddImpulseAll(Vector2 impulse, float randomTorque)
-    {
-        for (int i = 0; i < _bones.Count; i++)
-        {
-            _bones[i].AddForce(impulse, ForceMode2D.Impulse);
-            if (randomTorque > 0f)
-                _bones[i].AddTorque(UnityEngine.Random.Range(-randomTorque, randomTorque), ForceMode2D.Impulse);
-        }
-    }
-
-    public void MoveAll(Vector2 worldDelta)
-    {
-        for (int i = 0; i < _bones.Count; i++)
-            _bones[i].MovePosition(_bones[i].position + worldDelta);
     }
 
     internal void ReportCollisionEnter(Collision2D collision)
@@ -172,139 +163,156 @@ public class SquishBody : MonoBehaviour
 
     private void Build()
     {
-        // 스폰 크기·회전을 SquishVisual Transform에서 읽어 지오메트리에 굽는다(균일 스케일).
-        ReadSpawnPoseFromVisual();
-        _scaledControl = ScalePoints(controlPoints, _spawnScale);
-
-        // 물리 뼈는 끝단 반폭만큼 인셋 → 원형 콜라이더 캡이 비주얼 밖으로 튀지 않는다(캡슐 모델).
-        float insetStart = 0f, insetEnd = 0f;
-        if (_scaledControl.Length > 0)
+        if (!TryLoadBakedBones())
         {
-            insetStart = _scaledControl[0].halfWidth;
-            insetEnd = _scaledControl[_scaledControl.Length - 1].halfWidth;
+            enabled = false;
+            return;
         }
 
-        _boneRest = SpineSampler.Resample(_scaledControl, boneCount, smoothSpine, insetStart, insetEnd);
-        int n = _boneRest.Length;
+        for (int i = 0; i < _bones.Count; i++)
+            for (int j = i + 1; j < _bones.Count; j++)
+                Physics2D.IgnoreCollision(_bones[i].Collider, _bones[j].Collider);
+
+        ApplyBendLimits();
+        _isReady = true;
+    }
+
+    // 프리팹에 미리 구운 뼈를 불러오고 런타임 물성을 적용한다.
+    private bool TryLoadBakedBones()
+    {
+        _isReady = false;
+        ClearBoneCaches();
+
+        var relays = new List<SquishSegmentRelay>();
+        foreach (Transform child in transform)
+        {
+            var relay = child.GetComponent<SquishSegmentRelay>();
+            if (relay != null) relays.Add(relay);
+        }
+        if (relays.Count < 2)
+        {
+            Debug.LogError("[SquishBody] 구운 뼈가 없습니다. 인스펙터의 '뼈 굽기'로 프리팹에 뼈를 구우세요.");
+            return false;
+        }
+
+        relays.Sort((a, b) => a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex()));
+
+        int n = relays.Count;
+        if (n != boneCount)
+            Debug.LogWarning($"[SquishBody] 구운 뼈 수({n})가 현재 boneCount({boneCount})와 다릅니다. 형태 값을 바꿨다면 뼈를 다시 구우세요.", this);
+
+        if (!ValidateBakedBoneChain(relays))
+        {
+            ClearBoneCaches();
+            return false;
+        }
 
         var mat = new PhysicsMaterial2D("Squishy") { bounciness = bounciness, friction = friction };
         float boneMass = totalMass / n;
 
         for (int i = 0; i < n; i++)
-            _bones.Add(MakeBone(i, boneMass, mat));
-
-        _restRelAngle = new float[Mathf.Max(n - 1, 0)];
-        for (int i = 0; i < n - 1; i++)
         {
-            _restRelAngle[i] = Mathf.DeltaAngle(_boneRest[i].angleDeg, _boneRest[i + 1].angleDeg);
-            ConnectHinge(i);
+            var t = relays[i].transform;
+            var rb = t.GetComponent<Rigidbody2D>();
+            var col = t.GetComponent<CircleCollider2D>();
+            if (rb == null || col == null)
+            {
+                Debug.LogError($"[SquishBody] 구운 뼈 '{t.name}'에 Rigidbody2D/CircleCollider2D가 없습니다. 뼈를 다시 구우세요.");
+                return false;
+            }
+
+            ConfigureBoneRigidbody(rb, boneMass);
+            col.sharedMaterial = mat;
+            relays[i].Init(this);
+
+            var rest = new SpineSample { position = t.localPosition, halfWidth = col.radius };
+            _bones.Add(new Bone
+            {
+                Rigidbody = rb,
+                Collider = col,
+                Hinge = t.GetComponent<HingeJoint2D>(),
+                Rest = rest
+            });
+            _rigidbodies.Add(rb);
+            _restSamples.Add(rest);
         }
-
-        for (int i = 0; i < _colliders.Count; i++)
-            for (int j = i + 1; j < _colliders.Count; j++)
-                Physics2D.IgnoreCollision(_colliders[i], _colliders[j]);
-
-        ApplyBendState();
+        return true;
     }
 
-    // 스폰 스케일(균일)·회전을 SquishVisual 오브젝트의 Transform에서 읽는다.
-    // 이 값은 Build 때 소비돼 뼈 지오메트리에 구워지고, 런타임엔 SquishMesh가 비주얼 Transform을 원점 리셋한다.
-    // (프리팹에서 SquishVisual을 스케일/회전해 저작 → 미리보기 = 런타임)
-    private void ReadSpawnPoseFromVisual()
+    private void ConfigureBoneRigidbody(Rigidbody2D rb, float mass)
     {
-        _spawnScale = 1f;
-        _spawnRotationDeg = 0f;
-
-        var mesh = GetComponent<SquishMesh>();
-        var vr = mesh != null ? mesh.VisualRenderer : null;
-        if (vr == null) return;
-
-        var t = vr.transform;
-        Vector3 ls = t.lossyScale;
-        _spawnScale = Mathf.Max(ls.x, MinScale);
-        if (!Mathf.Approximately(ls.x, ls.y))
-            Debug.LogWarning($"[SquishBody] SquishVisual 스케일이 비균일(x={ls.x:0.###}, y={ls.y:0.###})입니다. 원형 콜라이더 특성상 x를 균일 스케일로 사용합니다.");
-
-        _spawnRotationDeg = t.eulerAngles.z;
-    }
-
-    // 제어점 위치·반폭을 균일하게 s배. s==1이면 원본을 그대로 반환(복사·할당 없음).
-    private static SpinePoint[] ScalePoints(SpinePoint[] src, float s)
-    {
-        if (src == null || Mathf.Approximately(s, 1f)) return src;
-
-        var arr = new SpinePoint[src.Length];
-        for (int i = 0; i < src.Length; i++)
-            arr[i] = new SpinePoint { position = src[i].position * s, halfWidth = src[i].halfWidth * s };
-        return arr;
-    }
-
-    // 세그먼트 뼈 하나 생성: Rigidbody2D + 원형 콜라이더 + 충돌 릴레이. rest 샘플로 위치·각도·반지름 결정.
-    private Rigidbody2D MakeBone(int index, float mass, PhysicsMaterial2D mat)
-    {
-        var s = _boneRest[index];
-
-        var go = new GameObject($"Bone_{index}");
-        go.transform.SetParent(transform, false);
-        go.transform.localPosition = new Vector3(s.position.x, s.position.y, 0f);
-        go.transform.localRotation = Quaternion.Euler(0f, 0f, s.angleDeg);
-
-        var rb = go.AddComponent<Rigidbody2D>();
         rb.mass = mass;
         rb.gravityScale = gravityScale;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
-        var col = go.AddComponent<CircleCollider2D>();
-        col.radius = Mathf.Max(s.halfWidth, MinRadius);
-        col.sharedMaterial = mat;
-        _colliders.Add(col);
-
-        var relay = go.AddComponent<SquishSegmentRelay>();
-        relay.Init(this);
-
-        return rb;
     }
 
-    // 이웃한 두 뼈를 힌지로 연결. 두 뼈의 중점을 각 뼈의 로컬 좌표로 역회전해 앵커로 지정 → rest 포즈에서 정확히 맞물린다.
-    private void ConnectHinge(int i)
+    private void ApplyBendLimits()
     {
-        var a = _bones[i];
-        var b = _bones[i + 1];
-        Vector2 pa = _boneRest[i].position;
-        Vector2 pb = _boneRest[i + 1].position;
-        Vector2 mid = 0.5f * (pa + pb);
-
-        var hinge = a.gameObject.AddComponent<HingeJoint2D>();
-        hinge.connectedBody = b;
-        hinge.autoConfigureConnectedAnchor = false;
-        hinge.anchor = Rotate(mid - pa, -_boneRest[i].angleDeg * Mathf.Deg2Rad);
-        hinge.connectedAnchor = Rotate(mid - pb, -_boneRest[i + 1].angleDeg * Mathf.Deg2Rad);
-        hinge.enableCollision = false;
-        hinge.useLimits = true;
-
-        _hinges.Add(hinge);
+        var limits = new JointAngleLimits2D { min = -maxBendAnglePerJoint, max = maxBendAnglePerJoint };
+        for (int i = 0; i < _bones.Count; i++)
+            if (_bones[i].Hinge != null)
+            {
+                _bones[i].Hinge.useLimits = true;
+                _bones[i].Hinge.enableCollision = false;
+                _bones[i].Hinge.limits = limits;
+            }
     }
 
-    // 힌지 각도 제한 갱신 — bend 끄면 0(rest 곡률에 고정=뻣뻣), 켜면 ±maxBendAnglePerJoint. bend 토글 시 재적용.
-    private void ApplyBendState()
+    private void ClearBoneCaches()
     {
-        float limit = bendEnabled ? maxBendAnglePerJoint : 0f;
-        for (int i = 0; i < _hinges.Count; i++)
-            _hinges[i].limits = new JointAngleLimits2D { min = -limit, max = limit };
-        _appliedBend = bendEnabled;
+        _bones.Clear();
+        _rigidbodies.Clear();
+        _restSamples.Clear();
     }
 
-    // 각 이음새를 rest 상대각으로 되돌리는 PD 토크(비례=bendStiffness, 미분=bendDamping)를 건다. 매 물리 스텝 적분.
+    private bool ValidateBakedBoneChain(List<SquishSegmentRelay> relays)
+    {
+        for (int i = 0; i < relays.Count; i++)
+        {
+            var t = relays[i].transform;
+            var rb = t.GetComponent<Rigidbody2D>();
+            var col = t.GetComponent<CircleCollider2D>();
+            if (rb == null || col == null)
+            {
+                Debug.LogError($"[SquishBody] 구운 뼈 '{t.name}'에 Rigidbody2D/CircleCollider2D가 없습니다. 뼈를 다시 구우세요.", this);
+                return false;
+            }
+
+            var hinge = t.GetComponent<HingeJoint2D>();
+            if (i < relays.Count - 1)
+            {
+                var nextRb = relays[i + 1].GetComponent<Rigidbody2D>();
+                if (hinge == null)
+                {
+                    Debug.LogError($"[SquishBody] 구운 뼈 '{t.name}'에 다음 뼈와 연결된 HingeJoint2D가 없습니다. 뼈를 다시 구우세요.", this);
+                    return false;
+                }
+                if (hinge.connectedBody != nextRb)
+                {
+                    Debug.LogError($"[SquishBody] 구운 뼈 '{t.name}'의 HingeJoint2D가 다음 뼈와 연결되어 있지 않습니다. 뼈를 다시 구우세요.", this);
+                    return false;
+                }
+            }
+            else if (hinge != null)
+            {
+                Debug.LogWarning($"[SquishBody] 마지막 구운 뼈 '{t.name}'에 불필요한 HingeJoint2D가 있습니다. 뼈를 다시 굽는 것을 권장합니다.", this);
+            }
+        }
+
+        return true;
+    }
+
+    // 이웃한 뼈를 rest 상대각으로 되돌리는 PD 토크.
     private void ApplyBendingSprings()
     {
         for (int i = 0; i < _bones.Count - 1; i++)
         {
-            var a = _bones[i];
-            var b = _bones[i + 1];
+            var a = _bones[i].Rigidbody;
+            var b = _bones[i + 1].Rigidbody;
 
             float relDeg = Mathf.DeltaAngle(a.rotation, b.rotation);
-            float errDeg = Mathf.DeltaAngle(_restRelAngle[i], relDeg);
+            float errDeg = Mathf.DeltaAngle(0f, relDeg);
             float relVelDeg = b.angularVelocity - a.angularVelocity;
 
             float t = -bendStiffness * (errDeg * Mathf.Deg2Rad) - bendDamping * (relVelDeg * Mathf.Deg2Rad);
@@ -317,45 +325,5 @@ public class SquishBody : MonoBehaviour
     {
         float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
         return new Vector2(c * v.x - s * v.y, s * v.x + c * v.y);
-    }
-
-    // 편집 시점 실루엣 미리보기 — 스프라이트 없이도 형태·배치를 눈으로 확인할 수 있게 한다.
-    private void OnDrawGizmos()
-    {
-        if (Application.isPlaying || controlPoints == null || controlPoints.Length < 2) return;
-
-        int resolution = 20;
-        var meshComp = GetComponent<SquishMesh>();
-        if (meshComp != null) resolution = Mathf.Max(meshComp.MeshCols, 2);
-
-        // SquishVisual이 있으면 그 Transform 공간에 그린다 → 스케일·회전이 baked 메쉬와 일치.
-        Transform vt = (meshComp != null && meshComp.VisualRenderer != null)
-            ? meshComp.VisualRenderer.transform
-            : transform;
-
-        var cols = SpineSampler.Resample(controlPoints, resolution, smoothSpine);
-        int n = cols.Length;
-
-        Gizmos.color = new Color(1f, 0.85f, 0.25f, 0.9f);
-
-        Vector3 prevTop = default, prevBot = default;
-        for (int i = 0; i < n; i++)
-        {
-            var s = cols[i];
-            Vector2 normal = new Vector2(-Mathf.Sin(s.angleDeg * Mathf.Deg2Rad), Mathf.Cos(s.angleDeg * Mathf.Deg2Rad));
-            Vector3 top = vt.TransformPoint(s.position + normal * s.halfWidth);
-            Vector3 bot = vt.TransformPoint(s.position - normal * s.halfWidth);
-
-            if (i == 0) Gizmos.DrawLine(top, bot);
-            else
-            {
-                Gizmos.DrawLine(prevTop, top);
-                Gizmos.DrawLine(prevBot, bot);
-            }
-            if (i == n - 1) Gizmos.DrawLine(top, bot);
-
-            prevTop = top;
-            prevBot = bot;
-        }
     }
 }

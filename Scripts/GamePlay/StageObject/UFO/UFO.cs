@@ -5,7 +5,7 @@ using UnityEngine;
 // 우주선(UFO) 스테이지 오브젝트.
 // 하단 빔(UfoBeam)에 스퀴시가 닿으면 접시 아래로 빨아올려(어브덕션) 스테이지를 클리어한다.
 // 스퀴시는 뼈 체인(독립 rigidbody)이라 루트 transform 이동이 아니라 SquishBody를 kinematic으로 얼려
-// ResetLayout으로 매 틱 재배치한다.
+// SnapPose로 매 틱 재배치한다.
 public class UFO : MonoBehaviour, IStageContextReceiver
 {
     [Header("어브덕션 목표")]
@@ -62,7 +62,7 @@ public class UFO : MonoBehaviour, IStageContextReceiver
 
         Transform targetRef = abductPoint != null ? abductPoint : transform;
 
-        // rest 중심(shape-local centroid). ResetLayout 기준점에서 이만큼 떨어져 몸체 중앙이 놓인다.
+        // rest 중심(shape-local centroid). SnapPose 기준점(shape-origin)에서 이만큼 떨어져 몸체 중앙이 놓인다.
         Vector2 centroidRest = ComputeCentroidRest(body);
 
         Vector2 startCenter = body.WorldBounds.center;
@@ -77,12 +77,12 @@ public class UFO : MonoBehaviour, IStageContextReceiver
             : target.x;
         Vector2 alignCenter = new Vector2(centerX, startCenter.y);
 
-        // 몸체 중앙이 원하는 위치·각도에 오도록 ResetLayout 기준점을 역산해 배치한다.
+        // 몸체 중앙이 원하는 위치·각도에 오도록 SnapPose 기준점(shape-origin)을 역산해 배치한다.
         void PlaceByCenter(Vector2 center, float angle)
         {
             float rad = angle * Mathf.Deg2Rad;
             Vector2 basePos = center - Rotate(centroidRest, rad);
-            body.ResetLayout(basePos, angle);
+            body.SnapPose(basePos, angle);
         }
 
         // 1단계(정렬): 빔 중심으로 수평 이동 + 목표 자세로 회전.
@@ -128,13 +128,12 @@ public class UFO : MonoBehaviour, IStageContextReceiver
         return sum / rest.Count;
     }
 
-    // 현재 뼈 포즈에서 ResetLayout 기준 각도를 역산한다(0번 뼈 기준).
+    // 현재 뼈 포즈에서 SnapPose 기준 각도를 역산한다(0번 뼈 기준, rest 각도 0).
     private static float RecoverBaseAngle(SquishBody body)
     {
-        var rest = body.BoneRestSamples;
-        var bones = body.Bones;
-        if (rest == null || rest.Count == 0 || bones.Count == 0) return 0f;
-        return bones[0].rotation - rest[0].angleDeg;
+        var bones = body.BoneRigidbodies;
+        if (bones.Count == 0) return 0f;
+        return bones[0].rotation;
     }
 
     private static Vector2 Rotate(Vector2 v, float rad)
