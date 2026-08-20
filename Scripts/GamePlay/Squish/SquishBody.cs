@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 // 뼈 rest 포즈의 스키닝 기준점.
 public struct SpineSample
@@ -326,4 +329,27 @@ public class SquishBody : MonoBehaviour
         float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
         return new Vector2(c * v.x - s * v.y, s * v.x + c * v.y);
     }
+
+#if UNITY_EDITOR
+    private void OnDrawGizmos()
+    {
+        if (length <= 0f || width <= 0f) return;
+
+        Vector3 center = transform.position;
+        Vector3 axis = transform.right;
+        Vector3 side = transform.up;
+        float halfLength = length * 0.5f;
+        float halfWidth = width * 0.5f;
+
+        Vector3 a = center - axis * halfLength - side * halfWidth;
+        Vector3 b = center + axis * halfLength - side * halfWidth;
+        Vector3 c = center + axis * halfLength + side * halfWidth;
+        Vector3 d = center - axis * halfLength + side * halfWidth;
+
+        Handles.DrawSolidRectangleWithOutline(
+            new[] { a, b, c, d },
+            new Color(1f, 0.95f, 0.25f, 0.12f),
+            new Color(1f, 0.95f, 0.25f, 0.95f));
+    }
+#endif
 }

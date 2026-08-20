@@ -9,10 +9,6 @@ public class SquishMesh : MonoBehaviour
     [Tooltip("비주얼 스킨 (스프라이트 + 타격음). SquishSound와 같은 SO를 물려 사용.")]
     [SerializeField] private SquishSkinSO skin;
 
-    [Header("비주얼 오브젝트")]
-    [Tooltip("프리팹에 미리 배치한 비주얼 오브젝트. MeshFilter + MeshRenderer가 달린 자식 GO를 지정. 비우면 런타임에 자동 생성.")]
-    [SerializeField] private MeshRenderer visualRenderer;
-
     [Header("스퀴시 메쉬 해상도")]
     [Tooltip("스파인 방향 정점 수 (표면 매끈함)")]
     [Range(2, 64)]
@@ -83,6 +79,7 @@ public class SquishMesh : MonoBehaviour
 
     private Mesh _mesh;
     private GameObject _visualGo;
+    private Material _runtimeMaterial;
 
     private Skin[] _skin;
     private Vector2[] _pos;
@@ -107,7 +104,6 @@ public class SquishMesh : MonoBehaviour
     public string SortingLayerName => sortingLayerName;
     public int SortingOrder => sortingOrder;
     public SquishSkinSO SkinSO => skin;
-    public MeshRenderer VisualRenderer => visualRenderer;
 
     private void Awake()
     {
@@ -121,9 +117,6 @@ public class SquishMesh : MonoBehaviour
     }
 
     private Sprite ResolveSprite() => (skin != null) ? skin.sprite : null;
-
-    private Rect ResolveOpaqueUVRect()
-        => (skin != null && skin.sprite != null) ? skin.opaqueUVRect : new Rect(0f, 0f, 1f, 1f);
 
     private void Start()
     {
@@ -159,6 +152,12 @@ public class SquishMesh : MonoBehaviour
 
         if (_visualGo != null)
             Destroy(_visualGo);
+
+        if (_mesh != null)
+            Destroy(_mesh);
+
+        if (_runtimeMaterial != null)
+            Destroy(_runtimeMaterial);
     }
 
     public void ResetShape()
@@ -185,22 +184,9 @@ public class SquishMesh : MonoBehaviour
     {
         var sprite = ResolveSprite();
 
-        MeshFilter filter;
-        MeshRenderer renderer;
-
-        if (visualRenderer != null)
-        {
-            _visualGo = visualRenderer.gameObject;
-            filter = _visualGo.GetComponent<MeshFilter>();
-            if (filter == null) filter = _visualGo.AddComponent<MeshFilter>();
-            renderer = visualRenderer;
-        }
-        else
-        {
-            _visualGo = new GameObject("SquishVisual");
-            filter = _visualGo.AddComponent<MeshFilter>();
-            renderer = _visualGo.AddComponent<MeshRenderer>();
-        }
+        _visualGo = new GameObject("SquishVisual");
+        MeshFilter filter = _visualGo.AddComponent<MeshFilter>();
+        MeshRenderer renderer = _visualGo.AddComponent<MeshRenderer>();
 
         // 정점은 월드 좌표로 쓰므로 렌더러 Transform은 원점에 둔다.
         _visualGo.transform.SetParent(null);
@@ -212,7 +198,7 @@ public class SquishMesh : MonoBehaviour
         renderer.sortingLayerName = sortingLayerName;
         renderer.sortingOrder = sortingOrder;
 
-        BuildRestGeometry(body.Length, body.Width, _cols, _rows, sprite, ResolveOpaqueUVRect(),
+        BuildRestGeometry(body.Length, body.Width, _cols, _rows, sprite,
             out _verts, out var uvs, out var tris);
 
         int vc = VertexCount;
@@ -242,20 +228,15 @@ public class SquishMesh : MonoBehaviour
         filter.mesh = _mesh;
     }
 
-    // 프리팹 재질이 있으면 텍스처만 현재 스킨으로 교체한다.
     private void ApplyMaterial(MeshRenderer renderer, Sprite sprite)
     {
-        if (renderer.sharedMaterial != null)
-        {
-            renderer.material.mainTexture = sprite.texture;
-            return;
-        }
-        renderer.sharedMaterial = CreateMaterial(sprite);
+        _runtimeMaterial = CreateMaterial(sprite);
+        renderer.sharedMaterial = _runtimeMaterial;
     }
 
     // 런타임 메쉬와 에디터 프리뷰가 공유하는 rest 직사각형 지오메트리.
     public static void BuildRestGeometry(float length, float width, int cols, int rows,
-        Sprite sprite, Rect opaqueUVRect,
+        Sprite sprite,
         out Vector3[] verts, out Vector2[] uvs, out int[] tris)
     {
         cols = Mathf.Max(cols, 2);
@@ -264,7 +245,7 @@ public class SquishMesh : MonoBehaviour
 
         float hx = length * 0.5f;
         float hy = width * 0.5f;
-        ComputeUVRect(sprite, opaqueUVRect, out Vector2 uvMin, out Vector2 uvSize);
+        ComputeUVRect(sprite, out Vector2 uvMin, out Vector2 uvSize);
 
         verts = new Vector3[vc];
         uvs = new Vector2[vc];
@@ -284,24 +265,6 @@ public class SquishMesh : MonoBehaviour
         }
 
         tris = BuildTriangles(cols, rows);
-    }
-
-    public static Mesh BuildPreviewMesh(float length, float width, int cols, int rows,
-        Sprite sprite, Rect opaqueUVRect)
-    {
-        BuildRestGeometry(length, width, cols, rows, sprite, opaqueUVRect,
-            out var verts, out var uvs, out var tris);
-
-        var mesh = new Mesh { name = "SquishMesh" };
-        var colors = new Color[verts.Length];
-        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
-
-        mesh.vertices = verts;
-        mesh.uv = uvs;
-        mesh.colors = colors;
-        mesh.triangles = tris;
-        mesh.RecalculateBounds();
-        return mesh;
     }
 
     private Skin BindSkin(float fc, Vector2 rest)
@@ -333,16 +296,13 @@ public class SquishMesh : MonoBehaviour
         return Vector2.Lerp(gA, gB, s.weight);
     }
 
-    // 스프라이트 내부 불투명 영역을 텍스처 UV로 변환한다.
-    private static void ComputeUVRect(Sprite sprite, Rect o, out Vector2 uvMin, out Vector2 uvSize)
+    private static void ComputeUVRect(Sprite sprite, out Vector2 uvMin, out Vector2 uvSize)
     {
         var tex = sprite.texture;
         var r = sprite.rect;
 
-        Vector2 spriteUvMin = new Vector2(r.xMin / tex.width, r.yMin / tex.height);
-        Vector2 spriteUvSize = new Vector2(r.width / tex.width, r.height / tex.height);
-        uvMin = spriteUvMin + new Vector2(o.xMin * spriteUvSize.x, o.yMin * spriteUvSize.y);
-        uvSize = new Vector2(o.width * spriteUvSize.x, o.height * spriteUvSize.y);
+        uvMin = new Vector2(r.xMin / tex.width, r.yMin / tex.height);
+        uvSize = new Vector2(r.width / tex.width, r.height / tex.height);
     }
 
     private static int[] BuildTriangles(int cols, int rows)

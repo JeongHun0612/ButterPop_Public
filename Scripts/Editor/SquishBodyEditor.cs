@@ -10,31 +10,6 @@ public class SquishBodyEditor : Editor
         DrawDefaultInspector();
 
         var body = (SquishBody)target;
-        var mesh = body.GetComponent<SquishMesh>();
-        Sprite sprite = (mesh != null && mesh.SkinSO != null) ? mesh.SkinSO.sprite : null;
-
-        EditorGUILayout.Space(8);
-        EditorGUILayout.LabelField("비주얼 미리 배치", EditorStyles.boldLabel);
-
-        if (sprite == null)
-            EditorGUILayout.HelpBox("스프라이트를 찾을 수 없습니다. SquishMesh의 skin에 SquishSkinSO를 지정하세요.", MessageType.Warning);
-
-        EditorGUILayout.HelpBox(
-            "rest 메쉬 + 재질을 자산으로 구워 SquishVisual 자식에 배치하고 SquishMesh.visualRenderer에 배선합니다. " +
-            "프리팹에서 실제 렌더 결과를 보며 SquishVisual의 Transform으로 배치를 조절하세요. " +
-            "length/width나 스프라이트를 바꾸면 다시 누르세요.",
-            MessageType.Info);
-
-        // 구운 메쉬 크기 vs 현재 length×width 비교 → 어긋나면 재굽기 경고(자동 프리뷰 제거 후 유일한 안전망).
-        WarnIfVisualStale(body, mesh);
-
-        using (new EditorGUI.DisabledScope(sprite == null))
-        {
-            if (GUILayout.Button("🧈 비주얼 굽기 / 갱신", GUILayout.Height(24)))
-                SquishVisualBaker.Bake(body);
-        }
-
-        EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("뼈 미리 생성", EditorStyles.boldLabel);
         if (CountBakedBones(body) < 2)
             EditorGUILayout.HelpBox(
@@ -64,25 +39,5 @@ public class SquishBodyEditor : Editor
         return count;
     }
 
-    // 구운 비주얼 메쉬 bounds는 length×width와 같아야 한다(정점이 [-L/2,L/2]×[-W/2,W/2]를 span).
-    // length/width를 바꾸고 다시 굽지 않으면 여기서 어긋나므로 경고한다.
-    private static void WarnIfVisualStale(SquishBody body, SquishMesh mesh)
-    {
-        if (body.Length <= 0f || body.Width <= 0f) return;
-
-        var vr = mesh != null ? mesh.VisualRenderer : null;
-        var mf = vr != null ? vr.GetComponent<MeshFilter>() : null;
-        var baked = mf != null ? mf.sharedMesh : null;
-        if (baked == null) return;   // 아직 안 구움 → 위 안내로 충분
-
-        Vector3 size = baked.bounds.size;
-        bool stale = Mathf.Abs(size.x - body.Length) > body.Length * 0.02f
-                  || Mathf.Abs(size.y - body.Width) > body.Width * 0.02f;
-        if (stale)
-            EditorGUILayout.HelpBox(
-                $"구운 메쉬 크기({size.x:0.##}×{size.y:0.##})가 현재 length×width({body.Length:0.##}×{body.Width:0.##})와 다릅니다. " +
-                "'비주얼 굽기'를 다시 누르세요.",
-                MessageType.Warning);
-    }
 }
 #endif
