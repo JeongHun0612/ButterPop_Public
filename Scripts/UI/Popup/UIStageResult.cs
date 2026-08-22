@@ -61,6 +61,10 @@ public class UIStageResult : UIPopup
             await shutterPanel.DOFade(0f, shutterFadeOutDuration).ToUniTask();
             shutterPanel.gameObject.SetActive(false);
         }
+
+        // 클리어 연출 종료 직후 전면 광고 자동 노출 시도(조건은 AdCoordinator가 판단).
+        if (AdCoordinator.TryGetInstance(out var adCoordinator))
+            adCoordinator.NotifyStageClearPresented();
     }
 
     public override void OnAfterHide()

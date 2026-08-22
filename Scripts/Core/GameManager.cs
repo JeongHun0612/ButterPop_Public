@@ -35,6 +35,10 @@ public class GameManager : MonoSingleton<GameManager>
 
         await uiManager.ShowScene<UIInGameHUD>();
 
+        // 서비스 준비가 끝난 뒤 광고 코디네이터를 초기화한다(배너 노출·이벤트 구독).
+        if (AdCoordinator.TryGetInstance(out var adCoordinator))
+            adCoordinator.Initialize();
+
         uiManager.HideInitialLoading().Forget();
     }
 

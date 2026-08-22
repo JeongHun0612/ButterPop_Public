@@ -24,8 +24,10 @@ public class StageManager : MonoSingleton<StageManager>
     public event Action<GameState> OnStateChanged;
     public event Action<Bounds> OnStageCleared;
     public event Action<bool> OnSkipAvailabilityChanged;
+    public event Action<int> OnTryCountChanged;   // 실패 시도 횟수 변경 (리워드 스킨 로테이션·전면 광고 판단용)
 
     public GameState CurrentState { get; private set; } = GameState.None;
+    public int CurrentTryCount => _currentTryCount;
     public int CurrentStageIndex { get; private set; }
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
@@ -140,6 +142,8 @@ public class StageManager : MonoSingleton<StageManager>
         _currentTryCount++;
         Debug.Log($"[StageManager] 실패 트라이: {_currentTryCount}/{skipTryThreshold}");
 
+        OnTryCountChanged?.Invoke(_currentTryCount);
+
         if (!wasAvailable && IsSkipAvailable)
             OnSkipAvailabilityChanged?.Invoke(true);
     }
@@ -147,6 +151,7 @@ public class StageManager : MonoSingleton<StageManager>
     private void ResetTryCount()
     {
         _currentTryCount = 0;
+        OnTryCountChanged?.Invoke(_currentTryCount);
         OnSkipAvailabilityChanged?.Invoke(false);
     }
 
