@@ -34,8 +34,8 @@ public class EquippedEntry
 [Serializable]
 public class PurchaseSaveData
 {
-    public bool removeAds;
-    public List<string> purchasedProductIds = new();
+    public bool bannerRemoveAds;   // 배너 광고 제거
+    public bool allRemoveAds;      // 전체 광고 제거(전면 포함) + 올스킨 언락
 }
 
 [Serializable]

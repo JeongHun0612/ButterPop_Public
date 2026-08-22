@@ -17,8 +17,8 @@ public static class ServiceBootstrap
         Services.Register<IPurchaseService>(purchase);
         await purchase.InitializeAsync();
 
-        // 광고 서비스: 리워드 광고(스테이지 스킵 등)를 재생한다.
-        var ads = new AdsService();
+        // 광고 서비스: 배너/전면/리워드를 재생한다. 광고 제거 게이팅을 위해 구매 서비스를 참조한다.
+        var ads = new AdsService(new StubAdProvider(), purchase);
         Services.Register<IAdsService>(ads);
         await ads.InitializeAsync();
     }

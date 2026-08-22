@@ -11,7 +11,9 @@ public class PurchaseService : IPurchaseService
 
     public PurchaseService(ISaveService save) => _save = save;
 
-    public bool RemoveAds => Data.removeAds;
+    public bool RemoveBannerAds => Data.bannerRemoveAds || Data.allRemoveAds;
+    public bool RemoveAllAds => Data.allRemoveAds;
+    public bool AllSkinsUnlocked => Data.allRemoveAds;
 
     public async UniTask InitializeAsync()
     {
@@ -34,10 +36,18 @@ public class PurchaseService : IPurchaseService
 
     private void ApplyEntitlement(string productId)
     {
-        if (!Data.purchasedProductIds.Contains(productId))
-            Data.purchasedProductIds.Add(productId);
-
-        if (productId == "remove_ads") Data.removeAds = true;
+        switch (productId)
+        {
+            case ProductIds.RemoveBannerAds:
+                Data.bannerRemoveAds = true;
+                break;
+            case ProductIds.RemoveAllAds:
+                Data.allRemoveAds = true;
+                break;
+            default:
+                Debug.LogWarning($"[PurchaseService] 알 수 없는 상품 ID: {productId}");
+                return;
+        }
 
         _save.Save();
         OnPurchasesUpdated?.Invoke();
