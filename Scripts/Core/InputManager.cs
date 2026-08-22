@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class InputManager : MonoBehaviour
 {
     private Squish _squish;
-    private MonkeyArm _monkeyArm;
+    private ArmController _armController;
 
     private void Update()
     {
@@ -16,8 +16,8 @@ public class InputManager : MonoBehaviour
         if (_squish == null)
             _squish = stageManager.Squish;
 
-        if (_monkeyArm == null)
-            _monkeyArm = stageManager.MonkeyArm;
+        if (_armController == null)
+            _armController = stageManager.ArmController;
 
         if (_squish == null) return;
 
@@ -31,10 +31,10 @@ public class InputManager : MonoBehaviour
 
         if (state != GameState.Result && (state != GameState.Ready || _squish.IsInteractable))
         {
-            if (WasPressed() && _monkeyArm != null)
-                _monkeyArm.Raise();
-            else if (WasReleased() && _monkeyArm != null)
-                _monkeyArm.Lower();
+            if (WasPressed() && _armController != null)
+                _armController.Raise();
+            else if (WasReleased() && _armController != null)
+                _armController.Lower();
         }
     }
 

@@ -32,7 +32,7 @@ public class StageManager : MonoSingleton<StageManager>
     public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
     public StageDataSO CurrentStageData => _current?.Data;
     public Squish Squish => _current?.Squish;
-    public MonkeyArm MonkeyArm => _current?.MonkeyArm;
+    public ArmController ArmController => _current?.ArmController;
 
     protected override void Awake()
     {

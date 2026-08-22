@@ -9,7 +9,7 @@ public class StageBuilder : MonoBehaviour
     [Tooltip("붙잡는 손 + 중첩 Squish를 담은 HandRig 프리팹. 루트 원점 = 매달림 점(손끝).")]
     [FormerlySerializedAs("squishPrefab")]
     [SerializeField] private GameObject squishRigPrefab;
-    [SerializeField] private GameObject monkeyArmPrefab;
+    [SerializeField] private GameObject armPrefab;
 
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
@@ -19,7 +19,7 @@ public class StageBuilder : MonoBehaviour
 
     // 재사용 액터 인스턴스(스테이지마다 재생성하지 않는다).
     private Squish _squish;
-    private MonkeyArm _monkeyArm;
+    private ArmController _armController;
     private bool _actorsCreated;
 
     // 최초 액터 생성 시 1회만 발화. 이벤트 구독 등록용.
@@ -38,7 +38,7 @@ public class StageBuilder : MonoBehaviour
 
         ClearStageObjects();
         SpawnStageObjects(data);
-        SpawnMonkeyArm(data, context);
+        SpawnArm(data, context);
         SpawnSquish(data, context);
         SetupCamera(data);
 
@@ -99,24 +99,24 @@ public class StageBuilder : MonoBehaviour
         mainCamera.backgroundColor = data.backgroundColor;
     }
 
-    private void SpawnMonkeyArm(StageDataSO data, StageContext context)
+    private void SpawnArm(StageDataSO data, StageContext context)
     {
-        if (monkeyArmPrefab == null) return;
+        if (armPrefab == null) return;
 
-        if (_monkeyArm == null)
+        if (_armController == null)
         {
-            var instance = Instantiate(monkeyArmPrefab);
-            _monkeyArm = instance.GetComponentInChildren<MonkeyArm>();
-            if (_monkeyArm == null)
+            var instance = Instantiate(armPrefab);
+            _armController = instance.GetComponentInChildren<ArmController>();
+            if (_armController == null)
             {
-                Debug.LogError("[StageBuilder] monkeyArmPrefab에 MonkeyArm 컴포넌트가 없습니다.", instance);
+                Debug.LogError("[StageBuilder] armPrefab에 ArmController 컴포넌트가 없습니다.", instance);
                 Destroy(instance);
                 return;
             }
         }
 
-        context.MonkeyArm = _monkeyArm;
-        _monkeyArm.ResetAt(data.monkeyArmPosition);
+        context.ArmController = _armController;
+        _armController.ResetAt(data.armPosition);
     }
 
     private void SpawnSquish(StageDataSO data, StageContext context)

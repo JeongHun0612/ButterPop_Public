@@ -13,7 +13,7 @@ public class StageMakerWindow : EditorWindow
         public string stageName = "";
         public string stageDescription = "";
         public Vector2 squishSpawnPosition = DefaultSquishSpawnPosition;
-        public Vector2 monkeyArmPosition = DefaultMonkeyArmPosition;
+        public Vector2 armPosition = DefaultArmPosition;
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 6f;
         public Color backgroundColor = StageDataSO.DefaultBackgroundColor;
@@ -60,7 +60,7 @@ public class StageMakerWindow : EditorWindow
 
     // 스퀴시 낙하 시작점 · 손의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
     private static readonly Vector2 DefaultSquishSpawnPosition = new(-2.2f, 2.5f);
-    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2.9f, -2f);
+    private static readonly Vector2 DefaultArmPosition = new(-2.9f, -2f);
 
     private Vector2 _scrollPos;
 
@@ -185,7 +185,7 @@ public class StageMakerWindow : EditorWindow
         _data.stageName = so.stageName;
         _data.stageDescription = so.stageDescription;
         _data.squishSpawnPosition = so.squishSpawnPosition;
-        _data.monkeyArmPosition = so.monkeyArmPosition;
+        _data.armPosition = so.armPosition;
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
         _data.backgroundColor = so.backgroundColor;
@@ -249,11 +249,11 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.LabelField("손 위치", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
-        var newPos = EditorGUILayout.Vector2Field("Hand Position", _data.monkeyArmPosition);
+        var newPos = EditorGUILayout.Vector2Field("Hand Position", _data.armPosition);
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Move Hand");
-            _data.monkeyArmPosition = newPos;
+            _data.armPosition = newPos;
             if (_isEditMode) UpdateHandPreviewPosition();
             SceneView.RepaintAll();
         }
@@ -265,7 +265,7 @@ public class StageMakerWindow : EditorWindow
 
         RecordUndo("Reset Spawn Positions");
         _data.squishSpawnPosition = DefaultSquishSpawnPosition;
-        _data.monkeyArmPosition = DefaultMonkeyArmPosition;
+        _data.armPosition = DefaultArmPosition;
         if (_isEditMode)
         {
             UpdateSquishPreviewPosition();
@@ -622,7 +622,7 @@ public class StageMakerWindow : EditorWindow
     {
         if (_handPreviewInstance != null)
             _handPreviewInstance.transform.position = new Vector3(
-                _data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
+                _data.armPosition.x, _data.armPosition.y, 0f);
     }
 
     private void UpdateObjectPreview(int index)
@@ -734,7 +734,7 @@ public class StageMakerWindow : EditorWindow
 
     private bool HandleHand()
     {
-        Vector3 pos = new Vector3(_data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
+        Vector3 pos = new Vector3(_data.armPosition.x, _data.armPosition.y, 0f);
 
         Handles.color = new Color(0.7f, 0.4f, 1f);
         Handles.DrawWireDisc(pos, Vector3.forward, 0.3f);
@@ -748,7 +748,7 @@ public class StageMakerWindow : EditorWindow
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Move Hand");
-            _data.monkeyArmPosition = new Vector2(newPos.x, newPos.y);
+            _data.armPosition = new Vector2(newPos.x, newPos.y);
             UpdateHandPreviewPosition();
             return true;
         }
@@ -965,7 +965,7 @@ public class StageMakerWindow : EditorWindow
         so.stageName = string.IsNullOrEmpty(_data.stageName) ? _data.stageId : _data.stageName;
         so.stageDescription = _data.stageDescription;
         so.squishSpawnPosition = _data.squishSpawnPosition;
-        so.monkeyArmPosition = _data.monkeyArmPosition;
+        so.armPosition = _data.armPosition;
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
         so.backgroundColor = _data.backgroundColor;
@@ -1069,7 +1069,7 @@ public class StageMakerWindow : EditorWindow
         _data.stageName = "";
         _data.stageDescription = "";
         _data.squishSpawnPosition = DefaultSquishSpawnPosition;
-        _data.monkeyArmPosition = DefaultMonkeyArmPosition;
+        _data.armPosition = DefaultArmPosition;
         _data.cameraCenter = Vector2.zero;
         _data.cameraOrthoSize = 6f;
         _data.backgroundColor = StageDataSO.DefaultBackgroundColor;

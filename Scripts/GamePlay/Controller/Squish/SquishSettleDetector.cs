@@ -16,7 +16,7 @@ public class SquishSettleDetector : MonoBehaviour
     private readonly Dictionary<StageObject, int> _stageContacts = new();
 
     private SquishBody _body;
-    private int _monkeyArmContacts;
+    private int _armContacts;
     private float _fallYThreshold;
     private float _fallXThreshold;
     private float _settleTimer;
@@ -51,7 +51,7 @@ public class SquishSettleDetector : MonoBehaviour
             return;
         }
 
-        if (_stageContacts.Count > 0 && _monkeyArmContacts == 0 && _body.AggregateSpeed < settleSpeedThreshold)
+        if (_stageContacts.Count > 0 && _armContacts == 0 && _body.AggregateSpeed < settleSpeedThreshold)
         {
             _settleTimer += Time.deltaTime;
             if (_settleTimer >= settleTimeRequired)
@@ -87,7 +87,7 @@ public class SquishSettleDetector : MonoBehaviour
         _judging = false;
         _settleTimer = 0f;
         _stageContacts.Clear();
-        _monkeyArmContacts = 0;
+        _armContacts = 0;
     }
 
     public Bounds GetSettledBounds()
@@ -131,10 +131,10 @@ public class SquishSettleDetector : MonoBehaviour
 
     private void OnSegmentEnter(Collision2D collision)
     {
-        var monkeyArm = collision.gameObject.GetComponentInParent<MonkeyArm>();
-        if (monkeyArm != null)
+        var arm = collision.gameObject.GetComponentInParent<ArmController>();
+        if (arm != null)
         {
-            _monkeyArmContacts++;
+            _armContacts++;
             return;
         }
 
@@ -145,9 +145,9 @@ public class SquishSettleDetector : MonoBehaviour
 
     private void OnSegmentExit(Collision2D collision)
     {
-        if (collision.gameObject.GetComponentInParent<MonkeyArm>() != null)
+        if (collision.gameObject.GetComponentInParent<ArmController>() != null)
         {
-            _monkeyArmContacts = Mathf.Max(0, _monkeyArmContacts - 1);
+            _armContacts = Mathf.Max(0, _armContacts - 1);
             return;
         }
 

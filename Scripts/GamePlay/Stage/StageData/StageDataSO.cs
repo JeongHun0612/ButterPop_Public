@@ -40,7 +40,7 @@ public class StageDataSO : ScriptableObject
     public Vector2 squishSpawnPosition;
 
     [Header("손 위치")]
-    public Vector2 monkeyArmPosition;
+    public Vector2 armPosition;
 
     [Header("카메라")]
     public Vector2 cameraCenter;

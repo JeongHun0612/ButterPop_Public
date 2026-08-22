@@ -3,5 +3,5 @@ public class StageContext
 {
     public StageDataSO Data;
     public Squish Squish;
-    public MonkeyArm MonkeyArm;
+    public ArmController ArmController;
 }
