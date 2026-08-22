@@ -33,7 +33,6 @@ public class UICustom : UIPopup
     [Header("미리보기")]
     [SerializeField] private Image previewIcon;
     [SerializeField] private TextMeshProUGUI previewName;
-    [SerializeField] private TextMeshProUGUI previewDescription;
 
     [Header("하단 버튼")]
     [SerializeField] private Button saveButton;
@@ -83,7 +82,7 @@ public class UICustom : UIPopup
 
     protected override UniTask OnShow()
     {
-        var first = tabButtons.Length > 0 ? tabButtons[0].category : SkinCategory.Monkey;
+        var first = tabButtons.Length > 0 ? tabButtons[0].category : SkinCategory.Squish;
         SelectTab(first);
         return UniTask.CompletedTask;
     }
@@ -221,7 +220,6 @@ public class UICustom : UIPopup
     {
         if (previewIcon != null) previewIcon.sprite = data.icon;
         if (previewName != null) previewName.text = data.displayName;
-        if (previewDescription != null) previewDescription.text = data.description;
     }
 
     // ---------------- 하단 버튼 ----------------

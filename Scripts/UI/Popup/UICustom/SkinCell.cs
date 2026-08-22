@@ -12,7 +12,6 @@ public class SkinCell : MonoBehaviour
     [Header("표시")]
     [SerializeField] private Image icon;
     [SerializeField] private TextMeshProUGUI nameText;
-    [SerializeField] private TextMeshProUGUI priceText;
 
     [Header("상태")]
     [SerializeField] private GameObject lockOverlay;    // 미소유(잠금)
@@ -40,7 +39,6 @@ public class SkinCell : MonoBehaviour
 
         if (icon != null) icon.sprite = data.icon;
         if (nameText != null) nameText.text = data.displayName;
-        if (priceText != null) priceText.text = $"{data.price}GB";
 
         // TODO: 테스트용 — 모든 스킨을 소유 상태로 표시. 실제 로직 복원 시 아래 줄을 원복할 것.
         // if (lockOverlay != null) lockOverlay.SetActive(!owned);

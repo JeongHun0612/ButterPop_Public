@@ -71,6 +71,12 @@ public class Squish : MonoBehaviour
         }
     }
 
+    // 장착된 스퀴시 스킨(스프라이트 + 타격음)을 렌더러에 반영한다.
+    public void ApplySkin(SquishSkinSO skin)
+    {
+        if (mesh != null) mesh.ApplySkin(skin);
+    }
+
     public void SetSpawnPosition(Vector2 spawnPosition) => _spawnPosition = spawnPosition;
 
     public void RespawnAt()

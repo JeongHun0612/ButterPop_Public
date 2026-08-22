@@ -91,6 +91,25 @@ public class SquishSimpleMesh : MonoBehaviour
         _mesh.RecalculateBounds();
     }
 
+    public void ApplySkin(SquishSkinSO newSkin)
+    {
+        if (newSkin == null || newSkin.sprite == null)
+        {
+            Debug.LogWarning("[SquishSimpleMesh] 스프라이트가 없는 스킨은 적용할 수 없습니다.", this);
+            return;
+        }
+
+        if (newSkin == skin) return;
+
+        skin = newSkin;
+        enabled = true; // Awake에서 skin 미지정으로 비활성화됐을 수 있으니 복구.
+
+        if (_mesh == null || _material == null) return;
+
+        _material.mainTexture = skin.sprite.texture;
+        _mesh.uv = BuildRingUVs(_bones.Count + 1);
+    }
+
     private void BuildMesh()
     {
         _visualGo = new GameObject("SquishSimpleVisual");
@@ -106,16 +125,12 @@ public class SquishSimpleMesh : MonoBehaviour
         int vertexCount = rings * 2;
 
         _vertices = new Vector3[vertexCount];
-        var uvs = new Vector2[vertexCount];
+        var uvs = BuildRingUVs(rings);
         var normals = new Vector3[vertexCount];
         var triangles = new int[(rings - 1) * 6];
 
-        ComputeUVRect(skin.sprite, out Vector2 uvMin, out Vector2 uvSize);
         for (int r = 0; r < rings; r++)
         {
-            float along = rings > 1 ? r / (float)(rings - 1) : 0f;
-            uvs[r * 2] = uvMin + new Vector2(along * uvSize.x, 0f);
-            uvs[r * 2 + 1] = uvMin + new Vector2(along * uvSize.x, uvSize.y);
             normals[r * 2] = Vector3.back;
             normals[r * 2 + 1] = Vector3.back;
         }
@@ -220,6 +235,20 @@ public class SquishSimpleMesh : MonoBehaviour
         int rings = _bones.Count + 1;
         float t = rings > 1 ? ring / (float)(rings - 1) : 0f;
         return Mathf.Lerp(-_halfLength, _halfLength, t);
+    }
+
+    // 링(rings) 개수에 맞춰 띠 메시의 UV를 스킨 스프라이트 기준으로 계산한다.
+    private Vector2[] BuildRingUVs(int rings)
+    {
+        var uvs = new Vector2[rings * 2];
+        ComputeUVRect(skin.sprite, out Vector2 uvMin, out Vector2 uvSize);
+        for (int r = 0; r < rings; r++)
+        {
+            float along = rings > 1 ? r / (float)(rings - 1) : 0f;
+            uvs[r * 2] = uvMin + new Vector2(along * uvSize.x, 0f);
+            uvs[r * 2 + 1] = uvMin + new Vector2(along * uvSize.x, uvSize.y);
+        }
+        return uvs;
     }
 
     private static void ComputeUVRect(Sprite sprite, out Vector2 uvMin, out Vector2 uvSize)

@@ -8,7 +8,7 @@ public class MenuCustomPanel : MonoBehaviour
     [Header("데이터")]
     [SerializeField] private SkinDatabaseSO database;
     [Tooltip("탭이 없으므로 표시할 스킨 카테고리를 고정으로 지정한다")]
-    [SerializeField] private SkinCategory category = SkinCategory.Banana;
+    [SerializeField] private SkinCategory category = SkinCategory.Squish;
 
     [Header("그리드")]
     [SerializeField] private PagedScrollRect pagedScroll;

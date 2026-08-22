@@ -11,6 +11,10 @@ public class StageBuilder : MonoBehaviour
     [SerializeField] private GameObject squishRigPrefab;
     [SerializeField] private GameObject armPrefab;
 
+    [Header("데이터")]
+    [Tooltip("장착된 스퀴시 스킨을 조회하기 위한 스킨 데이터베이스.")]
+    [SerializeField] private SkinDatabaseSO skinDatabase;
+
     [Header("참조")]
     [SerializeField] private Camera mainCamera;
 
@@ -137,8 +141,33 @@ public class StageBuilder : MonoBehaviour
 
         context.Squish = _squish;
 
+        // 장착된 스퀴시 스킨 반영
+        ApplyEquippedSquishSkin(_squish);
+
         // 스폰 좌표만 캐싱한다. 실제 rig 배치(루트를 스폰 좌표로 이동)는 직후 호출되는 RespawnAt()이 담당.
         _squish.SetSpawnPosition(data.squishSpawnPosition);
+    }
+
+    private void ApplyEquippedSquishSkin(Squish squish)
+    {
+        var skin = ResolveEquippedSquishSkin();
+        if (skin != null) squish.ApplySkin(skin);
+    }
+
+    // Squish 탭에서 장착된 스킨을 찾는다. 장착이 없으면 첫 스킨을 폴백으로 쓴다.
+    private SquishSkinSO ResolveEquippedSquishSkin()
+    {
+        if (skinDatabase == null) return null;
+
+        var tab = skinDatabase.GetTab(SkinCategory.Squish);
+        if (tab == null || tab.Count == 0) return null;
+
+        var service = Services.Get<ISkinService>();
+        foreach (var skin in tab.skins)
+            if (skin is SquishSkinSO squishSkin && service.IsEquipped(SkinCategory.Squish, skin))
+                return squishSkin;
+
+        return tab.skins[0] as SquishSkinSO;
     }
 
     private void ClearStageObjects()
