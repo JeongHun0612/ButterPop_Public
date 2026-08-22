@@ -66,6 +66,15 @@ public class MenuCustomPanel : MonoBehaviour
         BuildPages();
     }
 
+    // 메뉴가 닫힐 때 최종 선택을 실제 장착으로 확정
+    public void Commit()
+    {
+        if (_currentTab == null || _selected == null) return;
+        if (_service.IsEquipped(_currentTab.category, _selected)) return;
+
+        _service.Equip(_currentTab.category, _selected);
+    }
+
     private void SetContentVisible(bool hasSkins)
     {
         if (pagedScroll != null) pagedScroll.gameObject.SetActive(hasSkins);
@@ -131,9 +140,7 @@ public class MenuCustomPanel : MonoBehaviour
 
         _selected = data;
 
-        // 셀 클릭 즉시 장착
-        _service.Equip(_currentTab.category, data);
-
+        // 클릭은 로컬 선택만 갱신한다. 실제 장착(저장)은 메뉴가 닫힐 때 Commit()에서 1회 처리.
         for (int p = 0; p < _activePageCount; p++)
             _pagePool[p].SetSelected(data);
     }

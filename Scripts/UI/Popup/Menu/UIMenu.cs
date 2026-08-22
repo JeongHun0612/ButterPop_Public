@@ -37,6 +37,8 @@ public class UIMenu : UIPopup
 
     public override void OnClickBack()
     {
+        if (customPanel != null) customPanel.Commit();
+
         if (stagePanel != null)
             stagePanel.ConfirmCurrent();
         else

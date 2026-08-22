@@ -15,8 +15,7 @@ public class SkinCell : MonoBehaviour
 
     [Header("상태")]
     [SerializeField] private GameObject lockOverlay;    // 미소유(잠금)
-    [SerializeField] private GameObject equippedMark;   // 장착중
-    [SerializeField] private GameObject selectedFrame;  // 선택(장착 후보)
+    [SerializeField] private GameObject selectedFrame;  // 선택 = 장착 (즉시 장착 모델)
 
     [Header("클릭")]
     [SerializeField] private Button button;
@@ -32,7 +31,7 @@ public class SkinCell : MonoBehaviour
             button.onClick.AddListener(() => _onClick?.Invoke(_data));
     }
 
-    public void Bind(SkinDataSO data, bool owned, bool equipped, bool selected, Action<SkinDataSO> onClick)
+    public void Bind(SkinDataSO data, bool owned, bool selected, Action<SkinDataSO> onClick)
     {
         _data = data;
         _onClick = onClick;
@@ -49,7 +48,6 @@ public class SkinCell : MonoBehaviour
             lockOverlay.SetActive(!owned);
 #endif
         }
-        if (equippedMark != null) equippedMark.SetActive(equipped);
         if (selectedFrame != null) selectedFrame.SetActive(selected);
     }
 

@@ -32,7 +32,6 @@ public class SkinPage : MonoBehaviour
                 cells[i].Bind(
                     data,
                     service.IsOwned(data),
-                    service.IsEquipped(category, data),
                     data == selected,
                     onSelect);
                 cells[i].gameObject.SetActive(true);
