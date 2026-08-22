@@ -22,7 +22,7 @@ public class UfoBeam : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (ufo == null) return;
-        if (other.GetComponentInParent<SquishThrowController>() == null) return;
+        if (other.GetComponentInParent<Squish>() == null) return;
 
         ufo.Abduct();
     }

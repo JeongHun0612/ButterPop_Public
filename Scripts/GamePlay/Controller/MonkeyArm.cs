@@ -61,12 +61,13 @@ public class MonkeyArm : MonoBehaviour
         _rb.MoveRotation(_angle);
     }
 
-    public void ResetArm()
+    // 스테이지 스폰 위치에 리그를 배치하고 자세를 초기화한다.
+    // MonkeyArm 컴포넌트는 리그 자식(arm pivot)에 있고 위치 대상은 루트 래퍼라 transform.root를 옮긴다.
+    // (이 리그는 항상 독립 인스턴스화되므로 transform.root == 인스턴스 루트)
+    public void ResetAt(Vector2 position)
     {
-        _raising = false;
-        _simVel = 0f;
-        _angle = idleAngle;
-        _rb.rotation = idleAngle;
+        transform.root.position = new Vector3(position.x, position.y, 0f);
+        ResetArm();
     }
 
     public void Raise()
@@ -78,4 +79,12 @@ public class MonkeyArm : MonoBehaviour
     }
 
     public void Lower() => _raising = false;
+
+    private void ResetArm()
+    {
+        _raising = false;
+        _simVel = 0f;
+        _angle = idleAngle;
+        _rb.rotation = idleAngle;
+    }
 }

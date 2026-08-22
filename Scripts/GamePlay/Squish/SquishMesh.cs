@@ -43,6 +43,19 @@ public class SquishMesh : MonoBehaviour
     [SerializeField] private float velocityDamping = 0.04f;
     [SerializeField] private float maxDeformation = 0.5f;
 
+    [Header("비주얼 본 보정")]
+    [Tooltip("물리 본 간격이 순간적으로 벌어져도 렌더링용 본 포즈는 rest 길이에 가깝게 보정한다.")]
+    [SerializeField] private bool visualStretchCorrection = true;
+    [Tooltip("렌더링용 본이 물리 본을 따라가는 비율. 1이면 즉시 따라간다.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float visualPoseFollow = 1f;
+    [Tooltip("렌더링용 본 사이 거리 보정 반복 횟수.")]
+    [Range(0, 12)]
+    [SerializeField] private int visualDistanceIterations = 4;
+    [Tooltip("렌더링용 본 사이 거리 보정 강도.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float visualDistanceStrength = 1f;
+
     [Header("충돌 임펄스 (착지 팝)")]
     [SerializeField] private float impulseScale = 0.5f;
     [SerializeField] private float impulseRadius = 0.4f;
@@ -94,6 +107,8 @@ public class SquishMesh : MonoBehaviour
 
     private IReadOnlyList<Rigidbody2D> _bones;
     private IReadOnlyList<SpineSample> _boneRest;
+    private Vector2[] _visualBonePositions;
+    private float[] _visualBoneRotations;
 
     private int _cols;
     private int _rows;
@@ -134,6 +149,7 @@ public class SquishMesh : MonoBehaviour
         _rows = meshRows;
 
         BuildMesh();
+        BuildVisualPoseBuffers();
         BuildConstraints();
         BuildBoundary();
         ResetShape();
@@ -164,6 +180,8 @@ public class SquishMesh : MonoBehaviour
     {
         if (_pos == null) return;
 
+        UpdateVisualBonePose(true);
+
         for (int i = 0; i < VertexCount; i++)
         {
             Vector2 g = SkinnedGoal(i);
@@ -172,6 +190,29 @@ public class SquishMesh : MonoBehaviour
             _prevGoal[i] = g;
         }
         _impulses.Clear();
+        WriteMesh();
+    }
+
+    public void TranslateShape(Vector2 delta)
+    {
+        if (delta == Vector2.zero || _pos == null) return;
+
+        for (int i = 0; i < VertexCount; i++)
+        {
+            _pos[i] += delta;
+            _prevPos[i] += delta;
+            _goal[i] += delta;
+            _prevGoal[i] += delta;
+        }
+
+        for (int i = 0; i < _impulses.Count; i++)
+        {
+            var impulse = _impulses[i];
+            impulse.point += delta;
+            _impulses[i] = impulse;
+        }
+
+        WriteMesh();
     }
 
     public void SetTint(Color c)
@@ -288,11 +329,31 @@ public class SquishMesh : MonoBehaviour
     private Vector2 SkinnedGoal(int i)
     {
         var s = _skin[i];
-        var ra = _bones[s.boneA];
-        var rb = _bones[s.boneB];
 
-        Vector2 gA = ra.position + Rotate(s.offsetA, ra.rotation * Mathf.Deg2Rad);
-        Vector2 gB = rb.position + Rotate(s.offsetB, rb.rotation * Mathf.Deg2Rad);
+        Vector2 posA;
+        Vector2 posB;
+        float rotA;
+        float rotB;
+
+        if (visualStretchCorrection && _visualBonePositions != null)
+        {
+            posA = _visualBonePositions[s.boneA];
+            posB = _visualBonePositions[s.boneB];
+            rotA = _visualBoneRotations[s.boneA];
+            rotB = _visualBoneRotations[s.boneB];
+        }
+        else
+        {
+            var ra = _bones[s.boneA];
+            var rb = _bones[s.boneB];
+            posA = ra.position;
+            posB = rb.position;
+            rotA = ra.rotation;
+            rotB = rb.rotation;
+        }
+
+        Vector2 gA = posA + Rotate(s.offsetA, rotA * Mathf.Deg2Rad);
+        Vector2 gB = posB + Rotate(s.offsetB, rotB * Mathf.Deg2Rad);
         return Vector2.Lerp(gA, gB, s.weight);
     }
 
@@ -372,9 +433,96 @@ public class SquishMesh : MonoBehaviour
         _boundary = loop.ToArray();
     }
 
+    private void BuildVisualPoseBuffers()
+    {
+        int count = _bones.Count;
+        _visualBonePositions = new Vector2[count];
+        _visualBoneRotations = new float[count];
+        UpdateVisualBonePose(true);
+    }
+
+    private void UpdateVisualBonePose(bool snap)
+    {
+        if (_bones == null || _boneRest == null || _visualBonePositions == null) return;
+
+        int count = _bones.Count;
+        if (count == 0) return;
+
+        float follow = snap ? 1f : visualPoseFollow;
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 p = _bones[i].position;
+            _visualBonePositions[i] = Vector2.Lerp(_visualBonePositions[i], p, follow);
+            _visualBoneRotations[i] = Mathf.LerpAngle(_visualBoneRotations[i], _bones[i].rotation, follow);
+        }
+
+        if (visualStretchCorrection)
+        {
+            ProjectVisualBoneDistances();
+            _visualBonePositions[0] = _bones[0].position;
+            UpdateVisualBoneRotationsFromPositions();
+        }
+    }
+
+    private void ProjectVisualBoneDistances()
+    {
+        if (visualDistanceIterations <= 0 || visualDistanceStrength <= 0f) return;
+
+        int count = _visualBonePositions.Length;
+        if (count < 2 || _boneRest.Count < 2) return;
+
+        for (int iteration = 0; iteration < visualDistanceIterations; iteration++)
+        {
+            for (int i = 0; i < count - 1; i++)
+            {
+                Vector2 a = _visualBonePositions[i];
+                Vector2 b = _visualBonePositions[i + 1];
+                Vector2 delta = b - a;
+                float currentDistance = delta.magnitude;
+                if (currentDistance <= 0.0001f) continue;
+
+                float restDistance = (_boneRest[i + 1].position - _boneRest[i].position).magnitude;
+                Vector2 correction = delta / currentDistance * ((currentDistance - restDistance) * visualDistanceStrength);
+
+                if (i == 0)
+                {
+                    _visualBonePositions[i] = _bones[i].position;
+                    _visualBonePositions[i + 1] -= correction;
+                }
+                else
+                {
+                    _visualBonePositions[i] += correction * 0.5f;
+                    _visualBonePositions[i + 1] -= correction * 0.5f;
+                }
+            }
+        }
+    }
+
+    private void UpdateVisualBoneRotationsFromPositions()
+    {
+        int count = _visualBonePositions.Length;
+        if (count < 2) return;
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 dir;
+            if (i == 0)
+                dir = _visualBonePositions[1] - _visualBonePositions[0];
+            else if (i == count - 1)
+                dir = _visualBonePositions[i] - _visualBonePositions[i - 1];
+            else
+                dir = _visualBonePositions[i + 1] - _visualBonePositions[i - 1];
+
+            if (dir.sqrMagnitude > 0.0001f)
+                _visualBoneRotations[i] = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+        }
+    }
+
     private void Simulate(float dt)
     {
         if (_pos == null || dt <= 0f) return;
+
+        UpdateVisualBonePose(false);
 
         int vc = VertexCount;
 

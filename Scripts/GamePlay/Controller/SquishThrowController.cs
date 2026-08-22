@@ -1,21 +1,18 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
-// SquishBody를 손끝 힌지에 매달고 드롭 상태를 전환한다.
+// SquishBody를 손끝 offset에 핀으로 매달고 Drop 때 풀어준다.
 [RequireComponent(typeof(SquishBody))]
 public class SquishThrowController : MonoBehaviour
 {
-    [Header("잡기")]
-    [Tooltip("매달 월드 위치(손끝). 프리팹에서 이 Transform의 HingeJoint2D(connectedBody)를 원하는 뼈에 직접 배선한다. " +
-             "스폰 시 프리팹에 배치한 자세로 맞춘 뒤 이 힌지를 켜서 매단다.")]
+    private const float HangingAngleDeg = -90f;
+
+    [Header("앵커")]
+    [Tooltip("손끝에서 매달릴 위치(핀 포인트). Rigidbody 없이 offset Transform으로만 사용한다.")]
     [SerializeField] private Transform pivotAnchor;
 
-    [Header("초기 스윙")]
-    [Tooltip("스폰 시 핀(pivotAnchor) 기준으로 이만큼(도) 기울여 놓고 놓아 진자처럼 흔들리게 한다. 위치는 고정. 0 = 프리팹 자세 그대로(안 흔들림).")]
-    [SerializeField] private float swingAmplitude = 20f;
-
-    [Header("속도 제한")]
-    [Tooltip("릴리즈 후 최대 속도 상한 (화면 이탈 방지)")]
+    [Header("릴리즈")]
     [SerializeField] private bool clampSpeed = true;
     [SerializeField] private float maxSpeed = 12f;
 
@@ -23,35 +20,35 @@ public class SquishThrowController : MonoBehaviour
     [Tooltip("어브덕션 등에서 몸체 중앙으로 삼을 앵커. 비우면 WorldBounds 중심을 사용.")]
     [SerializeField] private Transform centerAnchor;
 
-    [Header("비주얼")]
-    [Tooltip("타는 연출 등 틴트에 사용할 스퀴시 메쉬. 비우면 Awake에서 GetComponent.")]
-    [SerializeField] private SquishMesh mesh;
+    [Header("잡기")]
+    [Tooltip("켜면 잡힌 동안 Bone_0을 손끝에 직접 고정하고 Bone_1부터 물리로 흔들리게 한다.")]
+    [SerializeField] private bool holdHeadBoneToFingertip = true;
 
     private SquishBody _body;
-    private HingeJoint2D _anchorHinge;
+    private Coroutine _startRoutine;
+    private bool _arming;
     private bool _released;
 
     public event Action OnDropped;
+    // 리셋 직후 물리 안정화(arming)가 끝났을 때 발생. 파사드가 지연된 등장 연출을 재생하는 데 사용한다.
+    public event Action OnArmed;
 
-    public SquishBody Body => _body;
-    public SquishMesh Mesh => mesh;
     public Transform CenterAnchor => centerAnchor;
+    public Vector2 PinPoint => GetPinPoint();
+    public float HangingAngle => HangingAngleDeg;
+    public bool IsArming => _arming;
+    public bool CanDrop => !_released && !_arming;
 
     private void Awake()
     {
         _body = GetComponent<SquishBody>();
-        if (mesh == null) mesh = GetComponent<SquishMesh>();
-
-        if (pivotAnchor != null)
-        {
-            _anchorHinge = pivotAnchor.GetComponent<HingeJoint2D>();
-            if (_anchorHinge != null)
-                _anchorHinge.enabled = false;
-        }
     }
 
     private void FixedUpdate()
     {
+        if (!_released && holdHeadBoneToFingertip)
+            UpdateHeldHeadBone(true);
+
         if (!_released || !clampSpeed || _body == null || !_body.IsReady) return;
 
         var bones = _body.BoneRigidbodies;
@@ -63,48 +60,114 @@ public class SquishThrowController : MonoBehaviour
         }
     }
 
-    // 프리팹에 배치한 자세로 초기화하고 손끝 힌지에 매단다.
-    public void StartSwing()
+    // 리셋된 스퀴시를 떨어뜨릴 수 있는 상태로 안정화(arming)한다.
+    // Body 자세/속도와 Mesh 초기화는 파사드(Squish)가 이 호출 전에 처리한다.
+    public void PrepareRespawn()
     {
         if (_body == null || !_body.IsReady) return;
 
         _released = false;
-
-        Vector2 pivot = pivotAnchor != null ? (Vector2)pivotAnchor.position : (Vector2)transform.position;
-        _body.SnapPose(transform.position, transform.eulerAngles.z);
-        _body.RotatePoseAround(pivot, swingAmplitude);
-        _body.SetKinematic(false);
-
-        if (mesh != null)
+        _arming = true;
+        if (_startRoutine != null)
         {
-            mesh.ResetShape();
-            mesh.SetTint(Color.white);
+            StopCoroutine(_startRoutine);
+            _startRoutine = null;
         }
 
-        if (_anchorHinge != null)
-            _anchorHinge.enabled = true;
-        else
-            Debug.LogWarning("[SquishThrowController] pivotAnchor(Fingertip)에 HingeJoint2D가 없습니다. 프리팹에서 힌지를 배선하세요.");
+        _startRoutine = StartCoroutine(ArmAfterReset());
     }
 
     public void Drop()
     {
-        if (_released) return;
+        if (!CanDrop) return;
+
         _released = true;
-
-        if (_anchorHinge != null)
-            _anchorHinge.enabled = false;
-
+        SetHeadBoneGrabbed(false);
         OnDropped?.Invoke();
     }
 
     public void FreezeInPlace()
     {
-        if (_anchorHinge != null)
-            _anchorHinge.enabled = false;
-
+        if (_startRoutine != null)
+        {
+            StopCoroutine(_startRoutine);
+            _startRoutine = null;
+        }
+        _arming = false;
+        SetHeadBoneGrabbed(false);
         if (_body != null)
             _body.SetKinematic(true);
+    }
+
+    // 리셋 직후 물리를 안정화(동적 전환 + 머리뼈 잡기)한다. 화면 안 등장은 하지 않는다.
+    private IEnumerator ArmAfterReset()
+    {
+        yield return new WaitForFixedUpdate();
+
+        _body.SetKinematic(false);
+        SetHeadBoneGrabbed(true);
+        _body.ClearVelocities();
+        _arming = false;
+        _startRoutine = null;
+
+        // 파사드가 arming 중 예약된 등장 연출을 지금 재생하도록 알린다.
+        OnArmed?.Invoke();
+    }
+
+    private Rigidbody2D GetHeadBody()
+    {
+        if (_body == null || !_body.IsReady || _body.BoneRigidbodies.Count == 0)
+            return null;
+
+        return _body.BoneRigidbodies[0];
+    }
+
+    private Vector2 GetPinPoint()
+    {
+        return pivotAnchor != null ? (Vector2)pivotAnchor.position : (Vector2)transform.position;
+    }
+
+    private float GetTopToFirstBoneOffset()
+    {
+        if (_body.BoneRestSamples.Count == 0) return 0f;
+
+        return _body.Length * 0.5f + _body.BoneRestSamples[0].position.x;
+    }
+
+    private void SetHeadBoneGrabbed(bool grabbed)
+    {
+        Rigidbody2D head = GetHeadBody();
+        if (head == null) return;
+
+        head.bodyType = grabbed ? RigidbodyType2D.Kinematic : RigidbodyType2D.Dynamic;
+        head.linearVelocity = Vector2.zero;
+        head.angularVelocity = 0f;
+
+        if (grabbed)
+            UpdateHeldHeadBone(false);
+    }
+
+    private void UpdateHeldHeadBone(bool sweep)
+    {
+        Rigidbody2D head = GetHeadBody();
+        if (head == null) return;
+
+        Vector2 position = GetPinPoint() + Vector2.down * GetTopToFirstBoneOffset();
+
+        if (sweep && head.bodyType == RigidbodyType2D.Kinematic)
+        {
+            head.MovePosition(position);
+            head.MoveRotation(HangingAngleDeg);
+        }
+        else
+        {
+            head.position = position;
+            head.rotation = HangingAngleDeg;
+            head.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, 0f, HangingAngleDeg));
+        }
+
+        head.linearVelocity = Vector2.zero;
+        head.angularVelocity = 0f;
     }
 
     private void OnDrawGizmos()

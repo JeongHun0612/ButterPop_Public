@@ -39,7 +39,7 @@ public class StageDataSO : ScriptableObject
     [FormerlySerializedAs("bananaSpawnPosition")]
     public Vector2 squishSpawnPosition;
 
-    [Header("원숭이 팔")]
+    [Header("손 위치")]
     public Vector2 monkeyArmPosition;
 
     [Header("카메라")]

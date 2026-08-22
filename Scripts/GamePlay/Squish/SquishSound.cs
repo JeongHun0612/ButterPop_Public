@@ -10,7 +10,7 @@ public class SquishSound : MonoBehaviour
 
     [Header("참조")]
     [SerializeField] private SquishBody body;
-    [Tooltip("타격음/비주얼 스킨. SquishMesh와 같은 SO를 물린다.")]
+    [Tooltip("타격음/비주얼 스킨. SquishSimpleMesh와 같은 SO를 물린다.")]
     [SerializeField] private SquishSkinSO skin;
 
     private float _lastPlayTime = -999f;

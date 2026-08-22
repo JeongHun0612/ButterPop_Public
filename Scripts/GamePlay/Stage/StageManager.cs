@@ -31,7 +31,7 @@ public class StageManager : MonoSingleton<StageManager>
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
     public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
     public StageDataSO CurrentStageData => _current?.Data;
-    public SquishThrowController SquishController => _current?.Squish;
+    public Squish Squish => _current?.Squish;
     public MonkeyArm MonkeyArm => _current?.MonkeyArm;
 
     protected override void Awake()
@@ -76,7 +76,7 @@ public class StageManager : MonoSingleton<StageManager>
     public void LoadStageData(StageDataSO data)
     {
         _current = builder.Build(data);
-        builder.ResetSquish(_current);
+        RespawnSquish();
         ResetTryCount();
         SetState(GameState.StageReady);
         Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageId}");
@@ -99,11 +99,15 @@ public class StageManager : MonoSingleton<StageManager>
         Debug.Log($"[StageManager] {prev} → {newState}");
 
         OnStateChanged?.Invoke(newState);
+
+        // Ready 진입(스테이지 시작 터치 / 재도전) 시 준비된 스퀴시를 화면 안으로 등장시킨다.
+        if (newState == GameState.Ready && _current?.Squish != null)
+            _current.Squish.Enter();
     }
 
     public void ResetSquish()
     {
-        builder.ResetSquish(_current);
+        RespawnSquish();
         SetState(GameState.Ready);
     }
 
@@ -146,22 +150,29 @@ public class StageManager : MonoSingleton<StageManager>
         OnSkipAvailabilityChanged?.Invoke(false);
     }
 
+    // 현재 스퀴시를 스폰 위치로 되돌린다(화면 밖 준비). 화면 안 등장은 Ready 진입 시 SetState에서.
+    private void RespawnSquish()
+    {
+        if (_current?.Squish != null)
+            _current.Squish.RespawnAt();
+    }
+
     private void BindActors(StageContext ctx)
     {
         ctx.Squish.OnDropped += OnSquishDropped;
-        ctx.SettleDetector.OnSettled += OnSquishSettled;
-        ctx.SettleDetector.OnFell += OnSquishFell;
+        ctx.Squish.OnSettled += OnSquishSettled;
+        ctx.Squish.OnFell += OnSquishFell;
     }
 
     private void OnSquishDropped()
     {
         SetState(GameState.Falling);
-        _current.SettleDetector.BeginJudging();
+        _current.Squish.BeginJudging();
     }
 
     private void OnSquishSettled(Bounds bounds)
     {
-        _current.Squish.FreezeInPlace();
+        _current.Squish.Freeze();
         SetState(GameState.Result);
         MarkCleared(CurrentStageIndex);
 

@@ -17,7 +17,7 @@ public class SquishContactRelay : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (_receiver == null) return;
-        if (collision.gameObject.GetComponentInParent<SquishThrowController>() == null) return;
+        if (collision.gameObject.GetComponentInParent<Squish>() == null) return;
 
         _receiver.OnSquishHit(collision);
     }

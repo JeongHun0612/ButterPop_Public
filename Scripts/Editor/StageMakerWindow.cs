@@ -45,22 +45,22 @@ public class StageMakerWindow : EditorWindow
     private bool _isEditMode;
     private GameObject _previewParent;
     private GameObject _squishPreviewInstance;
-    private GameObject _monkeyArmPreviewInstance;
+    private GameObject _handPreviewInstance;
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
     private float _lastKnownAspect;
 
-    private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/HandRig.prefab";
-    private const string MonkeyArmPrefabPath = "Assets/03. Prefabs/Controllers/MonkeyArm.prefab";
+    private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/Squish.prefab";
+    private const string HandPrefabPath = "Assets/03. Prefabs/Controllers/TempArm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
     // 신규 작업의 기본 스테이지 이름. 첫 오브젝트 추가 시 이름 자동 설정 여부 판별에도 사용한다.
     private const string DefaultStageId = "New Stage";
 
-    // 바나나 낙하 시작점 · 원숭이 팔의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
-    private static readonly Vector2 DefaultSquishSpawnPosition = new(-1.4f, 2.5f);
-    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2.4f, -2f);
+    // 스퀴시 낙하 시작점 · 손의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
+    private static readonly Vector2 DefaultSquishSpawnPosition = new(-2.2f, 2.5f);
+    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2f, -2f);
 
     private Vector2 _scrollPos;
 
@@ -141,7 +141,7 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.Space(4);
         DrawSquishSpawn();
         EditorGUILayout.Space(4);
-        DrawMonkeyArm();
+        DrawHand();
         EditorGUILayout.Space(2);
         DrawResetSpawnButton();
         EditorGUILayout.Space(4);
@@ -232,7 +232,7 @@ public class StageMakerWindow : EditorWindow
 
     private void DrawSquishSpawn()
     {
-        EditorGUILayout.LabelField("바나나 낙하 시작점", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("스퀴시 낙하 시작점", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
         var newPos = EditorGUILayout.Vector2Field("Spawn Position", _data.squishSpawnPosition);
@@ -244,24 +244,24 @@ public class StageMakerWindow : EditorWindow
         }
     }
 
-    private void DrawMonkeyArm()
+    private void DrawHand()
     {
-        EditorGUILayout.LabelField("원숭이 팔", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("손 위치", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
-        var newPos = EditorGUILayout.Vector2Field("Arm Position", _data.monkeyArmPosition);
+        var newPos = EditorGUILayout.Vector2Field("Hand Position", _data.monkeyArmPosition);
         if (EditorGUI.EndChangeCheck())
         {
-            RecordUndo("Move Monkey Arm");
+            RecordUndo("Move Hand");
             _data.monkeyArmPosition = newPos;
-            if (_isEditMode) UpdateMonkeyArmPreviewPosition();
+            if (_isEditMode) UpdateHandPreviewPosition();
             SceneView.RepaintAll();
         }
     }
 
     private void DrawResetSpawnButton()
     {
-        if (!GUILayout.Button("바나나·원숭이 팔 위치 기본값으로", GUILayout.Height(22))) return;
+        if (!GUILayout.Button("스퀴시·손 위치 기본값으로", GUILayout.Height(22))) return;
 
         RecordUndo("Reset Spawn Positions");
         _data.squishSpawnPosition = DefaultSquishSpawnPosition;
@@ -269,7 +269,7 @@ public class StageMakerWindow : EditorWindow
         if (_isEditMode)
         {
             UpdateSquishPreviewPosition();
-            UpdateMonkeyArmPreviewPosition();
+            UpdateHandPreviewPosition();
         }
         SceneView.RepaintAll();
     }
@@ -393,7 +393,7 @@ public class StageMakerWindow : EditorWindow
 
             bool newFlipX = EditorGUILayout.Toggle("Flip X", entry.flipX);
             bool newCoverSquish = EditorGUILayout.Toggle(
-                new GUIContent("바나나 가리기", "체크 시 Sorting Order를 높여 바나나를 가립니다 (돔 내부 등)."),
+                new GUIContent("스퀴시 가리기", "체크 시 Sorting Order를 높여 스퀴시를 가립니다 (돔 내부 등)."),
                 entry.coverSquish);
 
             if (EditorGUI.EndChangeCheck())
@@ -507,14 +507,14 @@ public class StageMakerWindow : EditorWindow
             UpdateSquishPreviewPosition();
         }
 
-        var monkeyArmPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MonkeyArmPrefabPath);
-        if (monkeyArmPrefab != null)
+        var handPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(HandPrefabPath);
+        if (handPrefab != null)
         {
-            _monkeyArmPreviewInstance = (GameObject)PrefabUtility.InstantiatePrefab(monkeyArmPrefab, _previewParent.transform);
-            _monkeyArmPreviewInstance.name = "[StageMaker] MonkeyArm";
-            _monkeyArmPreviewInstance.hideFlags = HideFlags.DontSave;
-            SetPreviewStatic(_monkeyArmPreviewInstance);
-            UpdateMonkeyArmPreviewPosition();
+            _handPreviewInstance = (GameObject)PrefabUtility.InstantiatePrefab(handPrefab, _previewParent.transform);
+            _handPreviewInstance.name = "[StageMaker] Hand";
+            _handPreviewInstance.hideFlags = HideFlags.DontSave;
+            SetPreviewStatic(_handPreviewInstance);
+            UpdateHandPreviewPosition();
         }
 
         _objectPreviewInstances.Clear();
@@ -586,7 +586,7 @@ public class StageMakerWindow : EditorWindow
         t.localScale = new Vector3(scaleX, entry.scale.y, 1f);
     }
 
-    // 프리뷰에서도 바나나 가리기 여부에 따라 Sorting Order를 반영해 실제 그려지는 순서를 확인할 수 있게 한다.
+    // 프리뷰에서도 스퀴시 가리기 여부에 따라 Sorting Order를 반영해 실제 그려지는 순서를 확인할 수 있게 한다.
     // 원본 프리팹의 Order in Layer(흰자·검은자 등 내부 상대 순서)를 유지하기 위해 덮어쓰지 않고 오프셋만 더한다.
     // 원본 값을 기준으로 계산하므로 이동·회전 등으로 반복 호출돼도 누적되지 않는다(idempotent).
     private void ApplyCoverSquish(GameObject go, StageObjectEntry entry)
@@ -618,10 +618,10 @@ public class StageMakerWindow : EditorWindow
                 _data.squishSpawnPosition.x, _data.squishSpawnPosition.y, 0f);
     }
 
-    private void UpdateMonkeyArmPreviewPosition()
+    private void UpdateHandPreviewPosition()
     {
-        if (_monkeyArmPreviewInstance != null)
-            _monkeyArmPreviewInstance.transform.position = new Vector3(
+        if (_handPreviewInstance != null)
+            _handPreviewInstance.transform.position = new Vector3(
                 _data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
     }
 
@@ -675,7 +675,7 @@ public class StageMakerWindow : EditorWindow
     private void CleanupPreview()
     {
         _squishPreviewInstance = null;
-        _monkeyArmPreviewInstance = null;
+        _handPreviewInstance = null;
         _objectPreviewInstances.Clear();
         _previewParent = null;
 
@@ -694,7 +694,7 @@ public class StageMakerWindow : EditorWindow
         bool changed = false;
 
         changed |= HandleSquishSpawn();
-        changed |= HandleMonkeyArm();
+        changed |= HandleHand();
         changed |= HandleCameraCenter();
         DrawCameraRect();
         DrawFallLine();
@@ -732,13 +732,13 @@ public class StageMakerWindow : EditorWindow
         return false;
     }
 
-    private bool HandleMonkeyArm()
+    private bool HandleHand()
     {
         Vector3 pos = new Vector3(_data.monkeyArmPosition.x, _data.monkeyArmPosition.y, 0f);
 
         Handles.color = new Color(0.7f, 0.4f, 1f);
         Handles.DrawWireDisc(pos, Vector3.forward, 0.3f);
-        Handles.Label(pos + Vector3.up * 0.5f, "Monkey Arm",
+        Handles.Label(pos + Vector3.up * 0.5f, "Hand",
             new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.7f, 0.4f, 1f) } });
 
         if (Tools.current != Tool.Move) return false;
@@ -747,9 +747,9 @@ public class StageMakerWindow : EditorWindow
         var newPos = Handles.PositionHandle(pos, Quaternion.identity);
         if (EditorGUI.EndChangeCheck())
         {
-            RecordUndo("Move Monkey Arm");
+            RecordUndo("Move Hand");
             _data.monkeyArmPosition = new Vector2(newPos.x, newPos.y);
-            UpdateMonkeyArmPreviewPosition();
+            UpdateHandPreviewPosition();
             return true;
         }
         return false;

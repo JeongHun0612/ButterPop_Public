@@ -43,7 +43,7 @@ public class UFO : MonoBehaviour, IStageContextReceiver
     public void Abduct()
     {
         if (_abducting) return;
-        if (_context?.Squish == null || _context.SettleDetector == null) return;
+        if (_context?.Squish == null) return;
         Debug.Assert(StageManager.Instance != null, "[UFO] StageManager가 없습니다");
         if (StageManager.Instance.CurrentState != GameState.Falling) return;
 
@@ -55,10 +55,9 @@ public class UFO : MonoBehaviour, IStageContextReceiver
     {
         var squish = _context.Squish;
         var body = squish.Body;
-        var detector = _context.SettleDetector;
 
-        detector.SuspendJudging();
-        squish.FreezeInPlace();   // 뼈를 kinematic으로 고정한 뒤 스크립트로 옮긴다.
+        squish.SuspendJudging();
+        squish.Freeze();   // 뼈를 kinematic으로 고정한 뒤 스크립트로 옮긴다.
 
         Transform targetRef = abductPoint != null ? abductPoint : transform;
 
@@ -108,10 +107,10 @@ public class UFO : MonoBehaviour, IStageContextReceiver
         }
 
         // 어브덕션 중 스테이지가 재구성되면 참조가 사라질 수 있으니 방어.
-        if (detector == null) return;
+        if (squish == null) return;
 
         // 스퀴시 + 우주선을 함께 담아 결과 캡처가 어브덕션 장면을 잡도록 한다.
-        detector.ForceSettle(gameObject);
+        squish.ForceSettle(gameObject);
 
         _abducting = false;
     }

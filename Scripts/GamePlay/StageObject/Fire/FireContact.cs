@@ -22,7 +22,7 @@ public class FireContact : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (fire == null) return;
-        if (other.GetComponentInParent<SquishThrowController>() == null) return;
+        if (other.GetComponentInParent<Squish>() == null) return;
 
         fire.StartBurn();
     }
@@ -30,7 +30,7 @@ public class FireContact : MonoBehaviour
     private void OnTriggerExit2D(Collider2D other)
     {
         if (fire == null) return;
-        if (other.GetComponentInParent<SquishThrowController>() == null) return;
+        if (other.GetComponentInParent<Squish>() == null) return;
 
         fire.StopBurn();
     }

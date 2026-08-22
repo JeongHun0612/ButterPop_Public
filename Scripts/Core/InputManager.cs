@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 public class InputManager : MonoBehaviour
 {
-    private SquishThrowController _squishController;
+    private Squish _squish;
     private MonkeyArm _monkeyArm;
 
     private void Update()
@@ -13,22 +13,23 @@ public class InputManager : MonoBehaviour
         Debug.Assert(stageManager != null, "[InputManager] StageManager가 없습니다");
         if (IsPointerOverUI()) return;
 
-        if (_squishController == null)
-            _squishController = stageManager.SquishController;
+        if (_squish == null)
+            _squish = stageManager.Squish;
 
         if (_monkeyArm == null)
             _monkeyArm = stageManager.MonkeyArm;
 
-        if (_squishController == null) return;
+        if (_squish == null) return;
 
         var state = stageManager.CurrentState;
 
-        if (state == GameState.Ready && WasPressed())
+        if (state == GameState.Ready && _squish.CanDrop && WasPressed())
         {
-            _squishController.Drop();
+            _squish.Drop();
+            return;
         }
 
-        if (state != GameState.Result)
+        if (state != GameState.Result && (state != GameState.Ready || _squish.IsInteractable))
         {
             if (WasPressed() && _monkeyArm != null)
                 _monkeyArm.Raise();

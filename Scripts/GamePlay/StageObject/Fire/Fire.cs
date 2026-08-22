@@ -57,7 +57,7 @@ public class Fire : MonoBehaviour, IStageContextReceiver
         while (_burnProgress < 1f && !token.IsCancellationRequested)
         {
             _burnProgress = Mathf.Clamp01(_burnProgress + Time.deltaTime / burnDuration);
-            // 정점 컬러를 흰색→검정으로 낮춰 스퀴시 전체를 균일하게 태운다(원복은 StartSwing).
+            // 정점 컬러를 흰색→검정으로 낮춰 스퀴시 전체를 균일하게 태운다(원복은 RespawnAt).
             mesh.SetTint(Color.Lerp(Color.white, Color.black, _burnProgress));
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);

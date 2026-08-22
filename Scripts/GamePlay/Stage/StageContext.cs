@@ -2,7 +2,6 @@
 public class StageContext
 {
     public StageDataSO Data;
-    public SquishThrowController Squish;
-    public SquishSettleDetector SettleDetector;
+    public Squish Squish;
     public MonkeyArm MonkeyArm;
 }

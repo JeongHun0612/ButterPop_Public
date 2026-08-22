@@ -25,8 +25,7 @@ public class DebugStageBootstrap : MonoBehaviour
         if (debugStageData == null)
         {
             Debug.Log("[DebugStageBootstrap] debugStageData 미지정 → 0번 스테이지 로드");
-            stageManager.LoadStage(0);
-            stageManager.ResetSquish();
+            LoadStageForDebug(stageManager, 0);
             return;
         }
 
@@ -34,14 +33,12 @@ public class DebugStageBootstrap : MonoBehaviour
         if (index < 0)
         {
             Debug.LogWarning($"[DebugStageBootstrap] {debugStageData.stageId}이 stageList에 없습니다. 직접 로드합니다.");
-            stageManager.LoadStageData(debugStageData);
-            stageManager.ResetSquish();
+            LoadStageDataForDebug(stageManager, debugStageData);
             return;
         }
 
         Debug.Log($"[DebugStageBootstrap] 스테이지 {index} 로드: {debugStageData.stageId}");
-        stageManager.LoadStage(index);
-        stageManager.ResetSquish();
+        LoadStageForDebug(stageManager, index);
     }
 
     private int FindStageIndex(StageDataSO data)
@@ -51,6 +48,18 @@ public class DebugStageBootstrap : MonoBehaviour
             if (stageList.Get(i) == data) return i;
         }
         return -1;
+    }
+
+    private static void LoadStageForDebug(StageManager stageManager, int index)
+    {
+        stageManager.LoadStage(index);
+        stageManager.SetState(GameState.Ready);
+    }
+
+    private static void LoadStageDataForDebug(StageManager stageManager, StageDataSO data)
+    {
+        stageManager.LoadStageData(data);
+        stageManager.SetState(GameState.Ready);
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -124,7 +133,7 @@ public class DebugStageBootstrap : MonoBehaviour
         if (GUILayout.Button("다음", _buttonStyle, GUILayout.Width(180 * scale), GUILayout.Height(72 * scale)))
         {
             stageManager.LoadNextStage();
-            stageManager.ResetSquish();
+            stageManager.SetState(GameState.Ready);
         }
         if (GUILayout.Button(_showList ? "목록 ▲" : "목록 ▼", _buttonStyle, GUILayout.Width(200 * scale), GUILayout.Height(72 * scale)))
             _showList = !_showList;
@@ -148,8 +157,7 @@ public class DebugStageBootstrap : MonoBehaviour
 
                 if (GUILayout.Button(label, isCurrent ? _currentButtonStyle : _buttonStyle))
                 {
-                    stageManager.LoadStage(i);
-                    stageManager.ResetSquish();
+                    LoadStageForDebug(stageManager, i);
                 }
             }
             GUILayout.EndScrollView();

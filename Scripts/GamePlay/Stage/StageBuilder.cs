@@ -17,10 +17,9 @@ public class StageBuilder : MonoBehaviour
     private readonly List<GameObject> _spawnedStageObjects = new();
     private readonly List<IStageContextReceiver> _contextReceivers = new();
 
-    private GameObject _squishRigInstance;
-    private GameObject _monkeyArmInstance;
-
-    private StageContext _context;
+    // 재사용 액터 인스턴스(스테이지마다 재생성하지 않는다).
+    private Squish _squish;
+    private MonkeyArm _monkeyArm;
     private bool _actorsCreated;
 
     // 최초 액터 생성 시 1회만 발화. 이벤트 구독 등록용.
@@ -32,42 +31,29 @@ public class StageBuilder : MonoBehaviour
             mainCamera = Camera.main;
     }
 
+    // 스테이지 액터를 구성해 StageContext를 새로 채워 반환한다. 소유·보관은 호출자(StageManager)가 한다.
     public StageContext Build(StageDataSO data)
     {
+        var context = new StageContext { Data = data };
+
         ClearStageObjects();
         SpawnStageObjects(data);
-        SpawnMonkeyArm(data);
-        SpawnSquish(data);
+        SpawnMonkeyArm(data, context);
+        SpawnSquish(data, context);
         SetupCamera(data);
 
-        _context.Data = data;
+        if (context.Squish != null)
+            context.Squish.UpdateCameraBounds(mainCamera);
 
-        if (_context.SettleDetector != null)
-            _context.SettleDetector.UpdateCameraBounds(mainCamera);
-
-        InjectStageContext();
+        InjectStageContext(context);
 
         if (!_actorsCreated)
         {
             _actorsCreated = true;
-            OnActorsCreated?.Invoke(_context);
+            OnActorsCreated?.Invoke(context);
         }
 
-        return _context;
-    }
-
-    public void ResetSquish(StageContext ctx)
-    {
-        if (ctx?.Squish == null) return;
-
-        // HandRig 루트(손+중첩 Squish 통째)를 매달림 점으로 되돌린다. 중첩 Squish는 손 기준 오프셋을 유지해야 하므로 건드리지 않는다.
-        if (_squishRigInstance != null)
-            _squishRigInstance.transform.position = ctx.Data.squishSpawnPosition;
-
-        ctx.Squish.StartSwing();
-
-        if (ctx.SettleDetector != null)
-            ctx.SettleDetector.ResetState();
+        return context;
     }
 
     private void SpawnStageObjects(StageDataSO data)
@@ -113,39 +99,46 @@ public class StageBuilder : MonoBehaviour
         mainCamera.backgroundColor = data.backgroundColor;
     }
 
-    private void SpawnMonkeyArm(StageDataSO data)
+    private void SpawnMonkeyArm(StageDataSO data, StageContext context)
     {
         if (monkeyArmPrefab == null) return;
 
-        if (_monkeyArmInstance == null)
+        if (_monkeyArm == null)
         {
-            _monkeyArmInstance = Instantiate(monkeyArmPrefab);
-            EnsureContext();
-            _context.MonkeyArm = _monkeyArmInstance.GetComponentInChildren<MonkeyArm>();
+            var instance = Instantiate(monkeyArmPrefab);
+            _monkeyArm = instance.GetComponentInChildren<MonkeyArm>();
+            if (_monkeyArm == null)
+            {
+                Debug.LogError("[StageBuilder] monkeyArmPrefab에 MonkeyArm 컴포넌트가 없습니다.", instance);
+                Destroy(instance);
+                return;
+            }
         }
 
-        _monkeyArmInstance.transform.position = new Vector3(
-            data.monkeyArmPosition.x, data.monkeyArmPosition.y, 0f);
-
-        if (_context.MonkeyArm != null)
-            _context.MonkeyArm.ResetArm();
+        context.MonkeyArm = _monkeyArm;
+        _monkeyArm.ResetAt(data.monkeyArmPosition);
     }
 
-    private void SpawnSquish(StageDataSO data)
+    private void SpawnSquish(StageDataSO data, StageContext context)
     {
         if (squishRigPrefab == null) return;
 
-        if (_squishRigInstance == null)
+        if (_squish == null)
         {
-            _squishRigInstance = Instantiate(squishRigPrefab);
-            EnsureContext();
-            _context.Squish = _squishRigInstance.GetComponentInChildren<SquishThrowController>();
-            _context.SettleDetector = _squishRigInstance.GetComponentInChildren<SquishSettleDetector>();
+            var instance = Instantiate(squishRigPrefab);
+            _squish = instance.GetComponentInChildren<Squish>();
+            if (_squish == null)
+            {
+                Debug.LogError("[StageBuilder] squishRigPrefab에 Squish 컴포넌트가 없습니다.", instance);
+                Destroy(instance);
+                return;
+            }
         }
 
-        // rig 루트 원점 = 매달림 점(손끝). 스폰 좌표에 놓으면 손 + 중첩 Squish가 통째로 정렬된다.
-        _squishRigInstance.transform.position = new Vector3(
-            data.squishSpawnPosition.x, data.squishSpawnPosition.y, 0f);
+        context.Squish = _squish;
+
+        // 스폰 좌표만 캐싱한다. 실제 rig 배치(루트를 스폰 좌표로 이동)는 직후 호출되는 RespawnAt()이 담당.
+        _squish.SetSpawnPosition(data.squishSpawnPosition);
     }
 
     private void ClearStageObjects()
@@ -158,16 +151,9 @@ public class StageBuilder : MonoBehaviour
         _contextReceivers.Clear();
     }
 
-    private void InjectStageContext()
+    private void InjectStageContext(StageContext context)
     {
-        if (_context == null) return;
-
         foreach (var receiver in _contextReceivers)
-            receiver?.ReceiveStageContext(_context);
-    }
-
-    private void EnsureContext()
-    {
-        _context ??= new StageContext();
+            receiver?.ReceiveStageContext(context);
     }
 }
