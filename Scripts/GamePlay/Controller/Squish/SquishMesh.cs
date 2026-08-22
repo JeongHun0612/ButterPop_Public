@@ -6,7 +6,7 @@ public class SquishMesh : MonoBehaviour
 {
     [Header("참조")]
     [SerializeField] private SquishBody body;
-    [Tooltip("비주얼 스킨 (스프라이트 + 타격음). SquishSound와 같은 SO를 물려 사용.")]
+    [Tooltip("비주얼 스킨 (스프라이트 + 타격음).")]
     [SerializeField] private SquishSkinSO skin;
 
     [Header("스퀴시 메쉬 해상도")]

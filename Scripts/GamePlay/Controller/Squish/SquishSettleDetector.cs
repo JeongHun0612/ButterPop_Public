@@ -13,9 +13,6 @@ public class SquishSettleDetector : MonoBehaviour
     [SerializeField] private float settleTimeRequired = 0.5f;
     [SerializeField] private float outOfBoundsMargin = 2f;
 
-    [Header("사운드")]
-    [SerializeField] private float hitSoundCooldown = 0.3f;
-
     private readonly Dictionary<StageObject, int> _stageContacts = new();
 
     private SquishBody _body;
@@ -24,7 +21,6 @@ public class SquishSettleDetector : MonoBehaviour
     private float _fallXThreshold;
     private float _settleTimer;
     private bool _judging;
-    private float _lastHitSoundTime = float.NegativeInfinity;
 
     public event Action<Bounds> OnSettled;
     public event Action OnFell;
@@ -139,15 +135,6 @@ public class SquishSettleDetector : MonoBehaviour
         if (monkeyArm != null)
         {
             _monkeyArmContacts++;
-
-            // 팔을 올려칠 때 닿은 경우에만 타격음 재생 (스퀴시가 팔 위에서 흔들리는 접촉은 제외)
-            if (monkeyArm.IsRaising && Time.time - _lastHitSoundTime > hitSoundCooldown)
-            {
-                _lastHitSoundTime = Time.time;
-                if (SoundManager.TryGetInstance(out var sound))
-                    sound.PlaySfx(SfxType.SquishHit);
-            }
-
             return;
         }
 

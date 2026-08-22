@@ -1,11 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// SquishBody 뼈 체인을 IngredientMesh 방식으로 단순하게 그리는 렌더러.
-// 별도 말랑 메시 시뮬레이션 없이, 각 뼈의 Transform을 읽어 하나의 띠 메시 정점만 갱신한다.
+// SquishBody 뼈 체인을 하나의 띠 메시로 그리는 렌더러.
+// 스킨(SquishSkinSO)의 sprite로 그리고, 충돌 시 hitClip을 재생한다(ASMR).
 [RequireComponent(typeof(SquishBody))]
 public class SquishSimpleMesh : MonoBehaviour
 {
+    // 여러 세그먼트가 동시에 충돌해도 소리는 한 번만 (중복 재생 방지).
+    private const float MinHitInterval = 0.05f;
+
     [Header("참조")]
     [SerializeField] private SquishBody body;
     [SerializeField] private SquishSkinSO skin;
@@ -23,6 +26,7 @@ public class SquishSimpleMesh : MonoBehaviour
     private float _halfLength;
     private float _halfWidth;
     private Color _tint = Color.white;
+    private float _lastHitTime = -999f;
 
     private void Awake()
     {
@@ -58,6 +62,8 @@ public class SquishSimpleMesh : MonoBehaviour
         _halfWidth = body.Width * 0.5f;
 
         BuildMesh();
+
+        body.OnSegmentCollision += OnSegmentCollision;
     }
 
     private void LateUpdate()
@@ -255,6 +261,9 @@ public class SquishSimpleMesh : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (body != null)
+            body.OnSegmentCollision -= OnSegmentCollision;
+
         if (_visualGo != null)
             Destroy(_visualGo);
 
@@ -263,5 +272,16 @@ public class SquishSimpleMesh : MonoBehaviour
 
         if (_mesh != null)
             Destroy(_mesh);
+    }
+
+    // 세그먼트 충돌 시 스킨 hitClip 재생.
+    private void OnSegmentCollision(Vector2 point, Vector2 normal, float impact)
+    {
+        if (skin == null || skin.hitClip == null) return;
+        if (Time.time - _lastHitTime < MinHitInterval) return;
+        if (!SoundManager.TryGetInstance(out var sound)) return;
+
+        _lastHitTime = Time.time;
+        sound.PlaySfx(skin.hitClip);
     }
 }
