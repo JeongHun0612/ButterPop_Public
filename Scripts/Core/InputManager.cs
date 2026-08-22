@@ -24,12 +24,9 @@ public class InputManager : MonoBehaviour
         var state = stageManager.CurrentState;
 
         if (state == GameState.Ready && _squish.CanDrop && WasPressed())
-        {
             _squish.Drop();
-            return;
-        }
 
-        if (state != GameState.Result && (state != GameState.Ready || _squish.IsInteractable))
+        if (state != GameState.Result)
         {
             if (WasPressed() && _armController != null)
                 _armController.Raise();

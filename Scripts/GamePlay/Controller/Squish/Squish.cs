@@ -30,7 +30,6 @@ public class Squish : MonoBehaviour
     public SquishBody Body => body;
     public SquishSimpleMesh Mesh => mesh;
     public bool CanDrop => !_released && (handRig == null || !handRig.IsPlaying);
-    public bool IsInteractable => handRig == null || !handRig.IsPlaying;
 
     private void Awake()
     {
