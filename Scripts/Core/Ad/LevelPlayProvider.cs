@@ -1,0 +1,147 @@
+// Unity LevelPlay(구 ironSource) 어댑터. com.unity.services.levelplay 9.x 기준.
+// LEVELPLAY_SDK 디파인이 있을 때만 컴파일된다(없으면 ServiceBootstrap이 StubAdProvider 사용)
+#if LEVELPLAY_SDK
+using Cysharp.Threading.Tasks;
+using Unity.Services.LevelPlay;
+using UnityEngine;
+
+public class LevelPlayProvider : IAdProvider
+{
+#if UNITY_ANDROID
+    private const string AppKey = "PUBLIC_SAMPLE_CONFIG"; // ButterPop Android App Key
+    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+#elif UNITY_IOS
+    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";     // TODO: iOS 출시 시 App/유닛 생성 후 주입
+    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+#else
+    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
+    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+#endif
+
+    private LevelPlayBannerAd _banner;
+    private LevelPlayInterstitialAd _interstitial;
+    private LevelPlayRewardedAd _rewarded;
+
+    private bool _bannerShown;
+
+    // 표시 중인 전면/리워드의 완료를 await로 받기 위한 완료 소스.
+    private UniTaskCompletionSource<bool> _interstitialShowTcs;
+    private UniTaskCompletionSource<bool> _rewardedShowTcs;
+    private bool _rewardGranted;
+
+    public bool IsInterstitialReady => _interstitial != null && _interstitial.IsAdReady();
+    public bool IsRewardedReady => _rewarded != null && _rewarded.IsAdReady();
+
+    public async UniTask InitializeAsync()
+    {
+        var initTcs = new UniTaskCompletionSource<bool>();
+
+        LevelPlay.OnInitSuccess += OnInitSuccess;
+        LevelPlay.OnInitFailed += OnInitFailed;
+
+        void OnInitSuccess(LevelPlayConfiguration _)
+        {
+            LevelPlay.OnInitSuccess -= OnInitSuccess;
+            LevelPlay.OnInitFailed -= OnInitFailed;
+            Debug.Log("[LevelPlayProvider] 초기화 성공");
+            initTcs.TrySetResult(true);
+        }
+
+        void OnInitFailed(LevelPlayInitError error)
+        {
+            LevelPlay.OnInitSuccess -= OnInitSuccess;
+            LevelPlay.OnInitFailed -= OnInitFailed;
+            Debug.LogError($"[LevelPlayProvider] 초기화 실패: {error}");
+            initTcs.TrySetResult(false);
+        }
+
+        LevelPlay.Init(AppKey);
+        bool ok = await initTcs.Task;
+        if (!ok) return;
+
+        // 광고 표시 동안 게임 활동을 자동 일시정지(광고 콜백은 계속 동작, 닫히면 자동 재개).
+        LevelPlay.SetPauseGame(true);
+
+        CreateBanner();
+        CreateInterstitial();
+        CreateRewarded();
+    }
+
+    public void ShowBanner()
+    {
+        if (_banner == null) return;
+        if (!_bannerShown)
+        {
+            _bannerShown = true;
+            _banner.LoadAd(); // displayOnLoad=true 이므로 로드 완료 시 자동 표시된다.
+            return;
+        }
+        _banner.ShowAd();
+    }
+
+    public void HideBanner() => _banner?.HideAd();
+
+    public void LoadInterstitial() => _interstitial?.LoadAd();
+
+    public async UniTask<bool> ShowInterstitialAsync()
+    {
+        if (!IsInterstitialReady) return false;
+
+        _interstitialShowTcs = new UniTaskCompletionSource<bool>();
+        _interstitial.ShowAd();
+        return await _interstitialShowTcs.Task;
+    }
+
+    public void LoadRewarded() => _rewarded?.LoadAd();
+
+    public async UniTask<bool> ShowRewardedAsync()
+    {
+        if (!IsRewardedReady) return false;
+
+        _rewardGranted = false;
+        _rewardedShowTcs = new UniTaskCompletionSource<bool>();
+        _rewarded.ShowAd();
+        return await _rewardedShowTcs.Task;
+    }
+
+    private void CreateBanner()
+    {
+        // 하단 중앙 + 세이프에어리어 준수(노치/상태바 회피). 낙하 영역을 가리지 않게.
+        var config = new LevelPlayBannerAd.Config.Builder()
+            .SetSize(LevelPlayAdSize.BANNER)
+            .SetPosition(LevelPlayBannerPosition.BottomCenter)
+            .SetRespectSafeArea(true)
+            .Build();
+        _banner = new LevelPlayBannerAd(BannerAdUnitId, config);
+    }
+
+    private void CreateInterstitial()
+    {
+        _interstitial = new LevelPlayInterstitialAd(InterstitialAdUnitId);
+        _interstitial.OnAdClosed += _ => _interstitialShowTcs?.TrySetResult(true);
+        _interstitial.OnAdDisplayFailed += (_, __) => _interstitialShowTcs?.TrySetResult(false);
+        // 최초 로드는 AdsService.InitializeAsync가 LoadInterstitial()로 건다.
+    }
+
+    private void CreateRewarded()
+    {
+        _rewarded = new LevelPlayRewardedAd(RewardedAdUnitId);
+        _rewarded.OnAdRewarded += (_, __) => _rewardGranted = true;
+        _rewarded.OnAdClosed += _ => ResolveRewardedNextFrame().Forget();
+        _rewarded.OnAdDisplayFailed += (_, __) => _rewardedShowTcs?.TrySetResult(false);
+    }
+
+    // OnAdRewarded/OnAdClosed 호출 순서가 플랫폼마다 달라, 닫힘 후 한 프레임 뒤 보상 여부를 확정한다.
+    private async UniTaskVoid ResolveRewardedNextFrame()
+    {
+        await UniTask.NextFrame();
+        _rewardedShowTcs?.TrySetResult(_rewardGranted);
+    }
+}
+#endif

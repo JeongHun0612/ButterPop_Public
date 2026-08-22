@@ -23,9 +23,18 @@ public class PurchaseService : IPurchaseService
 
     public async UniTask<bool> PurchaseAsync(string productId)
     {
-        // TODO(Unity IAP): 구매 플로우. 성공 시 ApplyEntitlement + 즉시 저장
         await UniTask.CompletedTask;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // 임시 즉시승인: 스토어 연동 전 개발빌드 한정으로 즉시 권한을 지급한다.
+        // 릴리즈 빌드에는 이 분기가 컴파일되지 않아 공짜 지급이 새지 않는다.
+        bool applied = ApplyEntitlement(productId);
+        if (applied) Debug.Log($"[PurchaseService] 개발빌드 즉시승인: {productId}");
+        return applied;
+#else
+        // TODO(Unity IAP): 실 구매 플로우. 성공 시 ApplyEntitlement + 즉시 저장.
+        Debug.LogWarning($"[PurchaseService] IAP 미연동 - 구매 무시: {productId}");
         return false;
+#endif
     }
 
     public async UniTask RestoreAsync()
@@ -34,7 +43,8 @@ public class PurchaseService : IPurchaseService
         await UniTask.CompletedTask;
     }
 
-    private void ApplyEntitlement(string productId)
+    // 권한을 적용했으면 true, 알 수 없는 상품이면 false.
+    private bool ApplyEntitlement(string productId)
     {
         switch (productId)
         {
@@ -46,11 +56,12 @@ public class PurchaseService : IPurchaseService
                 break;
             default:
                 Debug.LogWarning($"[PurchaseService] 알 수 없는 상품 ID: {productId}");
-                return;
+                return false;
         }
 
         _save.Save();
         OnPurchasesUpdated?.Invoke();
         Debug.Log($"[PurchaseService] 권한 적용: {productId}");
+        return true;
     }
 }

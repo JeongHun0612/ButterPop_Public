@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -10,21 +11,41 @@ public class MenuStorePanel : MonoBehaviour
     [SerializeField] private Button bannerAdRemoveButton;   // 배너 광고 제거
     [SerializeField] private Button allAdRemoveButton;       // 전체 광고 제거
 
+    private IPurchaseService _purchase;
+
+    private void OnDestroy()
+    {
+        if (_purchase != null) _purchase.OnPurchasesUpdated -= RefreshButtons;
+    }
+
     public void Initialize()
     {
         if (bannerAdRemoveButton != null) bannerAdRemoveButton.OnClickWithSound(OnBannerAdRemoveClicked);
         if (allAdRemoveButton != null) allAdRemoveButton.OnClickWithSound(OnAllAdRemoveClicked);
+
+        if (Services.TryGet<IPurchaseService>(out _purchase))
+            _purchase.OnPurchasesUpdated += RefreshButtons;
+
+        RefreshButtons();
     }
 
-    // TODO: 배너 광고 제거 인앱결제 연동
-    private void OnBannerAdRemoveClicked()
+    // 이미 보유한 상품의 버튼은 비활성화한다.
+    private void RefreshButtons()
     {
-        Debug.Log("[MenuStorePanel] 배너 광고 제거 버튼 클릭");
+        if (_purchase == null) return;
+        if (bannerAdRemoveButton != null) bannerAdRemoveButton.interactable = !_purchase.RemoveBannerAds;
+        if (allAdRemoveButton != null) allAdRemoveButton.interactable = !_purchase.RemoveAllAds;
     }
 
-    // TODO: 전체 광고 제거 인앱결제 연동
-    private void OnAllAdRemoveClicked()
+    private async UniTaskVoid PurchaseAsync(string productId)
     {
-        Debug.Log("[MenuStorePanel] 전체 광고 제거 버튼 클릭");
+        if (_purchase == null) return;
+        bool ok = await _purchase.PurchaseAsync(productId);
+        if (!ok) Debug.LogWarning($"[MenuStorePanel] 구매 실패 또는 미연동: {productId}");
+        // 성공 시 OnPurchasesUpdated → RefreshButtons가 자동 호출된다.
     }
+
+    private void OnBannerAdRemoveClicked() => PurchaseAsync(ProductIds.RemoveBannerAds).Forget();
+
+    private void OnAllAdRemoveClicked() => PurchaseAsync(ProductIds.RemoveAllAds).Forget();
 }

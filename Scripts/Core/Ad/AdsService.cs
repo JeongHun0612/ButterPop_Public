@@ -11,6 +11,7 @@ public class AdsService : IAdsService
     {
         _provider = provider;
         _purchase = purchase;
+        _purchase.OnPurchasesUpdated += OnPurchasesUpdated;
     }
 
     public bool IsRewardedReady => _provider.IsRewardedReady;
@@ -60,5 +61,11 @@ public class AdsService : IAdsService
         bool rewarded = await _provider.ShowRewardedAsync();
         _provider.LoadRewarded(); // 다음 시청을 위해 재로드
         return rewarded;
+    }
+
+    // 광고 제거 구매가 반영되면 이미 떠 있는 배너를 즉시 내린다.
+    private void OnPurchasesUpdated()
+    {
+        if (_purchase.RemoveBannerAds) _provider.HideBanner();
     }
 }

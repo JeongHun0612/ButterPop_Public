@@ -3,12 +3,18 @@ using UnityEngine;
 public class SkinService : ISkinService
 {
     private readonly ISaveService _save;
+    private readonly IPurchaseService _purchase;
 
     private SkinSaveData Data => _save.Data.skin;
 
-    public SkinService(ISaveService save) => _save = save;
+    public SkinService(ISaveService save, IPurchaseService purchase)
+    {
+        _save = save;
+        _purchase = purchase;
+    }
 
-    public bool IsOwned(SkinDataSO skin) => Data.ownedSkinIds.Contains(skin.id);
+    // 전체 광고 제거(올스킨) 구매 시 모든 스킨을 보유한 것으로 취급한다.
+    public bool IsOwned(SkinDataSO skin) => _purchase.AllSkinsUnlocked || Data.ownedSkinIds.Contains(skin.id);
 
     public bool IsEquipped(SkinCategory category, SkinDataSO skin) =>
         Data.equipped.Exists(e => e.category == category && e.skinId == skin.id);
