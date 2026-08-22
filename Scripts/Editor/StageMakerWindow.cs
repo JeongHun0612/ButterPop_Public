@@ -60,7 +60,7 @@ public class StageMakerWindow : EditorWindow
 
     // 스퀴시 낙하 시작점 · 손의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
     private static readonly Vector2 DefaultSquishSpawnPosition = new(-2.2f, 2.5f);
-    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2f, -2f);
+    private static readonly Vector2 DefaultMonkeyArmPosition = new(-2.9f, -2f);
 
     private Vector2 _scrollPos;
 
