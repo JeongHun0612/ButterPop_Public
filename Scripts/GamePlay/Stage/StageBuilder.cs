@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Android.Gradle.Manifest;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -162,10 +163,12 @@ public class StageBuilder : MonoBehaviour
         var tab = skinDatabase.GetTab(SkinCategory.Squish);
         if (tab == null || tab.Count == 0) return null;
 
-        var service = Services.Get<ISkinService>();
-        foreach (var skin in tab.skins)
-            if (skin is SquishSkinSO squishSkin && service.IsEquipped(SkinCategory.Squish, skin))
-                return squishSkin;
+        if (Services.TryGet(out ISkinService service))
+        {
+            foreach (var skin in tab.skins)
+                if (skin is SquishSkinSO squishSkin && service.IsEquipped(SkinCategory.Squish, skin))
+                    return squishSkin;
+        }
 
         return tab.skins[0] as SquishSkinSO;
     }
