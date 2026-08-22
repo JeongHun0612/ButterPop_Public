@@ -40,9 +40,15 @@ public class SkinCell : MonoBehaviour
         if (icon != null) icon.sprite = data.icon;
         if (nameText != null) nameText.text = data.displayName;
 
-        // TODO: 테스트용 — 모든 스킨을 소유 상태로 표시. 실제 로직 복원 시 아래 줄을 원복할 것.
-        // if (lockOverlay != null) lockOverlay.SetActive(!owned);
-        if (lockOverlay != null) lockOverlay.SetActive(false);
+        // 에디터에서는 개발 편의상 보유 여부와 무관하게 잠금을 해제하고, 빌드에서는 실제 보유 여부를 반영한다.
+        if (lockOverlay != null)
+        {
+#if UNITY_EDITOR
+            lockOverlay.SetActive(false);
+#else
+            lockOverlay.SetActive(!owned);
+#endif
+        }
         if (equippedMark != null) equippedMark.SetActive(equipped);
         if (selectedFrame != null) selectedFrame.SetActive(selected);
     }
