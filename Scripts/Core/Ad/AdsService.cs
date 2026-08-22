@@ -16,6 +16,9 @@ public class AdsService : IAdsService
 
     public bool IsRewardedReady => _provider.IsRewardedReady;
 
+    public float BannerHeightPixels => _purchase.RemoveBannerAds ? 0f : _provider.BannerHeightPixels;
+    public BannerSide BannerSide => _provider.BannerSide;
+
     public async UniTask InitializeAsync()
     {
         await _provider.InitializeAsync();

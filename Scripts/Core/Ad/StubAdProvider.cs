@@ -8,6 +8,10 @@ public class StubAdProvider : IAdProvider
     public bool IsInterstitialReady => true;
     public bool IsRewardedReady => true;
 
+    // 스텁은 배너 없음.
+    public float BannerHeightPixels => 0f;
+    public BannerSide BannerSide => BannerSide.Top;
+
     public async UniTask InitializeAsync()
     {
         Debug.Log("[StubAdProvider] 초기화(스텁)");

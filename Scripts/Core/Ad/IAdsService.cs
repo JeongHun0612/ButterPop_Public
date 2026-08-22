@@ -22,4 +22,10 @@ public interface IAdsService
 
     /// <summary>리워드 광고가 재생 준비됐는지. (버튼 활성화 판단용)</summary>
     bool IsRewardedReady { get; }
+
+    /// <summary>배너가 차지하는 화면 높이(px). 광고 제거 구매·배너 미표시 시 0. (UI 여백 확보용)</summary>
+    float BannerHeightPixels { get; }
+
+    /// <summary>배너가 붙는 방향(상/하).</summary>
+    BannerSide BannerSide { get; }
 }

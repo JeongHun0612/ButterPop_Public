@@ -24,7 +24,12 @@ public class LevelPlayProvider : IAdProvider
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
 #endif
 
+    // 배너 위치 단일 소스.
+    private static readonly LevelPlayBannerPosition BannerPos = LevelPlayBannerPosition.TopCenter;
+
     private LevelPlayBannerAd _banner;
+    private LevelPlayAdSize _bannerSize;
+    private int _bannerHeightDp;   // 배너 dp 높이 캐시(Android에선 Height getter가 JNI 호출).
     private LevelPlayInterstitialAd _interstitial;
     private LevelPlayRewardedAd _rewarded;
 
@@ -37,6 +42,24 @@ public class LevelPlayProvider : IAdProvider
 
     public bool IsInterstitialReady => _interstitial != null && _interstitial.IsAdReady();
     public bool IsRewardedReady => _rewarded != null && _rewarded.IsAdReady();
+
+    public BannerSide BannerSide =>
+        BannerPos == LevelPlayBannerPosition.BottomLeft
+        || BannerPos == LevelPlayBannerPosition.BottomCenter
+        || BannerPos == LevelPlayBannerPosition.BottomRight
+            ? BannerSide.Bottom
+            : BannerSide.Top;
+
+    // dp 높이 → 화면 px. dpi 불명 시 폴백 밀도(2.75).
+    public float BannerHeightPixels
+    {
+        get
+        {
+            if (_banner == null) return 0f;
+            float density = Screen.dpi > 0f ? Screen.dpi / 160f : 2.75f;
+            return _bannerHeightDp * density;
+        }
+    }
 
     public async UniTask InitializeAsync()
     {
@@ -112,10 +135,12 @@ public class LevelPlayProvider : IAdProvider
 
     private void CreateBanner()
     {
-        // 하단 중앙 + 세이프에어리어 준수(노치/상태바 회피). 낙하 영역을 가리지 않게.
+        // 상단 중앙 + 세이프에어리어 준수(노치/상태바 회피).
+        _bannerSize = LevelPlayAdSize.BANNER;
+        _bannerHeightDp = _bannerSize.Height; // dp 높이 1회 캐시
         var config = new LevelPlayBannerAd.Config.Builder()
-            .SetSize(LevelPlayAdSize.BANNER)
-            .SetPosition(LevelPlayBannerPosition.BottomCenter)
+            .SetSize(_bannerSize)
+            .SetPosition(BannerPos)
             .SetRespectSafeArea(true)
             .Build();
         _banner = new LevelPlayBannerAd(BannerAdUnitId, config);
