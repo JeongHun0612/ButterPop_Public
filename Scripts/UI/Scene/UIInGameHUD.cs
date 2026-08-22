@@ -220,9 +220,24 @@ public class UIInGameHUD : UIScene
         SetSkinTrialActive(false);
     }
 
-    private void OnMenuButtonClicked()
+    private void OnMenuButtonClicked() => ShowMenuAsync().Forget();
+
+    // 메뉴 팝업이 떠 있는 동안 메뉴 버튼을 숨기고, 팝업이 닫히면 복구한다.
+    private async UniTaskVoid ShowMenuAsync()
     {
-        UIManager.Instance.ShowPopup<UIMenu>().Forget();
+        if (menuButton != null) menuButton.gameObject.SetActive(false);
+
+        var menu = await UIManager.Instance.ShowPopup<UIMenu>();
+        if (menu == null)
+        {
+            if (menuButton != null) menuButton.gameObject.SetActive(true);
+            return;
+        }
+
+        // 팝업이 닫힐 때까지(Hide로 비활성화될 때까지) 대기 후 버튼 복구.
+        await UniTask.WaitUntil(() => !menu.gameObject.activeSelf);
+
+        if (menuButton != null) menuButton.gameObject.SetActive(true);
     }
 
     private void OnSkipButtonClicked() => SkipStageAsync().Forget();
