@@ -20,6 +20,10 @@ public class UIStageResult : UIPopup
     [SerializeField] private RectTransform particleAnchor;
     [SerializeField] private UIParticle successParticlePrefab;
 
+    [Header("광고")]
+    [Tooltip("클리어 연출 종료 후 전면 광고 노출까지의 대기 시간(초)")]
+    [SerializeField] private float adPresentDelay = 0.6f;
+
     [Header("하단 버튼")]
     [SerializeField] private Button btnRetry;
     [SerializeField] private Button btnAdReward;
@@ -62,7 +66,10 @@ public class UIStageResult : UIPopup
             shutterPanel.gameObject.SetActive(false);
         }
 
-        // 클리어 연출 종료 직후 전면 광고 자동 노출 시도(조건은 AdCoordinator가 판단).
+        // 클리어 연출 종료 후 약간의 딜레이를 두고 전면 광고 자동 노출 시도
+        if (adPresentDelay > 0f)
+            await UniTask.Delay((int)(adPresentDelay * 1000));
+
         if (AdCoordinator.TryGetInstance(out var adCoordinator))
             adCoordinator.NotifyStageClearPresented();
     }
