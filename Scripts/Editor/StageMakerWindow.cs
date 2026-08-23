@@ -51,7 +51,7 @@ public class StageMakerWindow : EditorWindow
     private float _lastKnownAspect;
 
     private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/Squish.prefab";
-    private const string HandPrefabPath = "Assets/03. Prefabs/Controllers/TempArm.prefab";
+    private const string HandPrefabPath = "Assets/03. Prefabs/Controllers/Arm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
 
