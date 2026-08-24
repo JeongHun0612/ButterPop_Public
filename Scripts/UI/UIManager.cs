@@ -86,8 +86,8 @@ public class UIManager : MonoSingleton<UIManager>
         if (_popupStack.Contains(target)) return target;
 
         target.OnBeforeShow();
-        await target.Show();
         _popupStack.Push(target);
+        await target.Show();
 
         return target;
     }

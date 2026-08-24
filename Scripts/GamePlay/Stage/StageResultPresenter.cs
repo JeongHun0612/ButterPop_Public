@@ -80,7 +80,7 @@ public class StageResultPresenter : MonoBehaviour
 
             var resultUI = uiManager.GetPanel<UIStageResult>();
             resultUI.SetCaptureTexture(_captureRT);
-            uiManager.HideAllPopups().Forget();
+            await uiManager.HideAllPopups();
             await uiManager.ShowPopup<UIStageResult>();
         }
     }

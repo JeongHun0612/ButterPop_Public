@@ -53,6 +53,13 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     public bool IsSkinTrialAvailable =>
         _initialized && skinDatabase != null && !_purchase.AllSkinsUnlocked && GetTrialPool().Count > 0;
 
+    // 이번 클리어에서 전면을 노출할 조건이 되는지 판정한다
+    public bool ShouldShowClearInterstitial =>
+        _initialized
+        && _sessionClearedCount >= minSessionClearsForAd
+        && SessionPlaySeconds >= minSessionPlaySeconds
+        && CanShowInterstitial();
+
     private bool _initialized;
 
     protected override void Awake()
@@ -111,17 +118,13 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         return _currentTrialSkin;
     }
 
-
     // 클리어 연출이 끝난 뒤 조건 통과 시 전면을 자동 노출한다
     public void NotifyStageClearPresented()
     {
-        if (_rewardWatchedThisStage) return;                       // 방금 스테이지에서 리워드 봤으면 면제
-        if (_sessionClearedCount < minSessionClearsForAd) return;  // 이번 세션 누적 클리어가 부족하면 면제
-        if (SessionPlaySeconds < minSessionPlaySeconds) return;
+        if (!ShouldShowClearInterstitial) return;
 
         TryShowInterstitialAsync().Forget();
     }
-
 
     // Squish 탭 스킨 중 장착되지 않은 것들(체험 대상).
     private List<SquishSkinSO> GetTrialPool()
@@ -152,9 +155,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private async UniTaskVoid TryShowInterstitialAsync()
     {
-        if (_purchase.RemoveAllAds) return;
-        if (_sessionInterstitialCount >= sessionInterstitialCap) return;
-        if (Time.realtimeSinceStartup - _lastInterstitialTime < interstitialCooldownSeconds) return;
+        if (!CanShowInterstitial()) return;
 
         bool shown = await _ads.ShowInterstitialAsync();
         if (!shown) return;
@@ -162,6 +163,13 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         _lastInterstitialTime = Time.realtimeSinceStartup;
         _sessionInterstitialCount++;
     }
+
+    // 전면 공통 게이트(리워드 면제·광고 제거·세션 캡·쿨다운)
+    private bool CanShowInterstitial() =>
+        !_rewardWatchedThisStage
+        && !_purchase.RemoveAllAds
+        && _sessionInterstitialCount < sessionInterstitialCap
+        && Time.realtimeSinceStartup - _lastInterstitialTime >= interstitialCooldownSeconds;
 
     private void OnStateChanged(GameState state)
     {
@@ -177,9 +185,8 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private void OnTryCountChanged(int tryCount)
     {
-        // 인터1: N회 실패마다 강제 전면(리워드 시청 시 면제).
+        // 인터1: N회 실패마다 강제 전면
         if (tryCount <= 0) return;
-        if (_rewardWatchedThisStage) return;
         if (tryCount % interstitialFailThreshold != 0) return;
 
         TryShowInterstitialAsync().Forget();

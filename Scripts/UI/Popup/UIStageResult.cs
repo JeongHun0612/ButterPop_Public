@@ -66,12 +66,14 @@ public class UIStageResult : UIPopup
             shutterPanel.gameObject.SetActive(false);
         }
 
-        // 클리어 연출 종료 후 약간의 딜레이를 두고 전면 광고 자동 노출 시도
-        if (adPresentDelay > 0f)
-            await UniTask.Delay((int)(adPresentDelay * 1000));
-
+        // 클리어 연출 종료 후 전면 광고 자동 노출 시도. 실제로 광고가 나갈 때만 잠깐의 딜레이를 준다.
         if (AdCoordinator.TryGetInstance(out var adCoordinator))
+        {
+            if (adPresentDelay > 0f && adCoordinator.ShouldShowClearInterstitial)
+                await UniTask.Delay((int)(adPresentDelay * 1000));
+
             adCoordinator.NotifyStageClearPresented();
+        }
     }
 
     public override void OnAfterHide()
