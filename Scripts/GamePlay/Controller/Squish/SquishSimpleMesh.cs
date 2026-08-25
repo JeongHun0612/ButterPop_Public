@@ -7,7 +7,7 @@ using UnityEngine;
 public class SquishSimpleMesh : MonoBehaviour
 {
     // 여러 세그먼트가 동시에 충돌해도 소리는 한 번만 (중복 재생 방지).
-    private const float MinHitInterval = 0.05f;
+    private const float MinHitInterval = 0.3f;
 
     [Header("참조")]
     [SerializeField] private SquishBody body;
@@ -16,6 +16,16 @@ public class SquishSimpleMesh : MonoBehaviour
     [Header("렌더 정렬")]
     [SerializeField] private string sortingLayerName = "Default";
     [SerializeField] private int sortingOrder = 10;
+
+    [Header("타격 사운드")]
+    [Tooltip("이 충돌 속도 이하는 무음 처리한다(미세 접촉 클릭 방지).")]
+    [SerializeField] private float minImpactVelocity = 5f;
+    [Tooltip("이 충돌 속도에서 최대 볼륨에 도달한다.")]
+    [SerializeField] private float maxImpactVelocity = 20f;
+    [Tooltip("minImpactVelocity 지점의 볼륨.")]
+    [SerializeField] private float minVolume = 0.2f;
+    [Tooltip("maxImpactVelocity 이상에서의 볼륨.")]
+    [SerializeField] private float maxVolume = 1f;
 
     private Mesh _mesh;
     private Material _material;
@@ -303,14 +313,21 @@ public class SquishSimpleMesh : MonoBehaviour
             Destroy(_mesh);
     }
 
-    // 세그먼트 충돌 시 스킨 hitClip 재생.
+    // 세그먼트 충돌 시 스킨의 타격음(여러 개면 랜덤) 재생. 충돌 세기(impact = 상대 속도)에 비례해 볼륨을 조절한다.
     private void OnSegmentCollision(Vector2 point, Vector2 normal, float impact)
     {
-        if (skin == null || skin.hitClip == null) return;
+        if (skin == null) return;
+        if (impact < minImpactVelocity) return;            // 미세 접촉은 무음
         if (Time.time - _lastHitTime < MinHitInterval) return;
+
+        var clip = skin.GetRandomHitClip();
+        if (clip == null) return;
         if (!SoundManager.TryGetInstance(out var sound)) return;
 
+        float t = Mathf.InverseLerp(minImpactVelocity, maxImpactVelocity, impact);
+        float volume = Mathf.Lerp(minVolume, maxVolume, t);
+
         _lastHitTime = Time.time;
-        sound.PlaySfx(skin.hitClip);
+        sound.PlaySfx(clip, volume);
     }
 }
