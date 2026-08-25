@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using UnityEngine;
 
 // 게임이 사용하는 광고 계약 구현. SDK는 IAdProvider가 감추고,
 // 여기서는 광고 제거 게이팅 · preload · (추후)빈도 제한 같은 정책을 담당한다.
@@ -6,6 +7,9 @@ public class AdsService : IAdsService
 {
     private readonly IAdProvider _provider;
     private readonly IPurchaseService _purchase;
+
+    private bool _initialized;
+    private bool _bannerRequested;   // 게임이 배너 노출을 요청했는지.
 
     public AdsService(IAdProvider provider, IPurchaseService purchase)
     {
@@ -22,6 +26,11 @@ public class AdsService : IAdsService
     public async UniTask InitializeAsync()
     {
         await _provider.InitializeAsync();
+        _initialized = true;
+
+        // 초기화 완료 전에 배너 노출이 요청됐다면 이제 실제로 띄운다(요청 유실 방지).
+        if (_bannerRequested && !_purchase.RemoveBannerAds)
+            _provider.ShowBanner();
 
         // 전면·리워드는 표시 전에 미리 로드해 둔다.
         _provider.LoadInterstitial();
@@ -31,10 +40,21 @@ public class AdsService : IAdsService
     public void ShowBanner()
     {
         if (_purchase.RemoveBannerAds) return;
+
+        _bannerRequested = true;
+
+        // 초기화 전이면 요청만 기억하고, 완료 시 InitializeAsync가 자동으로 노출한다.
+        if (!_initialized)
+            return;
+
         _provider.ShowBanner();
     }
 
-    public void HideBanner() => _provider.HideBanner();
+    public void HideBanner()
+    {
+        _bannerRequested = false;
+        _provider.HideBanner();
+    }
 
     public async UniTask<bool> ShowInterstitialAsync()
     {

@@ -19,7 +19,6 @@ public static class ServiceBootstrap
         Services.Register<ISkinService>(new SkinService(save, purchase));
 
         // 광고 서비스: 배너/전면/리워드를 재생한다. 광고 제거 게이팅을 위해 구매 서비스를 참조한다.
-        // LEVELPLAY_SDK 디파인이 있으면 실 provider, 없으면 개발용 스텁으로 물린다.
 #if LEVELPLAY_SDK
         IAdProvider adProvider = new LevelPlayProvider();
 #else
@@ -27,7 +26,7 @@ public static class ServiceBootstrap
 #endif
         var ads = new AdsService(adProvider, purchase);
         Services.Register<IAdsService>(ads);
-        await ads.InitializeAsync();
+        ads.InitializeAsync().Forget();
     }
 }
 

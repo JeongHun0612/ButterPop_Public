@@ -1,6 +1,7 @@
 // Unity LevelPlay(구 ironSource) 어댑터. com.unity.services.levelplay 9.x 기준.
 // LEVELPLAY_SDK 디파인이 있을 때만 컴파일된다(없으면 ServiceBootstrap이 StubAdProvider 사용)
 #if LEVELPLAY_SDK
+using System;
 using Cysharp.Threading.Tasks;
 using Unity.Services.LevelPlay;
 using UnityEngine;
@@ -8,21 +9,21 @@ using UnityEngine;
 public class LevelPlayProvider : IAdProvider
 {
 #if UNITY_ANDROID
-    private const string AppKey = "PUBLIC_SAMPLE_CONFIG"; // ButterPop Android App Key
-    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-#elif UNITY_IOS
-    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";     // TODO: iOS 출시 시 App/유닛 생성 후 주입
-    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-#else
     private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
     private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+#elif UNITY_IOS
+    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
+    private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+    private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
+#else
+#error LevelPlayProvider는 Android/iOS 전용입니다. 빌드 타겟을 모바일로 바꾸거나 LEVELPLAY_SDK 디파인을 끄세요.
 #endif
+
+    // 성공/실패 콜백이 둘 다 오지 않는 엣지 케이스를 대비한 초기화 대기 상한(초).
+    private const float InitTimeoutSeconds = 5f;
 
     // 배너 위치 단일 소스.
     private static readonly LevelPlayBannerPosition BannerPos = LevelPlayBannerPosition.TopCenter;
@@ -85,7 +86,16 @@ public class LevelPlayProvider : IAdProvider
         }
 
         LevelPlay.Init(AppKey);
-        bool ok = await initTcs.Task;
+
+        // 콜백이 어느 쪽도 오지 않는 경우 무한 대기하지 않도록 상한을 둔다. 초과 시 실패로 간주하고 정리한다.
+        var (isTimeout, ok) = await initTcs.Task.TimeoutWithoutException(TimeSpan.FromSeconds(InitTimeoutSeconds));
+        if (isTimeout)
+        {
+            LevelPlay.OnInitSuccess -= OnInitSuccess;
+            LevelPlay.OnInitFailed -= OnInitFailed;
+            Debug.LogError($"[LevelPlayProvider] 초기화 타임아웃({InitTimeoutSeconds}s) — 광고 없이 진행");
+            return;
+        }
         if (!ok) return;
 
         // 광고 표시 동안 게임 활동을 자동 일시정지(광고 콜백은 계속 동작, 닫히면 자동 재개).
