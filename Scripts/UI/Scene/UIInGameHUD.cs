@@ -9,11 +9,6 @@ public class UIInGameHUD : UIScene
     [SerializeField] private Button menuButton;
     [SerializeField] private Button skipButton;
 
-    [Header("Buttons")]
-    [SerializeField] private Button customButton;
-    [SerializeField] private Button storeButton;
-    [SerializeField] private Button stageSelectButton;
-
     [Header("스킨 체험 (리워드)")]
     [Tooltip("실패 시도마다 후보 스킨이 로테이션되는 광고 체험 버튼")]
     [SerializeField] private Button skinTrialButton;
@@ -41,10 +36,6 @@ public class UIInGameHUD : UIScene
 
         if (menuButton != null) menuButton.OnClickWithSound(OnMenuButtonClicked);
         if (skipButton != null) skipButton.OnClickWithSound(OnSkipButtonClicked);
-
-        if (customButton != null) customButton.OnClickWithSound(OnCustomButtonClicked);
-        if (storeButton != null) storeButton.OnClickWithSound(OnStoreButtonClicked);
-        if (stageSelectButton != null) stageSelectButton.OnClickWithSound(OnStageSelectButtonClicked);
 
         if (skinTrialButton != null) skinTrialButton.OnClickWithSound(OnSkinTrialButtonClicked);
 
@@ -243,19 +234,4 @@ public class UIInGameHUD : UIScene
     private void OnSkipButtonClicked() => SkipStageAsync().Forget();
 
     private void OnSkinTrialButtonClicked() => SkinTrialAsync().Forget();
-
-    private void OnCustomButtonClicked()
-    {
-        UIManager.Instance.ShowPopup<UICustom>().Forget();
-    }
-
-    private void OnStoreButtonClicked()
-    {
-        UIManager.Instance.ShowPopup<UIStore>().Forget();
-    }
-
-    private void OnStageSelectButtonClicked()
-    {
-        UIManager.Instance.ShowPopup<UIStageSelect>().Forget();
-    }
 }
