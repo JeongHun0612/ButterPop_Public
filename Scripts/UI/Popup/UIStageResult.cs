@@ -26,7 +26,6 @@ public class UIStageResult : UIPopup
 
     [Header("하단 버튼")]
     [SerializeField] private Button btnRetry;
-    [SerializeField] private Button btnAdReward;
     [SerializeField] private Button btnNext;
 
     private UIParticle _spawnedParticle;
@@ -36,7 +35,6 @@ public class UIStageResult : UIPopup
         base.Initialize();
 
         btnRetry.OnClickWithSound(OnClickRetry);
-        btnAdReward.OnClickWithSound(OnClickAdReward);
         btnNext.OnClickWithSound(OnClickNext);
     }
 
@@ -115,11 +113,6 @@ public class UIStageResult : UIPopup
     {
         UIManager.Instance.HidePopup().Forget();
         StageManager.Instance.LoadStage(StageManager.Instance.CurrentStageIndex);
-    }
-
-    private void OnClickAdReward()
-    {
-        // TODO: 광고 재생 → 보상 지급
     }
 
     private void OnClickNext()
