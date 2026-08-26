@@ -5,11 +5,16 @@ using UnityEngine;
 public class PurchaseService : IPurchaseService
 {
     private readonly ISaveService _save;
+    private readonly IIapProvider _provider;
     private PurchaseSaveData Data => _save.Data.purchase;
 
     public event Action OnPurchasesUpdated;
 
-    public PurchaseService(ISaveService save) => _save = save;
+    public PurchaseService(ISaveService save, IIapProvider provider)
+    {
+        _save = save;
+        _provider = provider;
+    }
 
     public bool RemoveBannerAds => Data.bannerRemoveAds || Data.allRemoveAds;
     public bool RemoveAllAds => Data.allRemoveAds;
@@ -17,41 +22,55 @@ public class PurchaseService : IPurchaseService
 
     public async UniTask InitializeAsync()
     {
-        // TODO(Unity IAP): 초기화 후 스토어에서 보유 상품 복원
+        await _provider.InitializeAsync();
         await RestoreAsync();
     }
 
-    public async UniTask<bool> PurchaseAsync(string productId)
+    public async UniTask<PurchaseState> PurchaseAsync(string productId)
     {
-        await UniTask.CompletedTask;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        // 임시 즉시승인: 스토어 연동 전 개발빌드 한정으로 즉시 권한을 지급한다.
-        // 릴리즈 빌드에는 이 분기가 컴파일되지 않아 공짜 지급이 새지 않는다.
-        bool applied = ApplyEntitlement(productId);
-        if (applied) Debug.Log($"[PurchaseService] 개발빌드 즉시승인: {productId}");
-        return applied;
-#else
-        // TODO(Unity IAP): 실 구매 플로우. 성공 시 ApplyEntitlement + 즉시 저장.
-        Debug.LogWarning($"[PurchaseService] IAP 미연동 - 구매 무시: {productId}");
-        return false;
-#endif
+        PurchaseState state = await _provider.PurchaseAsync(productId);
+
+        if (state == PurchaseState.Success)
+        {
+            if (ApplyEntitlement(productId)) CommitEntitlements();
+        }
+        else
+        {
+            Debug.Log($"[PurchaseService] 구매 미완료({state}): {productId}");
+        }
+
+        return state;
     }
 
+    // 스토어 보유 목록을 세이브에 반영한다(재설치·기기 변경 복원).
     public async UniTask RestoreAsync()
     {
-        // TODO(Unity IAP): 스토어에서 보유 상품 조회 → ApplyEntitlement
-        await UniTask.CompletedTask;
+        await _provider.RestoreAsync();
+
+        var owned = _provider.GetOwnedProductIds();
+        if (owned == null) return;
+
+        bool changed = false;
+        for (int i = 0; i < owned.Count; i++)
+            changed |= ApplyEntitlement(owned[i]);
+
+        if (changed) CommitEntitlements();
     }
 
-    // 권한을 적용했으면 true, 알 수 없는 상품이면 false.
+    public bool TryGetPrice(string productId, out string price)
+        => _provider.TryGetLocalizedPrice(productId, out price);
+
+    // 상품 ID에 해당하는 권한을 켠다. 이미 보유 중이면 false를 반환해 저장·통지 반복을 막는다.
     private bool ApplyEntitlement(string productId)
     {
         switch (productId)
         {
             case ProductIds.RemoveBannerAds:
+                if (Data.bannerRemoveAds) return false;
                 Data.bannerRemoveAds = true;
                 break;
             case ProductIds.RemoveAllAds:
+                if (Data.allRemoveAds) return false;
                 Data.allRemoveAds = true;
                 break;
             default:
@@ -59,9 +78,14 @@ public class PurchaseService : IPurchaseService
                 return false;
         }
 
-        _save.Save();
-        OnPurchasesUpdated?.Invoke();
         Debug.Log($"[PurchaseService] 권한 적용: {productId}");
         return true;
+    }
+
+    // 권한 변경을 저장하고 구독자에게 알린다.
+    private void CommitEntitlements()
+    {
+        _save.Save();
+        OnPurchasesUpdated?.Invoke();
     }
 }

@@ -25,6 +25,7 @@ public class UIMenu : UIPopup
 
     protected override UniTask OnShow()
     {
+        if (storePanel != null) storePanel.Refresh();
         if (stagePanel != null) stagePanel.Refresh();
         if (customPanel != null) customPanel.Refresh();
         return UniTask.CompletedTask;
