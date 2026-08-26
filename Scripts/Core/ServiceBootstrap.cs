@@ -18,7 +18,9 @@ public static class ServiceBootstrap
 #endif
         var purchase = new PurchaseService(save, iapProvider);
         Services.Register<IPurchaseService>(purchase);
-        await purchase.InitializeAsync();
+
+        // 스토어 응답을 기다리면 네트워크가 없을 때 부팅이 멈춘다.
+        purchase.InitializeAsync().Forget();
 
         // 스킨 서비스: 세이브의 스킨 데이터(소유/장착)를 읽고 쓴다. 올스킨 언락 판정을 위해 구매 서비스를 참조한다.
         Services.Register<ISkinService>(new SkinService(save, purchase));

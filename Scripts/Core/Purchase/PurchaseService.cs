@@ -20,15 +20,34 @@ public class PurchaseService : IPurchaseService
     public bool RemoveAllAds => Data.allRemoveAds;
     public bool AllSkinsUnlocked => Data.allRemoveAds;
 
+    // 스토어 실패가 게임 진행을 막지 않도록 예외를 삼킨다.
     public async UniTask InitializeAsync()
     {
-        await _provider.InitializeAsync();
+        try
+        {
+            await _provider.InitializeAsync();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[PurchaseService] 스토어 초기화 실패: {e.Message}");
+            return;
+        }
+
         await RestoreAsync();
     }
 
     public async UniTask<PurchaseState> PurchaseAsync(string productId)
     {
-        PurchaseState state = await _provider.PurchaseAsync(productId);
+        PurchaseState state;
+        try
+        {
+            state = await _provider.PurchaseAsync(productId);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[PurchaseService] 구매 처리 중 예외: {e.Message}");
+            state = PurchaseState.Failed;
+        }
 
         if (state == PurchaseState.Success)
         {
@@ -45,7 +64,15 @@ public class PurchaseService : IPurchaseService
     // 스토어 보유 목록을 세이브에 반영한다(재설치·기기 변경 복원).
     public async UniTask RestoreAsync()
     {
-        await _provider.RestoreAsync();
+        try
+        {
+            await _provider.RestoreAsync();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[PurchaseService] 복원 실패: {e.Message}");
+            return;
+        }
 
         var owned = _provider.GetOwnedProductIds();
         if (owned == null) return;
