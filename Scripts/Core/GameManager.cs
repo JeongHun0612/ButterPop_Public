@@ -43,9 +43,12 @@ public class GameManager : MonoSingleton<GameManager>
     }
 
     // 진행 중이거나 대기 중인 저장을 완료까지 기다려 유실을 막는다(flush).
+    // OS가 앱을 정리하기 직전 마지막 기회이므로 실패는 반드시 남긴다.
     private async UniTaskVoid FlushSaveAsync()
     {
-        if (Services.TryGet<ISaveService>(out var save))
-            await save.SaveAsync();
+        if (!Services.TryGet<ISaveService>(out var save)) return;
+
+        if (!await save.SaveAsync())
+            Debug.LogError("[GameManager] 일시정지 flush 저장 실패 — 이번 세션 진행도가 유실될 수 있습니다");
     }
 }

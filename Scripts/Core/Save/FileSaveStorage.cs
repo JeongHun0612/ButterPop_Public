@@ -30,7 +30,8 @@ public class FileSaveStorage : ISaveStorage
         }
     }
 
-    public async UniTask SaveAsync(SaveData data)
+    // 호출자가 겹치지 않는다는 전제로 임시 파일 하나를 재사용한다(직렬화는 SaveService가 담당).
+    public async UniTask<bool> SaveAsync(SaveData data)
     {
         try
         {
@@ -44,10 +45,13 @@ public class FileSaveStorage : ISaveStorage
                 else
                     File.Move(_tempPath, _path);
             });
+
+            return true;
         }
         catch (Exception e)
         {
             Debug.LogError($"[FileSaveStorage] 저장 실패: {e.Message}");
+            return false;
         }
     }
 
