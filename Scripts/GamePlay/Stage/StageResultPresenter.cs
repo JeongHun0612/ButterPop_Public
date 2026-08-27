@@ -12,6 +12,10 @@ public class StageResultPresenter : MonoBehaviour
     [SerializeField] private float capturePadding = 0.5f;
 
     private RenderTexture _captureRT;
+    private int _uiLayer = -1;
+
+    // 캡처는 연출이라 준비되지 않아도 결과 화면은 떠야 한다.
+    private bool CanCapture => captureCamera != null && mainCamera != null && _captureRT != null;
 
     private void Awake()
     {
@@ -19,6 +23,11 @@ public class StageResultPresenter : MonoBehaviour
             mainCamera = Camera.main;
 
         _captureRT = new RenderTexture(captureWidth, captureHeight, 16);
+
+        // 레이어가 없으면 NameToLayer가 -1을 주고, 1 << -1은 1 << 31로 접혀 엉뚱한 레이어를 가린다.
+        _uiLayer = LayerMask.NameToLayer("UI");
+        if (_uiLayer < 0)
+            Debug.LogWarning("[StageResultPresenter] UI 레이어가 없어 캡처에서 UI를 제외하지 못합니다");
 
         if (captureCamera != null)
             captureCamera.enabled = false;
@@ -42,8 +51,12 @@ public class StageResultPresenter : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (_captureRT != null)
-            _captureRT.Release();
+        // Release는 GPU 리소스만 반환한다. 객체까지 정리해야 누수가 남지 않는다.
+        if (_captureRT == null) return;
+
+        _captureRT.Release();
+        Destroy(_captureRT);
+        _captureRT = null;
     }
 
     private void HandleStageLoaded() => ShowStageReadyAsync().Forget();
@@ -70,22 +83,36 @@ public class StageResultPresenter : MonoBehaviour
         var uiManager = UIManager.Instance;
         Debug.Assert(uiManager != null, "[StageResultPresenter] UIManager가 없습니다");
 
-        if (captureCamera != null)
+        var resultUI = uiManager.GetPanel<UIStageResult>();
+        if (resultUI == null)
+        {
+            Debug.LogError("[StageResultPresenter] UIStageResult 패널이 없어 결과 화면을 띄우지 못했습니다");
+            return;
+        }
+
+        // 캡처 실패가 결과 화면까지 막지 않도록 분리한다. 막히면 클리어 후 진행이 끊긴다.
+        if (CanCapture)
         {
             CaptureScene(captureBounds);
-
-            var resultUI = uiManager.GetPanel<UIStageResult>();
             resultUI.SetCaptureTexture(_captureRT);
-            await uiManager.HideAllPopups();
-            await uiManager.ShowPopup<UIStageResult>();
         }
+        else
+        {
+            resultUI.SetCaptureTexture(null);
+            Debug.LogWarning("[StageResultPresenter] 카메라가 없어 캡처 없이 결과 화면을 표시합니다");
+        }
+
+        await uiManager.HideAllPopups();
+        await uiManager.ShowPopup<UIStageResult>();
     }
 
     private void CaptureScene(Bounds bounds)
     {
         captureCamera.CopyFrom(mainCamera);
         captureCamera.enabled = false;
-        captureCamera.cullingMask &= ~(1 << LayerMask.NameToLayer("UI"));
+
+        if (_uiLayer >= 0)
+            captureCamera.cullingMask &= ~(1 << _uiLayer);
 
         captureCamera.transform.position = new Vector3(
             bounds.center.x,

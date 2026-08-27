@@ -80,9 +80,11 @@ public class UIStageResult : UIPopup
         filmPanel.gameObject.SetActive(false);
     }
 
+    // 캡처가 없으면 RawImage를 꺼둔다. 켜둔 채 텍스처만 비우면 흰 사각형이 그려진다.
     public void SetCaptureTexture(RenderTexture rt)
     {
         capturedImage.texture = rt;
+        capturedImage.enabled = rt != null;
     }
 
     private void SpawnParticle()

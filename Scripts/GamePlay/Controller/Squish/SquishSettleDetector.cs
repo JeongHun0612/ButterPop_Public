@@ -17,8 +17,13 @@ public class SquishSettleDetector : MonoBehaviour
 
     private SquishBody _body;
     private int _armContacts;
-    private float _fallYThreshold;
-    private float _fallXThreshold;
+
+    // 화면 밖 판정 경계(월드 좌표). 아직 계산되지 않았다면 어떤 위치도 밖으로 보지 않는다.
+    // 0으로 두면 경계 계산 전에 원점 밖 스퀴시가 즉시 실패 처리된다.
+    private float _fallYThreshold = float.NegativeInfinity;
+    private float _fallXMin = float.NegativeInfinity;
+    private float _fallXMax = float.PositiveInfinity;
+
     private float _settleTimer;
     private bool _judging;
 
@@ -45,7 +50,7 @@ public class SquishSettleDetector : MonoBehaviour
             return;
 
         var center = _body.WorldBounds.center;
-        if (center.y < _fallYThreshold || Mathf.Abs(center.x) > _fallXThreshold)
+        if (center.y < _fallYThreshold || center.x < _fallXMin || center.x > _fallXMax)
         {
             OnFailed();
             return;
@@ -73,13 +78,23 @@ public class SquishSettleDetector : MonoBehaviour
 
     public void SuspendJudging() => _judging = false;
 
+    // 카메라 시야 + 여백을 벗어나면 낙하로 본다. 좌우도 카메라 중심 기준이라
+    // cameraCenter.x가 0이 아닌 스테이지에서도 경계가 대칭으로 잡힌다.
     public void UpdateCameraBounds(Camera cam)
     {
+        if (cam == null)
+        {
+            Debug.LogError("[SquishSettleDetector] 카메라가 없어 낙하 경계를 계산하지 못했습니다", this);
+            return;
+        }
+
         float halfH = cam.orthographicSize;
         float halfW = halfH * cam.aspect;
+        Vector3 camPos = cam.transform.position;
 
-        _fallYThreshold = cam.transform.position.y - halfH - outOfBoundsMargin;
-        _fallXThreshold = halfW + outOfBoundsMargin;
+        _fallYThreshold = camPos.y - halfH - outOfBoundsMargin;
+        _fallXMin = camPos.x - halfW - outOfBoundsMargin;
+        _fallXMax = camPos.x + halfW + outOfBoundsMargin;
     }
 
     public void ResetState()
