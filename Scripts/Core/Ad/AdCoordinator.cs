@@ -72,7 +72,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     {
         if (StageManager.TryGetInstance(out var stage))
         {
-            stage.OnStateChanged -= OnStateChanged;
+            stage.OnStageLoaded -= OnStageLoaded;
             stage.OnTryCountChanged -= OnTryCountChanged;
             stage.OnStageCleared -= OnStageCleared;
         }
@@ -89,7 +89,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
         if (StageManager.TryGetInstance(out var stage))
         {
-            stage.OnStateChanged += OnStateChanged;
+            stage.OnStageLoaded += OnStageLoaded;
             stage.OnTryCountChanged += OnTryCountChanged;
             stage.OnStageCleared += OnStageCleared;
         }
@@ -171,14 +171,11 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         && _sessionInterstitialCount < sessionInterstitialCap
         && Time.realtimeSinceStartup - _lastInterstitialTime >= interstitialCooldownSeconds;
 
-    private void OnStateChanged(GameState state)
+    // 새 스테이지 시작 시 per-stage 상태 초기화.
+    private void OnStageLoaded()
     {
-        // 새 스테이지 준비 시 per-stage 상태 초기화.
-        if (state == GameState.StageReady)
-        {
-            _rewardWatchedThisStage = false;
-            _currentTrialStep = -1; // 새 스테이지 첫 주기에서 다시 뽑도록(직전 제외는 _currentTrialSkin으로 유지)
-        }
+        _rewardWatchedThisStage = false;
+        _currentTrialStep = -1; // 새 스테이지 첫 주기에서 다시 뽑도록(직전 제외는 _currentTrialSkin으로 유지)
     }
 
     private void OnStageCleared(Bounds bounds) => _sessionClearedCount++;

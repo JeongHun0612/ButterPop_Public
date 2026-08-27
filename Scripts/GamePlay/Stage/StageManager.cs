@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -21,7 +22,12 @@ public class StageManager : MonoSingleton<StageManager>
     private StageContext _current;
     private int _currentTryCount;
 
+    // 현재 스테이지 수명에 묶인 비동기 작업의 취소원. 스테이지가 교체되면 끊긴다.
+    private CancellationTokenSource _stageCts;
+
     public event Action<GameState> OnStateChanged;
+    // 새 스테이지 로드 완료. 상태 전이가 아니라 로드마다 1회 발화한다.
+    public event Action OnStageLoaded;
     public event Action<Bounds> OnStageCleared;
     public event Action<bool> OnSkipAvailabilityChanged;
     public event Action<int> OnTryCountChanged;   // 실패 시도 횟수 변경 (리워드 스킨 로테이션·전면 광고 판단용)
@@ -42,6 +48,13 @@ public class StageManager : MonoSingleton<StageManager>
 
         if (builder != null)
             builder.OnActorsCreated += BindActors;
+    }
+
+    private void OnDestroy()
+    {
+        _stageCts?.Cancel();
+        _stageCts?.Dispose();
+        _stageCts = null;
     }
 
     public void LoadSavedStage()
@@ -77,10 +90,17 @@ public class StageManager : MonoSingleton<StageManager>
 
     public void LoadStageData(StageDataSO data)
     {
+        // 이전 스테이지에서 예약된 지연 작업(리스폰 등)이 새 스테이지를 건드리지 못하게 먼저 끊는다.
+        ResetStageScope();
+
         _current = builder.Build(data);
         RespawnSquish();
         ResetTryCount();
         SetState(GameState.StageReady);
+
+        // SetState는 같은 상태면 조기 return하므로, 로드 통지는 상태와 분리해 항상 내보낸다.
+        OnStageLoaded?.Invoke();
+
         Debug.Log($"[StageManager] 스테이지 셋업 완료: {data.stageId}");
     }
 
@@ -155,6 +175,14 @@ public class StageManager : MonoSingleton<StageManager>
         OnSkipAvailabilityChanged?.Invoke(false);
     }
 
+    // 스테이지 수명 취소원을 새로 연다. 이전 스코프에 걸린 대기는 여기서 취소된다.
+    private void ResetStageScope()
+    {
+        _stageCts?.Cancel();
+        _stageCts?.Dispose();
+        _stageCts = new CancellationTokenSource();
+    }
+
     // 현재 스퀴시를 스폰 위치로 되돌린다(화면 밖 준비). 화면 안 등장은 Ready 진입 시 SetState에서.
     private void RespawnSquish()
     {
@@ -190,12 +218,15 @@ public class StageManager : MonoSingleton<StageManager>
     private void OnSquishFell()
     {
         IncrementTryCount();
-        RespawnAfterDelayAsync().Forget();
+        RespawnAfterDelayAsync(_stageCts.Token).Forget();
     }
 
-    private async UniTaskVoid RespawnAfterDelayAsync()
+    private async UniTaskVoid RespawnAfterDelayAsync(CancellationToken token)
     {
-        await UniTask.Delay((int)(respawnDelay * 1000));
+        bool canceled = await UniTask.Delay((int)(respawnDelay * 1000), cancellationToken: token)
+            .SuppressCancellationThrow();
+        if (canceled) return;
+
         ResetSquish();
     }
 }

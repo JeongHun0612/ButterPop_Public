@@ -28,7 +28,7 @@ public class StageResultPresenter : MonoBehaviour
     {
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
-        stageManager.OnStateChanged += HandleStateChanged;
+        stageManager.OnStageLoaded += HandleStageLoaded;
         stageManager.OnStageCleared += HandleStageCleared;
     }
 
@@ -36,7 +36,7 @@ public class StageResultPresenter : MonoBehaviour
     {
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
-        stageManager.OnStateChanged -= HandleStateChanged;
+        stageManager.OnStageLoaded -= HandleStageLoaded;
         stageManager.OnStageCleared -= HandleStageCleared;
     }
 
@@ -46,11 +46,7 @@ public class StageResultPresenter : MonoBehaviour
             _captureRT.Release();
     }
 
-    private void HandleStateChanged(GameState state)
-    {
-        if (state == GameState.StageReady)
-            ShowStageReadyAsync().Forget();
-    }
+    private void HandleStageLoaded() => ShowStageReadyAsync().Forget();
 
     private void HandleStageCleared(Bounds bounds)
     {
