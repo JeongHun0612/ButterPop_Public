@@ -53,11 +53,29 @@ public class UIManager : MonoSingleton<UIManager>
         if (panel == null)
         {
             Debug.LogError($"[UIManager] 프리팹에 UIPanel 컴포넌트가 없습니다: {go.name}");
+            ReleaseInstance(go);
+            return;
+        }
+
+        // Dictionary.Add는 키가 겹치면 예외를 던진다. 그대로 두면 InitializeAsync 전체가
+        // 끊겨 나머지 패널이 등록되지 않고 부팅이 실패한다. 먼저 등록된 쪽을 남긴다.
+        var type = panel.GetType();
+        if (_panels.ContainsKey(type))
+        {
+            Debug.LogError($"[UIManager] 패널 타입이 중복 등록되었습니다: {type.Name}. UIRegistry를 확인하세요");
+            ReleaseInstance(go);
             return;
         }
 
         panel.Initialize();
-        _panels.Add(panel.GetType(), panel);
+        _panels.Add(type, panel);
+    }
+
+    // Addressables로 만든 인스턴스는 핸들까지 반환해야 누수가 남지 않는다.
+    private static void ReleaseInstance(GameObject go)
+    {
+        if (!Addressables.ReleaseInstance(go))
+            Destroy(go);
     }
 
     public async UniTask<T> ShowScene<T>() where T : UIScene
