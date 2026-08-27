@@ -75,15 +75,23 @@ public class StageBuilder : MonoBehaviour
             instance.transform.localScale = new Vector3(scaleX, objData.scale.y, 1f);
 
             if (objData.coverSquish)
-            {
-                foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
-                    sr.sortingOrder += StageDataSO.CoverSquishSortingOrder;
-            }
+                ApplyCoverSquish(instance);
 
             foreach (var receiver in instance.GetComponentsInChildren<IStageContextReceiver>(true))
                 _contextReceivers.Add(receiver);
 
             _spawnedStageObjects.Add(instance);
+        }
+    }
+
+    // 오브젝트를 스퀴시 위로 올린다. 프리팹 내부 상대 순서를 유지하려고 덮어쓰지 않고 오프셋만 더한다.
+    // IgnoreCoverSquish가 붙은 하위(UFO 빔 등)는 스퀴시 뒤에 남겨야 하므로 제외한다.
+    private static void ApplyCoverSquish(GameObject instance)
+    {
+        foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (sr.GetComponentInParent<IgnoreCoverSquish>(true) != null) continue;
+            sr.sortingOrder += StageDataSO.CoverSquishSortingOrder;
         }
     }
 

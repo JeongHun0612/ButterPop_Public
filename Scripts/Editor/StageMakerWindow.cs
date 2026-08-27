@@ -589,14 +589,15 @@ public class StageMakerWindow : EditorWindow
     // 프리뷰에서도 스퀴시 가리기 여부에 따라 Sorting Order를 반영해 실제 그려지는 순서를 확인할 수 있게 한다.
     // 원본 프리팹의 Order in Layer(흰자·검은자 등 내부 상대 순서)를 유지하기 위해 덮어쓰지 않고 오프셋만 더한다.
     // 원본 값을 기준으로 계산하므로 이동·회전 등으로 반복 호출돼도 누적되지 않는다(idempotent).
+    // 제외 규칙(IgnoreCoverSquish)은 StageBuilder.ApplyCoverSquish와 동일하게 맞춘다.
     private void ApplyCoverSquish(GameObject go, StageObjectEntry entry)
     {
-        int offset = entry.coverSquish ? StageDataSO.CoverSquishSortingOrder : 0;
         foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true))
         {
+            bool cover = entry.coverSquish && sr.GetComponentInParent<IgnoreCoverSquish>(true) == null;
             var source = PrefabUtility.GetCorrespondingObjectFromSource(sr);
             int baseOrder = source != null ? source.sortingOrder : 0;
-            sr.sortingOrder = baseOrder + offset;
+            sr.sortingOrder = baseOrder + (cover ? StageDataSO.CoverSquishSortingOrder : 0);
         }
     }
 
