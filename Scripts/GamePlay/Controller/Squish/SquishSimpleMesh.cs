@@ -43,13 +43,6 @@ public class SquishSimpleMesh : MonoBehaviour
         if (body == null)
             body = GetComponent<SquishBody>();
 
-        if (skin == null)
-        {
-            var existingMesh = GetComponent<SquishMesh>();
-            if (existingMesh != null)
-                skin = existingMesh.SkinSO;
-        }
-
         if (body == null || skin == null || skin.sprite == null)
         {
             Debug.LogError("[SquishSimpleMesh] body / skin sprite가 지정되지 않았습니다.", this);

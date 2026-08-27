@@ -1,6 +1,5 @@
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UI;
 
 [CustomEditor(typeof(GridCellFitter))]
 public class GridCellFitterEditor : Editor
@@ -9,32 +8,16 @@ public class GridCellFitterEditor : Editor
     {
         EditorGUI.BeginChangeCheck();
         DrawDefaultInspector();
+        bool changed = EditorGUI.EndChangeCheck();
 
-        if (EditorGUI.EndChangeCheck() || GUILayout.Button("Fit Cell Size"))
-        {
-            var fitter = (GridCellFitter)target;
-            fitter.FitCellSize();
-            EditorUtility.SetDirty(fitter);
-        }
-    }
-}
+        // 두 조건을 ||로 묶으면 값이 바뀐 프레임에 버튼이 그려지지 않아
+        // Layout/Repaint 간 컨트롤 수가 어긋난다. 각각 따로 평가한다.
+        bool pressed = GUILayout.Button("Fit Cell Size");
 
-[CustomEditor(typeof(GridLayoutGroup), true)]
-public class GridLayoutGroupFitterEditor : Editor
-{
-    public override void OnInspectorGUI()
-    {
-        EditorGUI.BeginChangeCheck();
-        DrawDefaultInspector();
+        if (!changed && !pressed) return;
 
-        if (EditorGUI.EndChangeCheck())
-        {
-            var fitter = ((Component)target).GetComponent<GridCellFitter>();
-            if (fitter != null)
-            {
-                fitter.FitCellSize();
-                EditorUtility.SetDirty(fitter);
-            }
-        }
+        var fitter = (GridCellFitter)target;
+        fitter.FitCellSize();
+        EditorUtility.SetDirty(fitter);
     }
 }

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 세그먼트 각각의 충돌을 부모 SquishBody로 올려주는 릴레이. (ButterSegmentRelay 일반화)
+// 세그먼트 각각의 충돌을 부모 SquishBody로 올려주는 릴레이.
 [RequireComponent(typeof(Rigidbody2D))]
 public class SquishSegmentRelay : MonoBehaviour
 {

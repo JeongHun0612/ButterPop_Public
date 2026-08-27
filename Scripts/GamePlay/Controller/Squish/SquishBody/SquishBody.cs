@@ -92,7 +92,8 @@ public partial class SquishBody : MonoBehaviour
     public IReadOnlyList<Rigidbody2D> BoneRigidbodies => _rigidbodies;
     public IReadOnlyList<SpineSample> BoneRestSamples => _restSamples;
 
-    public float AggregateSpeed
+    // 가장 빠른 뼈의 속력. 하나라도 움직이면 아직 멈춘 게 아니므로 평균이 아니라 최댓값을 쓴다.
+    public float MaxBoneSpeed
     {
         get
         {
@@ -218,8 +219,9 @@ public partial class SquishBody : MonoBehaviour
             var a = _bones[i].Rigidbody;
             var b = _bones[i + 1].Rigidbody;
 
-            float relDeg = Mathf.DeltaAngle(a.rotation, b.rotation);
-            float errDeg = Mathf.DeltaAngle(0f, relDeg);
+            // rest 상대각이 0이라 이웃 간 상대각이 곧 오차각이다.
+            // DeltaAngle이 이미 [-180, 180]으로 정규화해 돌려주므로 추가 보정은 필요 없다.
+            float errDeg = Mathf.DeltaAngle(a.rotation, b.rotation);
             float relVelDeg = b.angularVelocity - a.angularVelocity;
 
             float t = -bendStiffness * (errDeg * Mathf.Deg2Rad) - bendDamping * (relVelDeg * Mathf.Deg2Rad);

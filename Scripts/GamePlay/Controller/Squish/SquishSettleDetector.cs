@@ -4,7 +4,7 @@ using UnityEngine;
 
 // 스퀴시 오브젝트의 안착/낙하 판정기. SquishBody 뼈 체인 기반.
 // - 충돌은 뼈마다 분산되므로 SquishBody의 Enter/Exit 이벤트를 구독해 접촉을 refcount로 추적한다.
-// - 속도는 SquishBody.AggregateSpeed, 위치·경계는 WorldBounds를 사용한다(루트 transform은 뼈를 따라가지 않음).
+// - 속도는 SquishBody.MaxBoneSpeed, 위치·경계는 WorldBounds를 사용한다(루트 transform은 뼈를 따라가지 않음).
 [RequireComponent(typeof(SquishBody))]
 public class SquishSettleDetector : MonoBehaviour
 {
@@ -51,7 +51,7 @@ public class SquishSettleDetector : MonoBehaviour
             return;
         }
 
-        if (_stageContacts.Count > 0 && _armContacts == 0 && _body.AggregateSpeed < settleSpeedThreshold)
+        if (_stageContacts.Count > 0 && _armContacts == 0 && _body.MaxBoneSpeed < settleSpeedThreshold)
         {
             _settleTimer += Time.deltaTime;
             if (_settleTimer >= settleTimeRequired)
