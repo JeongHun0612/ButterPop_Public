@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 // 와이파이 신호 기믹: 프레임을 순차 교체해 누적 점등하고, 마지막 프레임에서 일정 시간 콜라이더가 솔리드가 된다.
+[RequireComponent(typeof(Collider2D))]
 public class WifiSignal : MonoBehaviour
 {
     [Header("신호 프레임")]
@@ -18,11 +20,16 @@ public class WifiSignal : MonoBehaviour
     [SerializeField] private float activeDuration = 5f;
 
     [Header("플랫폼")]
-    [Tooltip("활성 창 동안만 솔리드가 되는 콜라이더 (StageObject와 같은 GameObject에 있어야 함). 평소에는 트리거로 두어 바나나가 통과한다")]
+    [Tooltip("활성 창 동안만 솔리드가 되는 콜라이더 (StageObject와 같은 GameObject에 있어야 함). 평소에는 트리거로 두어 스퀴시가 통과한다")]
     [SerializeField] private Collider2D platformCollider;
 
     private CancellationTokenSource _cts;
-    private bool _bananaInside;
+
+    // 스퀴시는 뼈마다 콜라이더가 따로라 진입/이탈 콜백이 뼈 수만큼 온다.
+    // bool로 받으면 뼈 하나만 빠져나가도 "전부 나갔다"가 되므로 안에 있는 콜라이더를 모아 센다.
+    private readonly HashSet<Collider2D> _squishInside = new();
+
+    private bool HasSquish => _squishInside.Count > 0;
 
     private void OnEnable()
     {
@@ -45,21 +52,17 @@ public class WifiSignal : MonoBehaviour
         _cts?.Dispose();
         _cts = null;
 
-        _bananaInside = false;
+        _squishInside.Clear();
         ResetState();
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (other.GetComponentInParent<Squish>() != null)
-            _bananaInside = true;
+            _squishInside.Add(other);
     }
 
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        if (other.GetComponentInParent<Squish>() != null)
-            _bananaInside = false;
-    }
+    private void OnTriggerExit2D(Collider2D other) => _squishInside.Remove(other);
 
     private async UniTaskVoid RunCycleLoop(CancellationToken token)
     {
@@ -72,9 +75,9 @@ public class WifiSignal : MonoBehaviour
 
                 if (i == frames.Length - 1)
                 {
-                    // 마지막 = 전체 점등. 솔리드로 바꾸는 순간 바나나가 영역 안에 박혀 튕기지 않도록,
-                    // 바나나가 빠져나갈 때까지 대기한 뒤 활성 창을 연다.
-                    await UniTask.WaitUntil(() => !_bananaInside, cancellationToken: token);
+                    // 마지막 = 전체 점등. 솔리드로 바꾸는 순간 스퀴시가 영역 안에 박혀 튕기지 않도록,
+                    // 뼈가 전부 빠져나갈 때까지 대기한 뒤 활성 창을 연다.
+                    await UniTask.WaitUntil(() => !HasSquish, cancellationToken: token);
                     platformCollider.isTrigger = false;
                     await UniTask.Delay(TimeSpan.FromSeconds(activeDuration), cancellationToken: token);
                 }
@@ -85,7 +88,9 @@ public class WifiSignal : MonoBehaviour
             }
 
             // 사이클 종료: 다시 통과 가능(트리거)하게 하고 첫 프레임으로 리셋.
+            // 솔리드 구간에는 트리거 콜백이 오지 않아 집계가 낡으므로 여기서 버린다.
             platformCollider.isTrigger = true;
+            _squishInside.Clear();
             signalRenderer.sprite = frames[0];
         }
     }
