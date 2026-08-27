@@ -69,6 +69,8 @@ public class DebugStageBootstrap : MonoBehaviour
     private GUIStyle _labelStyle;
     private GUIStyle _buttonStyle;
     private GUIStyle _currentButtonStyle;
+    private GUIStyle _listButtonStyle;
+    private GUIStyle _currentListButtonStyle;
     private bool _stylesInitialized;
 
     private void InitStyles()
@@ -101,6 +103,19 @@ public class DebugStageBootstrap : MonoBehaviour
         };
         _currentButtonStyle.normal.textColor = Color.yellow;
         _currentButtonStyle.hover.textColor = Color.yellow;
+
+        // 목록 버튼은 텍스트를 좌측 정렬해 스테이지 번호를 세로로 맞춘다
+        _listButtonStyle = new GUIStyle(_buttonStyle)
+        {
+            alignment = TextAnchor.MiddleLeft,
+            padding = new RectOffset(16, 8, 0, 0)
+        };
+
+        _currentListButtonStyle = new GUIStyle(_currentButtonStyle)
+        {
+            alignment = TextAnchor.MiddleLeft,
+            padding = new RectOffset(16, 8, 0, 0)
+        };
 
         _stylesInitialized = true;
     }
@@ -155,7 +170,7 @@ public class DebugStageBootstrap : MonoBehaviour
                 string label = $"{i}: {data.stageId}";
                 bool isCurrent = i == stageManager.CurrentStageIndex;
 
-                if (GUILayout.Button(label, isCurrent ? _currentButtonStyle : _buttonStyle))
+                if (GUILayout.Button(label, isCurrent ? _currentListButtonStyle : _listButtonStyle))
                 {
                     LoadStageForDebug(stageManager, i);
                 }
