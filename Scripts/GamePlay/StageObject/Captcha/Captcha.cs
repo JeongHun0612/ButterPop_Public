@@ -15,7 +15,7 @@ public class Captcha : MonoBehaviour, ISquishHittable
 
     [Header("영역")]
     [Tooltip("스퀴시가 벗어나면 로딩으로 되돌릴 트리거 존. 안착 중 튕겨도 유지되도록 안착면보다 넉넉하게 잡는다")]
-    [SerializeField] private SquishTriggerZone exitZone;
+    [SerializeField] private SquishTriggerSensor exitZone;
 
     private bool _isChecked;
 

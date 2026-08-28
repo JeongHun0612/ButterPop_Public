@@ -1,13 +1,13 @@
 using UnityEngine;
 
 // 불씨 기믹: 스퀴시가 불꽃 안에 있는 동안 점점 타고, 벗어나면 서서히 원래 색으로 식는다.
-// 뼈 단위 트리거 콜백을 모으는 일은 자식 SquishTriggerZone이 맡는다.
+// 뼈 단위 트리거 콜백을 모으는 일은 자식 SquishTriggerSensor가 맡는다.
 // 연출 전용이라 다 타도 별도 판정은 없다. 스테이지 리셋 시 원복은 Squish.RespawnAt이 담당.
 public class Fire : MonoBehaviour, IStageContextReceiver
 {
     [Header("감지")]
     [Tooltip("불꽃 영역. 비우면 Awake에서 자식에서 찾는다")]
-    [SerializeField] private SquishTriggerZone zone;
+    [SerializeField] private SquishTriggerSensor zone;
 
     [Header("타는 연출")]
     [Tooltip("불 안에서 완전히 타기까지 걸리는 시간(초)")]
@@ -27,10 +27,10 @@ public class Fire : MonoBehaviour, IStageContextReceiver
     private void Awake()
     {
         if (zone == null)
-            zone = GetComponentInChildren<SquishTriggerZone>(true);
+            zone = GetComponentInChildren<SquishTriggerSensor>(true);
 
         if (zone == null)
-            Debug.LogError("[Fire] SquishTriggerZone을 찾지 못했습니다.", this);
+            Debug.LogError("[Fire] SquishTriggerSensor를 찾지 못했습니다.", this);
     }
 
     private void OnEnable()
@@ -77,6 +77,6 @@ public class Fire : MonoBehaviour, IStageContextReceiver
             sound.PlaySfx(burnClip);
     }
 
-    // 첫 뼈가 닿았을 때만 1회 울린다(뼈마다 울려 소리가 겹치던 것을 존이 막아준다).
+    // 첫 뼈가 닿았을 때만 1회 울린다(뼈마다 울려 소리가 겹치던 것을 센서가 막아준다).
     private void OnSquishEntered() => PlayBurnSound();
 }
