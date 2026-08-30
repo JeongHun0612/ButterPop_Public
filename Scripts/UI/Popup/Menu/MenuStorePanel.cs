@@ -1,6 +1,7 @@
 using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Localization;
 using UnityEngine.UI;
 
 /// <summary>
@@ -19,6 +20,10 @@ public class MenuStorePanel : MonoBehaviour
 
     [Header("안내 문구")]
     [SerializeField] private StatusMessage statusMessage;
+    [SerializeField] private LocalizedString purchaseFailedMessage;
+    [SerializeField] private LocalizedString purchasePendingMessage;
+    [SerializeField] private LocalizedString purchaseRestoredMessage;
+    [SerializeField] private LocalizedString nothingToRestoreMessage;
 
     private IPurchaseService _purchase;
     private bool _purchasing;   // 결제·복원 진행 중 중복 요청(연타) 차단
@@ -81,6 +86,14 @@ public class MenuStorePanel : MonoBehaviour
         if (statusMessage != null) statusMessage.Show(message, isError);
     }
 
+    private async UniTask ShowLocalizedStatusAsync(LocalizedString localizedMessage, bool isError = false)
+    {
+        if (localizedMessage == null) return;
+
+        string message = await localizedMessage.GetLocalizedStringAsync();
+        ShowStatus(message, isError);
+    }
+
     private async UniTaskVoid PurchaseAsync(string productId)
     {
         if (_purchase == null || _purchasing) return;
@@ -97,11 +110,11 @@ public class MenuStorePanel : MonoBehaviour
         switch (state)
         {
             case PurchaseState.Failed:
-                ShowStatus("구매에 실패했습니다", true);
+                await ShowLocalizedStatusAsync(purchaseFailedMessage, true);
                 Debug.LogWarning($"[MenuStorePanel] 구매 실패: {productId}");
                 break;
             case PurchaseState.Pending:
-                ShowStatus("결제 확인 중입니다");
+                await ShowLocalizedStatusAsync(purchasePendingMessage);
                 Debug.Log($"[MenuStorePanel] 결제 대기: {productId}");
                 break;
         }
@@ -125,7 +138,10 @@ public class MenuStorePanel : MonoBehaviour
 
         bool restored = (!hadBanner && _purchase.RemoveBannerAds) || (!hadAll && _purchase.RemoveAllAds);
 
-        ShowStatus(restored ? "구매를 복원했습니다" : "복원할 내역이 없습니다");
+        LocalizedString selectedMessage = restored
+            ? purchaseRestoredMessage
+            : nothingToRestoreMessage;
+        await ShowLocalizedStatusAsync(selectedMessage);
         Debug.Log($"[MenuStorePanel] 구매 복원 완료 (복원된 권한 있음: {restored})");
     }
 
