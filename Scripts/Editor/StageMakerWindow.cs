@@ -59,8 +59,8 @@ public class StageMakerWindow : EditorWindow
     private const string DefaultStageId = "New Stage";
 
     // 스퀴시 낙하 시작점 · 손의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
-    private static readonly Vector2 DefaultSquishSpawnPosition = new(-2.2f, 2.5f);
-    private static readonly Vector2 DefaultArmPosition = new(-2.9f, -2f);
+    private static readonly Vector2 DefaultSquishSpawnPosition = new(-1.5f, 2.5f);
+    private static readonly Vector2 DefaultArmPosition = new(-3f, -2f);
 
     private Vector2 _scrollPos;
 
