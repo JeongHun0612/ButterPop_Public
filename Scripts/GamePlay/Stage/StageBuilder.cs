@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -34,9 +35,13 @@ public class StageBuilder : MonoBehaviour
     }
 
     // 스테이지 액터를 구성해 StageContext를 새로 채워 반환한다. 소유·보관은 호출자(StageManager)가 한다.
-    public StageContext Build(StageDataSO data)
+    public StageContext Build(StageDataSO data, CancellationToken stageCancellationToken)
     {
-        var context = new StageContext { Data = data };
+        var context = new StageContext
+        {
+            Data = data,
+            StageCancellationToken = stageCancellationToken
+        };
 
         ClearStageObjects();
         SpawnStageObjects(data);

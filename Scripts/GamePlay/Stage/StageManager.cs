@@ -93,7 +93,7 @@ public class StageManager : MonoSingleton<StageManager>
         // 이전 스테이지에서 예약된 지연 작업(리스폰 등)이 새 스테이지를 건드리지 못하게 먼저 끊는다.
         ResetStageScope();
 
-        _current = builder.Build(data);
+        _current = builder.Build(data, _stageCts.Token);
         RespawnSquish();
         ResetTryCount();
         SetState(GameState.StageReady);

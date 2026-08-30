@@ -55,6 +55,8 @@ public class UFO : MonoBehaviour, IStageContextReceiver
     {
         var squish = _context.Squish;
         var body = squish.Body;
+        var cancellationToken = _context.StageCancellationToken;
+        Tween flicker = null;
 
         squish.SuspendJudging();
         squish.Freeze();   // 뼈를 kinematic으로 고정한 뒤 스크립트로 옮긴다.
@@ -84,35 +86,48 @@ public class UFO : MonoBehaviour, IStageContextReceiver
             body.SnapPose(basePos, angle);
         }
 
-        // 1단계(정렬): 빔 중심으로 수평 이동 + 목표 자세로 회전.
-        await DOTween.To(() => 0f, t =>
-                PlaceByCenter(Vector2.Lerp(startCenter, alignCenter, t), Mathf.LerpAngle(startAngle, targetAngle, t)),
-                1f, alignDuration)
-            .SetEase(Ease.InOutSine).SetLink(squish.gameObject).ToUniTask();
-
-        // 2단계(상승): 상승 동안만 빔 깜빡임(Yoyo) + 중심축 따라 등속 상승.
-        Tween flicker = beamRenderer != null
-            ? beamRenderer.DOFade(beamFlickerMinAlpha, beamFlickerInterval).SetLoops(-1, LoopType.Yoyo).SetLink(beamRenderer.gameObject)
-            : null;
-
-        await DOTween.To(() => 0f, t => PlaceByCenter(Vector2.Lerp(alignCenter, (Vector2)target, t), targetAngle), 1f, riseDuration)
-            .SetEase(Ease.Linear).SetLink(squish.gameObject).ToUniTask();
-
-        if (beamRenderer != null)
+        try
         {
-            flicker.Kill();
-            Color c = beamRenderer.color;
-            c.a = 1f;
-            beamRenderer.color = c;
+            // 1단계(정렬): 빔 중심으로 수평 이동 + 목표 자세로 회전.
+            bool canceled = await DOTween.To(() => 0f, t =>
+                    PlaceByCenter(Vector2.Lerp(startCenter, alignCenter, t), Mathf.LerpAngle(startAngle, targetAngle, t)),
+                    1f, alignDuration)
+                .SetEase(Ease.InOutSine)
+                .SetLink(gameObject)
+                .ToUniTask(TweenCancelBehaviour.KillAndCancelAwait, cancellationToken)
+                .SuppressCancellationThrow();
+            if (canceled || this == null) return;
+
+            // 2단계(상승): 상승 동안만 빔 깜빡임(Yoyo) + 중심축 따라 등속 상승.
+            flicker = beamRenderer != null
+                ? beamRenderer.DOFade(beamFlickerMinAlpha, beamFlickerInterval).SetLoops(-1, LoopType.Yoyo).SetLink(beamRenderer.gameObject)
+                : null;
+
+            canceled = await DOTween.To(() => 0f, t => PlaceByCenter(Vector2.Lerp(alignCenter, (Vector2)target, t), targetAngle), 1f, riseDuration)
+                .SetEase(Ease.Linear)
+                .SetLink(gameObject)
+                .ToUniTask(TweenCancelBehaviour.KillAndCancelAwait, cancellationToken)
+                .SuppressCancellationThrow();
+            if (canceled || this == null || squish == null) return;
+
+            // 스퀴시 + 우주선을 함께 담아 결과 캡처가 어브덕션 장면을 잡도록 한다.
+            squish.ForceSettle(gameObject);
         }
+        finally
+        {
+            if (flicker != null && flicker.IsActive())
+                flicker.Kill();
 
-        // 어브덕션 중 스테이지가 재구성되면 참조가 사라질 수 있으니 방어.
-        if (squish == null) return;
+            if (beamRenderer != null)
+            {
+                Color c = beamRenderer.color;
+                c.a = 1f;
+                beamRenderer.color = c;
+            }
 
-        // 스퀴시 + 우주선을 함께 담아 결과 캡처가 어브덕션 장면을 잡도록 한다.
-        squish.ForceSettle(gameObject);
-
-        _abducting = false;
+            if (this != null)
+                _abducting = false;
+        }
     }
 
     // rest 뼈 위치들의 평균(shape-local 중심).
