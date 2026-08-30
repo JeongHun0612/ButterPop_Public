@@ -1,8 +1,7 @@
 using UnityEngine;
 
 // 캡차 체크박스. 평소엔 로딩 애니메이션을 반복하다가 스퀴시가 부딪히면 체크 스프라이트로 굳고,
-// 스퀴시가 영역을 벗어나면 다시 로딩으로 돌아간다.
-// 체크는 실제 충돌로, 해제는 영역 이탈로 판정한다. 안착 중 잠깐 튕기는 것까지 실패로 보지 않기 위해서다.
+// 실제 접촉이 유예 시간 이상 끊기면 다시 로딩으로 돌아간다.
 public class Captcha : MonoBehaviour, ISquishHittable
 {
     [Header("스프라이트")]
@@ -13,18 +12,27 @@ public class Captcha : MonoBehaviour, ISquishHittable
     [Tooltip("체크된 상태로 표시할 스프라이트")]
     [SerializeField] private Sprite checkedSprite;
 
-    [Header("영역")]
-    [Tooltip("스퀴시가 벗어나면 로딩으로 되돌릴 트리거 존. 안착 중 튕겨도 유지되도록 안착면보다 넉넉하게 잡는다")]
-    [SerializeField] private SquishTriggerSensor exitZone;
+    [Header("접촉")]
+    [Tooltip("스퀴시의 실제 접촉과 이탈 유예를 관리하는 센서. 비어 있으면 같은 오브젝트에서 찾는다")]
+    [SerializeField] private SquishContactSensor contactSensor;
 
     private bool _isChecked;
+
+    private void Awake()
+    {
+        if (contactSensor == null)
+            contactSensor = GetComponent<SquishContactSensor>();
+
+        if (contactSensor == null)
+            Debug.LogError("[Captcha] SquishContactSensor를 찾지 못했습니다", this);
+    }
 
     // 컴포넌트 간 Awake 순서가 보장되지 않아, 애니메이터가 렌더러를 캐싱한 뒤인 Start에서 켠다.
     private void Start() => ShowLoading();
 
     private void OnEnable()
     {
-        if (exitZone != null) exitZone.OnSquishExited += HandleSquishExited;
+        if (contactSensor != null) contactSensor.OnSquishExited += HandleSquishExited;
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
@@ -33,7 +41,7 @@ public class Captcha : MonoBehaviour, ISquishHittable
 
     private void OnDisable()
     {
-        if (exitZone != null) exitZone.OnSquishExited -= HandleSquishExited;
+        if (contactSensor != null) contactSensor.OnSquishExited -= HandleSquishExited;
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
