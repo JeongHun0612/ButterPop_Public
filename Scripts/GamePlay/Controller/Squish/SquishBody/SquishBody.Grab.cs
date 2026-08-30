@@ -1,11 +1,11 @@
 using UnityEngine;
 
-// SquishBody 손끝 잡기 시스템
+// SquishBody 홀더 잡기 시스템
 public partial class SquishBody
 {
     private int GrabbedCount => Mathf.Clamp(grabbedBoneCount, 0, _bones.Count);
 
-    // 손끝 홀더에 잡기. 0=힌지 매달림, N=앞 N개 강체 그랩
+    // 외부 홀더에 잡기. 0=힌지 매달림, N=앞 N개 강체 그랩
     public void Grab(Rigidbody2D holder, Vector2 holderWorldAnchor, float angleDeg)
     {
         if (holder == null) return;
@@ -23,14 +23,14 @@ public partial class SquishBody
         }
     }
 
-    // 매 FixedUpdate 손끝 추적. N=0(힌지 모드)은 물리 전담이라 no-op
+    // 매 FixedUpdate 홀더 추적. N=0(힌지 모드)은 물리 전담이라 no-op
     public void UpdateGrab(Vector2 holderWorldAnchor, float angleDeg)
     {
         if (GrabbedCount == 0) return;
         DriveGrabbedBones(holderWorldAnchor, angleDeg, true);
     }
 
-    // 손끝에서 풀어 자유낙하(drop). 두 방식 모두 안전 해제
+    // 홀더에서 풀어 자유낙하(drop). 두 방식 모두 안전 해제
     public void Release()
     {
         DetachFromHolder();
@@ -49,7 +49,7 @@ public partial class SquishBody
             _holderJoint.autoConfigureConnectedAnchor = false;
             _holderJoint.enableCollision = false;
             _holderJoint.connectedBody = holder;
-            // 머리 뼈 리딩 에지를 홀더 손끝에 핀
+            // 머리 뼈 리딩 에지를 홀더 앵커에 핀
             _holderJoint.anchor = new Vector2(-GetLeadingEdgeToFirstBoneOffset(), 0f);
             _holderJoint.connectedAnchor = holder.transform.InverseTransformPoint(holderWorldAnchor);
 
@@ -82,7 +82,7 @@ public partial class SquishBody
         }
     }
 
-    // 앞 N개 뼈를 손끝 프레임 rest 자리에 각도 고정 배치. sweep=true=MovePosition(부드럽게), false=즉시 스냅
+    // 앞 N개 뼈를 홀더 프레임 rest 자리에 각도 고정 배치. sweep=true=MovePosition(부드럽게), false=즉시 스냅
     private void DriveGrabbedBones(Vector2 leadingEdgeWorld, float angleDeg, bool sweep)
     {
         int n = GrabbedCount;

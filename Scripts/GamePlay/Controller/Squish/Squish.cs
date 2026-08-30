@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class Squish : MonoBehaviour
@@ -10,10 +11,10 @@ public class Squish : MonoBehaviour
     [SerializeField] private SquishSettleDetector settleDetector;
     [SerializeField] private SquishBody body;
     [SerializeField] private SquishSimpleMesh mesh;
-    [SerializeField] private HandRig handRig;
+    [SerializeField] private CraneRig craneRig;
 
     [Header("앵커")]
-    [Tooltip("손끝에서 매달릴 위치(핀 포인트). Rigidbody 없이 offset Transform으로만 사용한다.")]
+    [Tooltip("크레인 그립 포인트에서 매달릴 위치. Rigidbody 없이 offset Transform으로만 사용한다.")]
     [SerializeField] private Transform pivotAnchor;
 
     [Header("릴리즈")]
@@ -22,6 +23,7 @@ public class Squish : MonoBehaviour
 
     private Vector2 _spawnPosition;
     private bool _released;
+    private bool _dropRequested;
 
     public event Action OnDropped;
     public event Action<Bounds> OnSettled;
@@ -29,18 +31,18 @@ public class Squish : MonoBehaviour
 
     public SquishBody Body => body;
     public SquishSimpleMesh Mesh => mesh;
-    public bool CanDrop => !_released && (handRig == null || !handRig.IsPlaying);
+    public bool CanDrop => !_released && !_dropRequested && craneRig != null && !craneRig.IsPlaying;
 
     private void Awake()
     {
         if (settleDetector == null) settleDetector = GetComponentInChildren<SquishSettleDetector>(true);
         if (body == null) body = GetComponentInChildren<SquishBody>(true);
         if (mesh == null) mesh = GetComponentInChildren<SquishSimpleMesh>(true);
-        if (handRig == null) handRig = GetComponentInChildren<HandRig>(true);
+        if (craneRig == null) craneRig = GetComponentInChildren<CraneRig>(true);
 
-        if (settleDetector == null || body == null || mesh == null || handRig == null)
+        if (settleDetector == null || body == null || mesh == null || craneRig == null || craneRig.Body == null)
         {
-            Debug.LogError("[Squish] 하위 컴포넌트(settle/body/mesh/handRig)를 찾지 못했습니다.", this);
+            Debug.LogError("[Squish] 하위 컴포넌트(settle/body/mesh/craneRig)를 찾지 못했습니다.", this);
             enabled = false;
             return;
         }
@@ -53,7 +55,7 @@ public class Squish : MonoBehaviour
     {
         if (body == null || !body.IsReady) return;
 
-        // 잡힌 동안 손끝을 따라간다. N=0(힌지) 모드에서는 물리가 전담하므로 내부에서 no-op.
+        // 잡힌 동안 크레인 그립 포인트를 따라간다. N=0(힌지) 모드에서는 물리가 전담하므로 내부에서 no-op.
         if (!_released)
             body.UpdateGrab(GetPinPoint(), HangingAngleDeg);
 
@@ -83,9 +85,10 @@ public class Squish : MonoBehaviour
         if (body == null || !body.IsReady) return;
 
         _released = false;
+        _dropRequested = false;
 
         transform.position = _spawnPosition;
-        handRig.PrepareEnter();
+        craneRig.PrepareEnter();
 
         // 전 뼈를 얼려 정확한 rest 포즈로 스냅한다(ResetPoseFromLeadingEdge가 Physics2D.SyncTransforms로 물리에 즉시 반영).
         body.SetKinematic(true);
@@ -93,21 +96,22 @@ public class Squish : MonoBehaviour
         mesh.ResetShape();
         settleDetector.ResetState();
 
-        // 다시 Dynamic으로 살리고 잔여 속도를 청소한 뒤, 손끝(HandRig Rigidbody)에 붙잡는다.
+        // 다시 Dynamic으로 살리고 잔여 속도를 청소한 뒤, 크레인의 물리 홀더에 붙잡는다.
         // 잡는 방식(힌지 매달림 vs 앞 N개 강체 그랩)은 SquishBody가 grabbedBoneCount로 결정한다.
         body.SetKinematic(false);
         body.ClearVelocities();
-        body.Grab(handRig.Body, GetPinPoint(), HangingAngleDeg);
+        body.Grab(craneRig.Body, GetPinPoint(), HangingAngleDeg);
     }
 
-    public void Enter() => handRig.PlayEnter(null);
+    public void Enter() => craneRig.PlayEnter(null);
 
     public void Drop()
     {
         if (!CanDrop) return;
 
+        _dropRequested = true;
         DropInternal();
-        handRig.PlayExit();
+        craneRig.PlayRelease(craneRig.PlayExit);
     }
 
     public void Freeze()
@@ -127,6 +131,7 @@ public class Squish : MonoBehaviour
     private void DropInternal()
     {
         _released = true;
+        _dropRequested = false;
         body.Release();
         OnDropped?.Invoke();
     }

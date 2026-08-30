@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // 뼈 rest 포즈의 스키닝 기준점.
 public struct SpineSample
@@ -26,8 +27,8 @@ public partial class SquishBody : MonoBehaviour
     }
 
     [Header("매달림 기준")]
-    [Tooltip("비워두면 자기 Transform 기준으로 그린다. 지정하면 손끝 기준 아래 방향으로 Gizmo를 그린다.")]
-    [SerializeField] private Transform fingertip;
+    [Tooltip("비워두면 자기 Transform 기준으로 그린다. 지정하면 홀더 기준 아래 방향으로 Gizmo를 그린다.")]
+    [SerializeField] private Transform holderAnchor;
 
     [Header("형태 (고정 직사각형, shape-local · 월드 단위)")]
     [Tooltip("긴 축(중심선) 전체 길이")]
@@ -67,11 +68,11 @@ public partial class SquishBody : MonoBehaviour
     [Range(0f, 180f)]
     [SerializeField] private float maxBendAnglePerJoint = 18f;
 
-    [Header("손끝 잡기")]
-    [Tooltip("손끝이 직접 쥐어(Kinematic, 각도 완전 고정) 함께 이동시킬 앞쪽 뼈 개수. 0이면 아무 뼈도 안 잡고 아래 HingeJoint로 매달려 자유 스윙, 1이면 첫 뼈, 2면 앞 두 뼈까지 손끝에 딱 붙고 나머지는 물리로 흔들린다.")]
+    [Header("홀더 잡기")]
+    [Tooltip("홀더가 직접 잡아(Kinematic, 각도 완전 고정) 함께 이동시킬 앞쪽 뼈 개수. 0이면 아무 뼈도 안 잡고 아래 HingeJoint로 매달려 자유 스윙, 1이면 첫 뼈, 2면 앞 두 뼈까지 홀더에 고정되고 나머지는 물리로 흔들린다.")]
     [Min(0)]
     [SerializeField] private int grabbedBoneCount = 0;
-    [Tooltip("grabbedBoneCount=0(안 잡음)일 때만 사용. 머리 뼈를 손끝 홀더에 HingeJoint로 매달 때 머리가 회전할 수 있는 최대 각(강성). 작을수록 뻣뻣, 90이면 제한 없이 자유 스윙.")]
+    [Tooltip("grabbedBoneCount=0(안 잡음)일 때만 사용. 머리 뼈를 홀더에 HingeJoint로 매달 때 머리가 회전할 수 있는 최대 각(강성). 작을수록 뻣뻣, 90이면 제한 없이 자유 스윙.")]
     [Range(0f, 90f)]
     [SerializeField] private float headSwingLimit = 35f;
 

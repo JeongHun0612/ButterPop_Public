@@ -9,12 +9,12 @@ public partial class SquishBody
     {
         if (length <= 0f || width <= 0f) return;
 
-        Vector3 axis = fingertip != null ? Vector3.down : transform.right;
-        Vector3 side = fingertip != null ? Vector3.right : transform.up;
+        Vector3 axis = holderAnchor != null ? Vector3.down : transform.right;
+        Vector3 side = holderAnchor != null ? Vector3.right : transform.up;
         float halfLength = length * 0.5f;
         float halfWidth = width * 0.5f;
-        Vector3 center = fingertip != null
-            ? fingertip.position + axis * halfLength
+        Vector3 center = holderAnchor != null
+            ? holderAnchor.position + axis * halfLength
             : transform.position;
 
         // 전체 형태(직사각형), 옅게

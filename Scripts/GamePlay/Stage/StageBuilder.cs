@@ -6,8 +6,6 @@ using UnityEngine.Serialization;
 public class StageBuilder : MonoBehaviour
 {
     [Header("프리팹")]
-    [Tooltip("붙잡는 손 + 중첩 Squish를 담은 HandRig 프리팹. 루트 원점 = 매달림 점(손끝).")]
-    [FormerlySerializedAs("squishPrefab")]
     [SerializeField] private GameObject squishRigPrefab;
     [SerializeField] private GameObject armPrefab;
 
