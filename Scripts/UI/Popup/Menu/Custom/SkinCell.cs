@@ -1,4 +1,5 @@
 using System;
+using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,6 +23,7 @@ public class SkinCell : MonoBehaviour
 
     private SkinDataSO _data;
     private Action<SkinDataSO> _onClick;
+    private int _bindVersion;
 
     public SkinDataSO Data => _data;
 
@@ -37,7 +39,7 @@ public class SkinCell : MonoBehaviour
         _onClick = onClick;
 
         if (icon != null) icon.sprite = data.icon;
-        if (nameText != null) nameText.text = data.displayName;
+        RefreshNameAsync(data, ++_bindVersion).Forget();
 
         // 에디터에서는 개발 편의상 보유 여부와 무관하게 잠금을 해제하고, 빌드에서는 실제 보유 여부를 반영한다.
         if (lockOverlay != null)
@@ -54,5 +56,17 @@ public class SkinCell : MonoBehaviour
     public void SetSelected(bool selected)
     {
         if (selectedFrame != null) selectedFrame.SetActive(selected);
+    }
+
+    private async UniTaskVoid RefreshNameAsync(SkinDataSO data, int bindVersion)
+    {
+        if (nameText == null) return;
+
+        string localizedName = data.LocalizedName == null || data.LocalizedName.IsEmpty
+            ? data.id
+            : await data.LocalizedName.GetLocalizedStringAsync();
+
+        if (bindVersion == _bindVersion && _data == data)
+            nameText.text = localizedName;
     }
 }

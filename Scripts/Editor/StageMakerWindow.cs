@@ -10,8 +10,6 @@ public class StageMakerWindow : EditorWindow
     private class WorkingData : ScriptableObject
     {
         public string stageId = DefaultStageId;
-        public string stageName = "";
-        public string stageDescription = "";
         public Vector2 squishSpawnPosition = DefaultSquishSpawnPosition;
         public Vector2 armPosition = DefaultArmPosition;
         public Vector2 cameraCenter = Vector2.zero;
@@ -182,8 +180,6 @@ public class StageMakerWindow : EditorWindow
         RecordUndo("Load StageData");
 
         _data.stageId = so.stageId;
-        _data.stageName = so.stageName;
-        _data.stageDescription = so.stageDescription;
         _data.squishSpawnPosition = so.squishSpawnPosition;
         _data.armPosition = so.armPosition;
         _data.cameraCenter = so.cameraCenter;
@@ -219,14 +215,10 @@ public class StageMakerWindow : EditorWindow
 
         EditorGUI.BeginChangeCheck();
         string newId = EditorGUILayout.TextField("Stage Id", _data.stageId);
-        string newName = EditorGUILayout.TextField("Stage Name", _data.stageName);
-        string newDescription = EditorGUILayout.TextArea(_data.stageDescription, GUILayout.MinHeight(60));
         if (EditorGUI.EndChangeCheck())
         {
             RecordUndo("Edit Stage Info");
             _data.stageId = newId;
-            _data.stageName = newName;
-            _data.stageDescription = newDescription;
         }
     }
 
@@ -962,9 +954,6 @@ public class StageMakerWindow : EditorWindow
     private void ApplyWorkingDataToSO(StageDataSO so)
     {
         so.stageId = _data.stageId;
-        // 표시 이름이 비어 있으면 식별자를 그대로 사용한다.
-        so.stageName = string.IsNullOrEmpty(_data.stageName) ? _data.stageId : _data.stageName;
-        so.stageDescription = _data.stageDescription;
         so.squishSpawnPosition = _data.squishSpawnPosition;
         so.armPosition = _data.armPosition;
         so.cameraCenter = _data.cameraCenter;
@@ -1067,8 +1056,6 @@ public class StageMakerWindow : EditorWindow
 
         RecordUndo("Reset Stage Maker");
         _data.stageId = DefaultStageId;
-        _data.stageName = "";
-        _data.stageDescription = "";
         _data.squishSpawnPosition = DefaultSquishSpawnPosition;
         _data.armPosition = DefaultArmPosition;
         _data.cameraCenter = Vector2.zero;

@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.Localization;
 using UnityEngine.Serialization;
 
 [CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage/Stage Data")]
@@ -31,9 +32,9 @@ public class StageDataSO : ScriptableObject
     [Header("스테이지 정보")]
     // 내부 식별자. 순서(인덱스)와 무관하게 스테이지를 구분한다. 에셋 네이밍·로그·디버그에 사용.
     public string stageId;
-    // 외부 노출용 표시 이름. UI(스테이지 선택 등)에 노출된다.
-    public string stageName;
-    [TextArea] public string stageDescription;
+    [SerializeField] private LocalizedString localizedName = new();
+
+    public LocalizedString LocalizedName => localizedName;
 
     [Header("스퀴시 낙하 시작점")]
     [FormerlySerializedAs("bananaSpawnPosition")]

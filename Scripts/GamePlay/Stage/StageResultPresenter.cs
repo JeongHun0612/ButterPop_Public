@@ -74,7 +74,14 @@ public class StageResultPresenter : MonoBehaviour
         Debug.Assert(stageManager != null, "[StageResultPresenter] StageManager가 없습니다");
 
         var popup = uiManager.GetPanel<UIStageReady>();
-        popup.Refresh(stageManager.CurrentStageIndex, stageManager.CurrentStageData.stageDescription);
+        if (popup == null)
+        {
+            Debug.LogError("[StageResultPresenter] UIStageReady 패널이 없어 준비 화면을 띄우지 못했습니다");
+            return;
+        }
+
+        var currentSkin = stageManager.Squish != null ? stageManager.Squish.CurrentSkin : null;
+        await popup.RefreshAsync(stageManager.CurrentStageIndex, stageManager.CurrentStageData, currentSkin);
         await uiManager.ShowPopup<UIStageReady>();
     }
 

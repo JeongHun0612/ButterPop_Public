@@ -31,6 +31,7 @@ public class Squish : MonoBehaviour
 
     public SquishBody Body => body;
     public SquishSimpleMesh Mesh => mesh;
+    public SquishSkinSO CurrentSkin { get; private set; }
     public bool CanDrop => !_released && !_dropRequested && craneRig != null && !craneRig.IsPlaying;
 
     private void Awake()
@@ -75,6 +76,7 @@ public class Squish : MonoBehaviour
     // 장착된 스퀴시 스킨(스프라이트 + 타격음)을 렌더러에 반영한다.
     public void ApplySkin(SquishSkinSO skin)
     {
+        CurrentSkin = skin;
         if (mesh != null) mesh.ApplySkin(skin);
     }
 

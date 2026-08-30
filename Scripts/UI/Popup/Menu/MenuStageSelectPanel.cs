@@ -26,6 +26,7 @@ public class MenuStageSelectPanel : MonoBehaviour
     private int _activeCellCount;
     private bool _layoutReady;
     private Func<UniTask> _closeMenu;
+    private int _refreshVersion;
 
     private void LateUpdate()
     {
@@ -57,7 +58,6 @@ public class MenuStageSelectPanel : MonoBehaviour
     public void Initialize(Func<UniTask> closeMenu)
     {
         _closeMenu = closeMenu;
-
         var stageManager = StageManager.Instance;
         Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
 
@@ -79,7 +79,13 @@ public class MenuStageSelectPanel : MonoBehaviour
 
     public void Refresh()
     {
+        RefreshAsync().Forget();
+    }
+
+    private async UniTaskVoid RefreshAsync()
+    {
         if (_activeCellCount == 0) return;
+        int refreshVersion = ++_refreshVersion;
 
         // 레이아웃 측정은 패널이 활성화되어 뷰포트 크기가 확정된 뒤(최초 Refresh) 1회 수행한다.
         if (!_layoutReady)
@@ -91,8 +97,23 @@ public class MenuStageSelectPanel : MonoBehaviour
         var stageManager = StageManager.Instance;
         Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
 
+        var revealed = new bool[_activeCellCount];
+        var nameTasks = new UniTask<string>[_activeCellCount];
+
         for (int i = 0; i < _activeCellCount; i++)
-            _cellPool[i].Bind(i, BuildLabel(i, stageManager));
+        {
+            revealed[i] = !lockUnrevealed || i <= stageManager.GetHighestClearedIndex() + 1;
+            var data = stageManager.GetStageData(i);
+            nameTasks[i] = revealed[i] && data != null
+                ? GetLocalizedNameAsync(data)
+                : UniTask.FromResult(string.Empty);
+        }
+
+        string[] names = await UniTask.WhenAll(nameTasks);
+        if (refreshVersion != _refreshVersion) return;
+
+        for (int i = 0; i < _activeCellCount; i++)
+            _cellPool[i].Bind(i, BuildLabel(i, revealed[i], names[i]));
 
         int start = Mathf.Clamp(stageManager.CurrentStageIndex, 0, _activeCellCount - 1);
         wheel.MoveTo(start, instant: true);
@@ -119,15 +140,19 @@ public class MenuStageSelectPanel : MonoBehaviour
             _cellPool[i].Rect.anchoredPosition = new Vector2(0f, wheel.GetItemY(i));
     }
 
-    private string BuildLabel(int index, StageManager stageManager)
+    private static string BuildLabel(int index, bool revealed, string localizedName)
     {
-        bool revealed = !lockUnrevealed || index <= stageManager.GetHighestClearedIndex() + 1;
-
         if (!revealed) return $"#{index + 1} ???";
 
-        var data = stageManager.GetStageData(index);
-        string name = data != null ? data.stageName : string.Empty;
-        return $"#{index + 1} {name}".TrimEnd();
+        return $"#{index + 1} {localizedName}".TrimEnd();
+    }
+
+    private static async UniTask<string> GetLocalizedNameAsync(StageDataSO data)
+    {
+        if (data.LocalizedName == null || data.LocalizedName.IsEmpty)
+            return data.stageId;
+
+        return await data.LocalizedName.GetLocalizedStringAsync();
     }
 
     private async UniTaskVoid ConfirmAndCloseAsync(int index)
