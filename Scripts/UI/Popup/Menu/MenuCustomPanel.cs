@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+[ExecuteAlways]
 public class MenuCustomPanel : MonoBehaviour
 {
     [Header("데이터")]
@@ -22,13 +23,29 @@ public class MenuCustomPanel : MonoBehaviour
 
     private ISkinService _service;
     private readonly List<SkinPage> _pagePool = new();
+    private ScrollRect _scrollRect;
+    private float _pageWidth;
+    private bool _isResizingPages;
     private int _activePageCount;
     private SkinTabSO _currentTab;
     private SkinDataSO _selected;
 
+    private void OnEnable()
+    {
+        if (Application.isPlaying) return;
+
+        ResizePagesToViewport();
+    }
+
+    private void OnRectTransformDimensionsChange()
+    {
+        ResizePagesToViewport();
+    }
+
     public void Initialize()
     {
         _service = Services.Get<ISkinService>();
+        if (pagedScroll != null) _scrollRect = pagedScroll.GetComponent<ScrollRect>();
 
         if (prevButton != null) prevButton.OnClickWithSound(() => pagedScroll.MovePrev());
         if (nextButton != null) nextButton.OnClickWithSound(() => pagedScroll.MoveNext());
@@ -63,6 +80,7 @@ public class MenuCustomPanel : MonoBehaviour
 
         _selected = FindEquipped() ?? _currentTab.skins[0];
 
+        ResizePagesToViewport();
         BuildPages();
     }
 
@@ -92,6 +110,12 @@ public class MenuCustomPanel : MonoBehaviour
     {
         var skins = _currentTab.skins;
         int perPage = pagePrefab.Capacity;
+        if (perPage <= 0)
+        {
+            Debug.LogError("[MenuCustomPanel] SkinPage에 표시 가능한 셀이 없습니다");
+            return;
+        }
+
         int totalPages = Mathf.Max(1, Mathf.CeilToInt((float)skins.Count / perPage));
 
         // 페이지 풀링: 부족하면 생성, 남으면 비활성화. 각 페이지가 자기 셀을 세팅
@@ -114,9 +138,53 @@ public class MenuCustomPanel : MonoBehaviour
     private SkinPage GetPage(int index)
     {
         while (_pagePool.Count <= index)
-            _pagePool.Add(Instantiate(pagePrefab, content));
+        {
+            var page = Instantiate(pagePrefab, content);
+            ApplyPageWidth(page);
+            _pagePool.Add(page);
+        }
 
         return _pagePool[index];
+    }
+
+    private void ResizePagesToViewport()
+    {
+        if (_isResizingPages || pagedScroll == null || content == null) return;
+
+        if (_scrollRect == null) _scrollRect = pagedScroll.GetComponent<ScrollRect>();
+        if (_scrollRect == null || _scrollRect.viewport == null) return;
+
+        _isResizingPages = true;
+        Canvas.ForceUpdateCanvases();
+
+        float viewportWidth = _scrollRect.viewport.rect.width;
+        if (viewportWidth <= 0)
+        {
+            _isResizingPages = false;
+            return;
+        }
+
+        _pageWidth = viewportWidth;
+
+        for (int i = 0; i < content.childCount; i++)
+        {
+            var page = content.GetChild(i).GetComponent<SkinPage>();
+            ApplyPageWidth(page);
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+
+        if (_activePageCount > 0)
+            pagedScroll.MoveTo(pagedScroll.CurrentPage, true);
+
+        _isResizingPages = false;
+    }
+
+    private void ApplyPageWidth(SkinPage page)
+    {
+        if (page == null || _pageWidth <= 0) return;
+
+        page.SetWidth(_pageWidth);
     }
 
     private void UpdatePageUI()
