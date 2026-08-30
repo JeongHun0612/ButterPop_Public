@@ -45,12 +45,8 @@ public class InputManager : MonoBehaviour
 
     private void BeginGesture(GameState state)
     {
-        if (state == GameState.Ready)
-        {
-            if (_squish != null && _squish.CanDrop)
-                _squish.Drop();
-            return;
-        }
+        if (state == GameState.Ready && _squish != null && _squish.CanDrop)
+            _squish.Drop();
 
         if (state != GameState.Result && _armController != null)
             _armController.Raise();
