@@ -4,6 +4,10 @@ public static class ServiceBootstrap
 {
     public static async UniTask Initialize()
     {
+        var localization = new LocalizationService();
+        await localization.InitializeAsync();
+        Services.Register<ILocalizationService>(localization);
+
         // 세이브 서비스: 파일에서 세이브를 비동기로 로드한 뒤 등록한다.
         // 다른 서비스들이 세이브 데이터에 의존하므로 가장 먼저 준비한다.
         var save = await SaveService.CreateAsync(new FileSaveStorage("save.dat"));
