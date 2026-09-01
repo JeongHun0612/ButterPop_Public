@@ -34,7 +34,8 @@ public class LevelPlayProvider : IAdProvider
     private LevelPlayInterstitialAd _interstitial;
     private LevelPlayRewardedAd _rewarded;
 
-    private bool _bannerShown;
+    private bool _bannerLoadRequested;   // LoadAd 중복 호출 방지.
+    private bool _bannerVisible;         // 배너가 실제로 화면에 노출 중인지.
 
     // 표시 중인 전면/리워드의 완료를 await로 받기 위한 완료 소스.
     private UniTaskCompletionSource<bool> _interstitialShowTcs;
@@ -56,7 +57,7 @@ public class LevelPlayProvider : IAdProvider
     {
         get
         {
-            if (_banner == null) return 0f;
+            if (!_bannerVisible) return 0f;
             float density = Screen.dpi > 0f ? Screen.dpi / 160f : 2.75f;
             return _bannerHeightDp * density;
         }
@@ -109,16 +110,24 @@ public class LevelPlayProvider : IAdProvider
     public void ShowBanner()
     {
         if (_banner == null) return;
-        if (!_bannerShown)
+        if (!_bannerLoadRequested)
         {
-            _bannerShown = true;
+            _bannerLoadRequested = true;
             _banner.LoadAd(); // displayOnLoad=true 이므로 로드 완료 시 자동 표시된다.
             return;
         }
+
+        // Hide는 배너 제거 구매 경로뿐이라, 로드 실패 상태로 여기 오지 않는다.
         _banner.ShowAd();
+        _bannerVisible = true;
     }
 
-    public void HideBanner() => _banner?.HideAd();
+    public void HideBanner()
+    {
+        if (_banner == null) return;
+        _banner.HideAd();
+        _bannerVisible = false;
+    }
 
     public void LoadInterstitial() => _interstitial?.LoadAd();
 
@@ -147,13 +156,17 @@ public class LevelPlayProvider : IAdProvider
     {
         // 상단 중앙 + 세이프에어리어 준수(노치/상태바 회피).
         _bannerSize = LevelPlayAdSize.BANNER;
-        _bannerHeightDp = _bannerSize.Height; // dp 높이 1회 캐시
+        _bannerHeightDp = _bannerSize.Height; // 로드 전 폴백 dp 높이
         var config = new LevelPlayBannerAd.Config.Builder()
             .SetSize(_bannerSize)
             .SetPosition(BannerPos)
             .SetRespectSafeArea(true)
             .Build();
         _banner = new LevelPlayBannerAd(BannerAdUnitId, config);
+
+        _banner.OnAdLoaded += OnBannerLoaded;
+        _banner.OnAdLoadFailed += OnBannerLoadFailed;
+        _banner.OnAdDisplayFailed += OnBannerDisplayFailed;
     }
 
     private void CreateInterstitial()
@@ -177,6 +190,25 @@ public class LevelPlayProvider : IAdProvider
     {
         await UniTask.NextFrame();
         _rewardedShowTcs?.TrySetResult(_rewardGranted);
+    }
+
+    // 실제 로드된 광고 높이를 우선 사용한다(어댑티브·커스텀 크기 대응).
+    private void OnBannerLoaded(LevelPlayAdInfo info)
+    {
+        int height = info?.AdSize?.Height ?? 0;
+        if (height > 0) _bannerHeightDp = height;
+
+        _bannerVisible = true;
+    }
+
+    // 자동 갱신 실패 시 직전 배너가 그대로 남으므로 노출 플래그는 건드리지 않는다.
+    private void OnBannerLoadFailed(LevelPlayAdError error) =>
+        Debug.LogWarning($"[LevelPlayProvider] 배너 로드 실패: {error}");
+
+    private void OnBannerDisplayFailed(LevelPlayAdInfo info, LevelPlayAdError error)
+    {
+        Debug.LogWarning($"[LevelPlayProvider] 배너 표시 실패: {error}");
+        _bannerVisible = false;
     }
 }
 #endif

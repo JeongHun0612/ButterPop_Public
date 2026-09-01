@@ -10,7 +10,7 @@ public interface IAdProvider
     // 배너
     void ShowBanner();
     void HideBanner();
-    float BannerHeightPixels { get; }   // 배너가 차지하는 화면 높이(px). 배너 없으면 0.
+    float BannerHeightPixels { get; }   // 배너가 차지하는 화면 높이(px). 실제 노출 중이 아니면 0.
     BannerSide BannerSide { get; }       // 배너가 붙는 방향(상/하)
 
     // 전면(인터스티셜)
