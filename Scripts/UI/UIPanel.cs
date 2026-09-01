@@ -12,14 +12,17 @@ public abstract class UIPanel : MonoBehaviour
     {
         gameObject.SetActive(true);
 
-        SetShowGuard(true);
+        SetInputGuard(true);
         await OnShowAnimation();
         await OnShow();
-        SetShowGuard(false);
+        SetInputGuard(false);
     }
 
     public async UniTask Hide(bool instant = false)
     {
+        // 숨김 연출 중 다시 눌리면 Hide가 중복 실행되고 OnAfterHide도 두 번 돈다.
+        SetInputGuard(true);
+
         if (!instant) await OnHideAnimation();
         await OnHide();
         gameObject.SetActive(false);
@@ -30,8 +33,8 @@ public abstract class UIPanel : MonoBehaviour
     protected virtual UniTask OnHideAnimation() => UniTask.CompletedTask;
     protected virtual UniTask OnHide() => UniTask.CompletedTask;
 
-    // 연출이 끝나기 전에 들어온 클릭을 막는다.
-    protected virtual void SetShowGuard(bool guarded) { }
+    // 표시·숨김 연출 중에 들어온 클릭을 막는다.
+    protected virtual void SetInputGuard(bool guarded) { }
 
     public virtual void OnBeforeShow() { }
     public virtual void OnAfterHide() { }

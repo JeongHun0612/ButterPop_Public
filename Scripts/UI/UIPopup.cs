@@ -24,7 +24,7 @@ public abstract class UIPopup : UIPanel
     }
 
     // 컨텐츠의 raycast를 끄면 클릭이 Dimmed의 Image에서 멈춘다. 그 사이 Dimmed로 닫히지 않게 함께 잠근다.
-    protected override void SetShowGuard(bool guarded)
+    protected override void SetInputGuard(bool guarded)
     {
         if (content != null) content.blocksRaycasts = !guarded;
         if (dimmed != null) dimmed.interactable = !guarded;
