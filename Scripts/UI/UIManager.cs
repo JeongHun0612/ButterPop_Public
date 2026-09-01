@@ -110,7 +110,38 @@ public class UIManager : MonoSingleton<UIManager>
         return target;
     }
 
-    public async UniTask HidePopup(bool instant = false)
+    // 스택 중간에 깔려 있어도 자기 자신만 닫는다.
+    public async UniTask HidePopup(UIPopup target, bool instant = false)
+    {
+        if (target == null) return;
+        if (!target.gameObject.activeSelf) return;
+
+        if (_popupStack.Count > 0 && _popupStack.Peek() == target)
+        {
+            await HideTopPopup(instant);
+            return;
+        }
+
+        // 스택에 없는 상태여도 닫히긴 해야 한다. 안 그러면 닫기 버튼이 먹통이 된다.
+        RemoveFromStack(target);
+
+        await target.Hide(instant);
+        target.OnAfterHide();
+    }
+
+    public async UniTask HideAllPopups(bool instant = true)
+    {
+        while (_popupStack.Count > 0)
+            await HideTopPopup(instant);
+    }
+
+    public T GetPanel<T>() where T : UIPanel
+    {
+        _panels.TryGetValue(typeof(T), out var panel);
+        return panel as T;
+    }
+
+    private async UniTask HideTopPopup(bool instant)
     {
         if (_popupStack.Count == 0) return;
 
@@ -119,16 +150,17 @@ public class UIManager : MonoSingleton<UIManager>
         popup.OnAfterHide();
     }
 
-    public async UniTask HideAllPopups(bool instant = true)
+    // Stack은 임의 위치 제거가 없어 대상만 빼고 다시 쌓는다.
+    private void RemoveFromStack(UIPopup target)
     {
-        while (_popupStack.Count > 0)
-            await HidePopup(instant);
-    }
+        if (!_popupStack.Contains(target)) return;
 
-    public T GetPanel<T>() where T : UIPanel
-    {
-        _panels.TryGetValue(typeof(T), out var panel);
-        return panel as T;
+        var remains = new List<UIPopup>(_popupStack);   // top → bottom 순서
+        remains.Remove(target);
+        _popupStack.Clear();
+
+        for (int i = remains.Count - 1; i >= 0; i--)
+            _popupStack.Push(remains[i]);
     }
 
     private bool TryGetPanel<T>(out T panel) where T : UIPanel

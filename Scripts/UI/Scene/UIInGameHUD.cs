@@ -216,9 +216,15 @@ public class UIInGameHUD : UIScene
     // 메뉴 팝업이 떠 있는 동안 메뉴 버튼을 숨기고, 팝업이 닫히면 복구한다.
     private async UniTaskVoid ShowMenuAsync()
     {
+        var uiManager = UIManager.Instance;
+        Debug.Assert(uiManager != null, "[UIInGameHUD] UIManager가 없습니다");
+
+        // 다른 팝업이 떠 있는 동안엔 열지 않는다. 그 팝업이 스택에 깔린 채 남으면 화면이 잠긴다.
+        if (uiManager.CurrentPopup != null) return;
+
         if (menuButton != null) menuButton.gameObject.SetActive(false);
 
-        var menu = await UIManager.Instance.ShowPopup<UIMenu>();
+        var menu = await uiManager.ShowPopup<UIMenu>();
         if (menu == null)
         {
             if (menuButton != null) menuButton.gameObject.SetActive(true);

@@ -3,8 +3,6 @@ using UnityEngine;
 
 public abstract class UIPanel : MonoBehaviour
 {
-    private CanvasGroup _canvasGroup;
-
     public virtual void Initialize()
     {
         gameObject.SetActive(false);
@@ -14,10 +12,10 @@ public abstract class UIPanel : MonoBehaviour
     {
         gameObject.SetActive(true);
 
-        SetInteractable(false);
+        SetShowGuard(true);
         await OnShowAnimation();
         await OnShow();
-        SetInteractable(true);
+        SetShowGuard(false);
     }
 
     public async UniTask Hide(bool instant = false)
@@ -32,14 +30,9 @@ public abstract class UIPanel : MonoBehaviour
     protected virtual UniTask OnHideAnimation() => UniTask.CompletedTask;
     protected virtual UniTask OnHide() => UniTask.CompletedTask;
 
+    // 연출이 끝나기 전에 들어온 클릭을 막는다.
+    protected virtual void SetShowGuard(bool guarded) { }
+
     public virtual void OnBeforeShow() { }
     public virtual void OnAfterHide() { }
-
-    private void SetInteractable(bool value)
-    {
-        if (_canvasGroup == null && !TryGetComponent(out _canvasGroup))
-            _canvasGroup = gameObject.AddComponent<CanvasGroup>();
-
-        _canvasGroup.blocksRaycasts = value;
-    }
 }

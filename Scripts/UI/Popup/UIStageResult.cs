@@ -113,13 +113,13 @@ public class UIStageResult : UIPopup
 
     private void OnClickRetry()
     {
-        UIManager.Instance.HidePopup().Forget();
+        UIManager.Instance.HidePopup(this).Forget();
         StageManager.Instance.LoadStage(StageManager.Instance.CurrentStageIndex);
     }
 
     private void OnClickNext()
     {
-        UIManager.Instance.HidePopup().Forget();
+        UIManager.Instance.HidePopup(this).Forget();
         StageManager.Instance.LoadNextStage();
     }
 }

@@ -54,7 +54,7 @@ public class MenuStageSelectPanel : MonoBehaviour
         _cellPool[nearest].SetSelected(true);
     }
 
-    /// <param name="closeMenu">스테이지 확정 시 메뉴 전체를 닫는 콜백 (보통 UIManager.HidePopup)</param>
+    /// <param name="closeMenu">스테이지 확정 시 메뉴 전체를 닫는 콜백</param>
     public void Initialize(Func<UniTask> closeMenu)
     {
         _closeMenu = closeMenu;

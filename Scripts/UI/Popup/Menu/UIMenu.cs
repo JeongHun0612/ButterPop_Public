@@ -17,7 +17,7 @@ public class UIMenu : UIPopup
         base.Initialize();
 
         if (storePanel != null) storePanel.Initialize();
-        if (stagePanel != null) stagePanel.Initialize(() => UIManager.Instance.HidePopup());
+        if (stagePanel != null) stagePanel.Initialize(() => UIManager.Instance.HidePopup(this));
         if (customPanel != null) customPanel.Initialize();
 
         if (closeButton != null) closeButton.OnClickWithSound(OnClickBack);
