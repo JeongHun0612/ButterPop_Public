@@ -10,7 +10,8 @@ public class Squish : MonoBehaviour
     [Header("하위 컴포넌트 (비우면 Awake에서 자동 할당)")]
     [SerializeField] private SquishSettleDetector settleDetector;
     [SerializeField] private SquishBody body;
-    [SerializeField] private SquishSimpleMesh mesh;
+    [SerializeField] private SquishMesh mesh;
+    [SerializeField] private SquishImpactAudio impactAudio;
     [SerializeField] private CraneRig craneRig;
 
     [Header("앵커")]
@@ -30,7 +31,7 @@ public class Squish : MonoBehaviour
     public event Action OnFell;
 
     public SquishBody Body => body;
-    public SquishSimpleMesh Mesh => mesh;
+    public SquishMesh Mesh => mesh;
     public SquishSkinSO CurrentSkin { get; private set; }
     public bool CanDrop => !_released && !_dropRequested && craneRig != null && !craneRig.IsPlaying;
 
@@ -38,7 +39,8 @@ public class Squish : MonoBehaviour
     {
         if (settleDetector == null) settleDetector = GetComponentInChildren<SquishSettleDetector>(true);
         if (body == null) body = GetComponentInChildren<SquishBody>(true);
-        if (mesh == null) mesh = GetComponentInChildren<SquishSimpleMesh>(true);
+        if (mesh == null) mesh = GetComponentInChildren<SquishMesh>(true);
+        if (impactAudio == null) impactAudio = GetComponentInChildren<SquishImpactAudio>(true);
         if (craneRig == null) craneRig = GetComponentInChildren<CraneRig>(true);
 
         if (settleDetector == null || body == null || mesh == null || craneRig == null || craneRig.Body == null)
@@ -73,11 +75,18 @@ public class Squish : MonoBehaviour
         }
     }
 
-    // 장착된 스퀴시 스킨(스프라이트 + 타격음)을 렌더러에 반영한다.
+    // 장착된 스킨의 이미지와 타격음을 함께 갱신한다.
     public void ApplySkin(SquishSkinSO skin)
     {
+        if (skin == null || skin.sprite == null)
+        {
+            Debug.LogWarning("[Squish] 스프라이트가 없는 스킨은 적용할 수 없습니다.", this);
+            return;
+        }
+
         CurrentSkin = skin;
         if (mesh != null) mesh.ApplySkin(skin);
+        if (impactAudio != null) impactAudio.ApplySkin(skin);
     }
 
     public void SetSpawnPosition(Vector2 spawnPosition) => _spawnPosition = spawnPosition;
@@ -96,6 +105,7 @@ public class Squish : MonoBehaviour
         body.SetKinematic(true);
         body.ResetPoseFromLeadingEdge(GetPinPoint(), HangingAngleDeg);
         mesh.ResetShape();
+        if (impactAudio != null) impactAudio.ResetCooldown();
         settleDetector.ResetState();
 
         // 다시 Dynamic으로 살리고 잔여 속도를 청소한 뒤, 크레인의 물리 홀더에 붙잡는다.

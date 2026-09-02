@@ -21,7 +21,7 @@ public class Fire : MonoBehaviour, IStageContextReceiver
     [Tooltip("타기 시작할 때 한 번 재생할 클립")]
     [SerializeField] private AudioClip burnClip;
 
-    private SquishSimpleMesh _mesh;
+    private SquishMesh _mesh;
     private float _burnProgress;
 
     private void Awake()
