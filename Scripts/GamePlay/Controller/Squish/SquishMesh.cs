@@ -14,52 +14,43 @@ public class SquishMesh : MonoBehaviour
     [SerializeField] private string sortingLayerName = "Default";
     [SerializeField] private int sortingOrder = 10;
 
+    [Header("표면 분할")]
+    [Tooltip("뼈 구간당 표면 분할 수. 높이면 눌림의 윤곽이 매끄러워진다. 플레이 시작 시 반영된다.")]
+    [Range(1, 4)][SerializeField] private int surfaceSubdivisions = 2;
+
     [Header("스퀴시 On/Off")]
     [Tooltip("메시의 출렁임·눌림만 전환한다. 꺼도 뼈의 굽힘과 타격음은 유지된다. 런타임 변경 가능.")]
     [SerializeField] private bool squishEnabled = true;
 
-    [Header("스퀴시 복원 / 형상")]
-    [Tooltip("목표 형상으로 돌아가는 강도. 높을수록 복원이 빠르다.")]
-    [Range(0f, 1f)] [SerializeField] private float followStiffness = 0.08f;
-    [Range(0f, 1f)] [SerializeField] private float structuralStiffness = 0.65f;
-    [Range(0f, 1f)] [SerializeField] private float shearStiffness = 0.25f;
-    [Tooltip("외곽의 2D 면적을 보존하는 강도.")]
-    [Range(0f, 1f)] [SerializeField] private float pressureStiffness = 0.85f;
-    [Min(0.01f)] [SerializeField] private float inflate = 1f;
-
-    [Header("스퀴시 시뮬레이션")]
-    [Range(1, 16)] [SerializeField] private int constraintIterations = 6;
-    [Tooltip("충돌 후 남는 관성을 줄이는 비율. 높을수록 잔진동이 빨리 사라진다.")]
-    [Range(0f, 1f)] [SerializeField] private float velocityDamping = 0.25f;
-    [Tooltip("뼈를 따르는 목표 정점에서 벗어날 수 있는 최대 월드 거리.")]
-    [Min(0f)] [SerializeField] private float maxDeformation = 0.08f;
-
-    [Header("스퀴시 충돌 반응")]
-    [Min(0f)] [SerializeField] private float impulseScale = 0.5f;
-    [Tooltip("충돌이 주변 정점에 전달되는 월드 반경. 성긴 띠 메시의 정점 간격을 고려해 설정한다.")]
-    [Min(0.01f)] [SerializeField] private float impulseRadius = 0.18f;
-    [Tooltip("한 물리 스텝에서 정점별로 누적할 수 있는 충격 속도의 최댓값.")]
-    [Min(0f)] [SerializeField] private float maxImpulse = 6f;
+    [Header("버터 스퀴시")]
+    [Tooltip("높일수록 쉽게 눌리고 변형 범위가 커진다. 0이면 변형하지 않는다.")]
+    [Range(0f, 1f)] [SerializeField] private float softness = 0.8f;
+    [Tooltip("한 번 눌린 뒤 약 95% 복원되는 기준 시간(초). 낮을수록 빠르다. 잔반동에 따라 실제 시간은 조금 달라진다.")]
+    [Range(0.05f, 1f)] [SerializeField] private float recoveryTime = 0.18f;
+    [Tooltip("0이면 반동 없이 복원한다. 높일수록 원래 형태를 지나쳐 잠깐 출렁인다.")]
+    [Range(0f, 1f)] [SerializeField] private float rebound = 0f;
+    [Tooltip("충돌 순간 눌림의 강도. 0이면 새 충돌에 반응하지 않는다. 최대 변형은 말랑함에 따라 제한된다.")]
+    [Range(0f, 2f)] [SerializeField] private float impactStrength = 1f;
 
     private Mesh _mesh;
     private Material _material;
     private GameObject _visualGo;
     private Vector3[] _vertices;
+    private Color[] _colors;
+    private MeshRenderer _renderer;
 
     private IReadOnlyList<Rigidbody2D> _bones;
     private float _halfLength;
     private float _halfWidth;
     private Color _tint = Color.white;
 
-    // 시뮬레이션은 월드 좌표, 메시 출력은 기존 자식 Transform의 로컬 좌표.
-    private Vector2[] _positions;
-    private Vector2[] _previousPositions;
+    private SquishDeformationSolver _solver;
+    private int _subdivisions;
+    private int _ringCount;
+    // 목표 정점은 월드 좌표. Solver의 상대 변형을 더한 뒤 로컬 메시로 출력한다.
     private Vector2[] _goals;
-    private Vector2[] _previousGoals;
     private Vector2[] _renderGoals;
-    private Vector2[] _pendingKicks;
-    private Vector2[] _areaGradients;
-    private int[] _boundary;
+    private Vector2[] _offsets;
     private bool _wasSquishEnabled;
     private bool _subscribed;
 
@@ -102,6 +93,8 @@ public class SquishMesh : MonoBehaviour
         _bones = body.BoneRigidbodies;
         _halfLength = body.Length * 0.5f;
         _halfWidth = body.Width * 0.5f;
+        _subdivisions = Mathf.Clamp(surfaceSubdivisions, 1, 4);
+        _ringCount = _bones.Count * _subdivisions + 1;
 
         BuildMesh();
         BuildSimulation();
@@ -122,7 +115,7 @@ public class SquishMesh : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeCollision();
-        ClearPendingKicks();
+        _solver?.Reset();
         if (_visualGo != null) _visualGo.SetActive(false);
     }
 
@@ -133,14 +126,16 @@ public class SquishMesh : MonoBehaviour
         if (_mesh == null) return;
         // Inspector 변경도 코드 API와 동일하게 잔여 관성을 초기화한다.
         if (_wasSquishEnabled != squishEnabled) ResetSimulation();
+        ConfigureSolver();
         WriteMesh();
     }
 
     public void SetTint(Color color)
     {
         _tint = color;
-        if (_mesh != null)
-            _mesh.colors = SolidColors(_vertices.Length, _tint);
+        if (_mesh == null) return;
+        for (int i = 0; i < _colors.Length; i++) _colors[i] = color;
+        _mesh.colors = _colors;
     }
 
     public void ResetShape()
@@ -166,7 +161,7 @@ public class SquishMesh : MonoBehaviour
         if (_mesh == null || _material == null) return;
 
         _material.mainTexture = skin.sprite.texture;
-        _mesh.uv = BuildRingUVs(_bones.Count + 1);
+        _mesh.uv = BuildRingUVs(_ringCount);
     }
 
     private void BuildMesh()
@@ -179,11 +174,13 @@ public class SquishMesh : MonoBehaviour
 
         var filter = _visualGo.AddComponent<MeshFilter>();
         var renderer = _visualGo.AddComponent<MeshRenderer>();
+        _renderer = renderer;
 
-        int rings = _bones.Count + 1;
+        int rings = _ringCount;
         int vertexCount = rings * 2;
 
         _vertices = new Vector3[vertexCount];
+        _colors = SolidColors(vertexCount, _tint);
         var uvs = BuildRingUVs(rings);
         var normals = new Vector3[vertexCount];
         var triangles = new int[(rings - 1) * 6];
@@ -209,7 +206,7 @@ public class SquishMesh : MonoBehaviour
         _mesh.MarkDynamic();
         _mesh.vertices = _vertices;
         _mesh.uv = uvs;
-        _mesh.colors = SolidColors(vertexCount, _tint);
+        _mesh.colors = _colors;
         _mesh.normals = normals;
         _mesh.triangles = triangles;
         _mesh.RecalculateBounds();
@@ -228,7 +225,7 @@ public class SquishMesh : MonoBehaviour
     {
         if (_bones == null || goals == null) return false;
 
-        int rings = _bones.Count + 1;
+        int rings = _ringCount;
         for (int r = 0; r < rings; r++)
         {
             if (!RingPose(r, physicsPose, out Vector2 center, out Vector2 side))
@@ -248,6 +245,20 @@ public class SquishMesh : MonoBehaviour
     }
 
     private bool RingPose(int ring, bool physicsPose, out Vector2 center, out Vector2 side)
+    {
+        int before = ring / _subdivisions;
+        int after = Mathf.Min(before + 1, _bones.Count);
+        float t = (ring % _subdivisions) / (float)_subdivisions;
+        if (!BaseRingPose(before, physicsPose, out center, out side)) return false;
+        if (t == 0f) return true;
+        if (!BaseRingPose(after, physicsPose, out Vector2 nextCenter, out Vector2 nextSide)) return false;
+        center = Vector2.Lerp(center, nextCenter, t);
+        Vector2 blended = Vector2.Lerp(side, nextSide, t);
+        if (blended.sqrMagnitude > 0.0001f) side = blended.normalized;
+        return true;
+    }
+
+    private bool BaseRingPose(int ring, bool physicsPose, out Vector2 center, out Vector2 side)
     {
         center = Vector2.zero;
         side = Vector2.up;
@@ -295,7 +306,8 @@ public class SquishMesh : MonoBehaviour
         SpineSample rest = body.BoneRestSamples[boneIndex];
         Vector2 side = BoneSide(bone, physicsPose);
         Vector2 axis = new Vector2(side.y, -side.x);
-        return bone.position + axis * (localX - rest.position.x);
+        Vector2 position = physicsPose ? bone.position : (Vector2)bone.transform.position;
+        return position + axis * (localX - rest.position.x);
     }
 
     private float RingLocalX(int ring)
@@ -307,213 +319,55 @@ public class SquishMesh : MonoBehaviour
 
     private void BuildSimulation()
     {
-        int count = _vertices.Length;
-        _positions = new Vector2[count];
-        _previousPositions = new Vector2[count];
-        _goals = new Vector2[count];
-        _previousGoals = new Vector2[count];
-        _renderGoals = new Vector2[count];
-        _pendingKicks = new Vector2[count];
-        _areaGradients = new Vector2[count];
-        _boundary = new int[count];
-
-        int rings = count / 2;
-        for (int r = 0; r < rings; r++)
-        {
-            _boundary[r] = r * 2;
-            _boundary[rings + r] = (rings - 1 - r) * 2 + 1;
-        }
+        _goals = new Vector2[_vertices.Length];
+        _renderGoals = new Vector2[_vertices.Length];
+        _offsets = new Vector2[_vertices.Length];
+        _solver = new SquishDeformationSolver(_ringCount);
+        ConfigureSolver();
     }
+
+    private void ConfigureSolver() => _solver?.Configure(softness, recoveryTime, rebound, impactStrength);
 
     private void ResetSimulation()
     {
-        if (!UpdateGoals(_goals, true)) return;
-        SnapToGoals();
-    }
-
-    private void SnapToGoals()
-    {
-        for (int i = 0; i < _positions.Length; i++)
-        {
-            _positions[i] = _goals[i];
-            _previousPositions[i] = _goals[i];
-            _previousGoals[i] = _goals[i];
-        }
+        _solver?.Reset();
         _wasSquishEnabled = squishEnabled;
-        ClearPendingKicks();
-    }
-
-    private void ClearPendingKicks()
-    {
-        if (_pendingKicks != null)
-            System.Array.Clear(_pendingKicks, 0, _pendingKicks.Length);
     }
 
     private void Simulate(float dt)
     {
-        if (_positions == null || dt <= 0f || !UpdateGoals(_goals, true)) return;
-        StepSimulation(dt);
-    }
-
-    // 목표 형상 갱신과 분리해 정점 상태만 진행한다.
-    private void StepSimulation(float dt)
-    {
+        if (_solver == null) return;
         if (!squishEnabled || _wasSquishEnabled != squishEnabled)
         {
-            SnapToGoals();
+            ResetSimulation();
             return;
         }
-
-        // 리스폰 등으로 목표가 순간이동하면 모든 정점을 함께 초기화한다.
-        float teleportDistance = Mathf.Max(1f, maxDeformation * 2f);
-        for (int i = 0; i < _positions.Length; i++)
-        {
-            if ((_goals[i] - _previousGoals[i]).sqrMagnitude > teleportDistance * teleportDistance)
-            {
-                SnapToGoals();
-                return;
-            }
-        }
-
-        float keep = 1f - Mathf.Clamp01(velocityDamping);
-        for (int i = 0; i < _positions.Length; i++)
-        {
-            Vector2 velocity = (_positions[i] - _previousPositions[i]) * keep;
-            _previousPositions[i] = _positions[i];
-            _positions[i] += velocity + _pendingKicks[i] * dt;
-            _previousGoals[i] = _goals[i];
-        }
-        ClearPendingKicks();
-
-        int iterations = Mathf.Clamp(constraintIterations, 1, 16);
-        for (int it = 0; it < iterations; it++)
-        {
-            ProjectDistances();
-            float follow = Mathf.Clamp01(followStiffness);
-            for (int i = 0; i < _positions.Length; i++)
-                _positions[i] += follow * (_goals[i] - _positions[i]);
-            ProjectPressure();
-        }
-
-        float limit = Mathf.Max(0f, maxDeformation);
-        for (int i = 0; i < _positions.Length; i++)
-        {
-            if (!IsFinite(_positions[i]))
-            {
-                _positions[i] = _goals[i];
-                _previousPositions[i] = _goals[i];
-                continue;
-            }
-
-            Vector2 offset = _positions[i] - _goals[i];
-            if (offset.sqrMagnitude > limit * limit)
-            {
-                _positions[i] = _goals[i] + Vector2.ClampMagnitude(offset, limit);
-                _previousPositions[i] = _positions[i];
-            }
-        }
-    }
-
-    private void ProjectDistances()
-    {
-        float structural = Mathf.Clamp01(structuralStiffness);
-        float shear = Mathf.Clamp01(shearStiffness);
-        for (int v = 0; v < _positions.Length; v += 2)
-        {
-            ProjectDistance(v, v + 1, structural);
-            if (v + 2 >= _positions.Length) continue;
-            ProjectDistance(v, v + 2, structural);
-            ProjectDistance(v + 1, v + 3, structural);
-            ProjectDistance(v, v + 3, shear);
-            ProjectDistance(v + 1, v + 2, shear);
-        }
-    }
-
-    private void ProjectDistance(int a, int b, float stiffness)
-    {
-        Vector2 delta = _positions[b] - _positions[a];
-        float length = delta.magnitude;
-        if (length < 0.00001f) return;
-        float rest = (_goals[b] - _goals[a]).magnitude;
-        Vector2 correction = 0.5f * stiffness * ((length - rest) / length) * delta;
-        _positions[a] += correction;
-        _positions[b] -= correction;
-    }
-
-    private void ProjectPressure()
-    {
-        if (pressureStiffness <= 0f) return;
-        float targetArea = SignedArea(_goals) * Mathf.Max(0.01f, inflate);
-        // 극단적인 굽힘으로 목표 외곽이 퇴화하면 압력 보정을 생략한다.
-        if (Mathf.Abs(targetArea) < 0.00001f) return;
-        float error = SignedArea(_positions) - targetArea;
-        float sumGradientSquared = 0f;
-        int count = _boundary.Length;
-        for (int k = 0; k < count; k++)
-        {
-            Vector2 prev = _positions[_boundary[(k - 1 + count) % count]];
-            Vector2 next = _positions[_boundary[(k + 1) % count]];
-            Vector2 gradient = 0.5f * new Vector2(next.y - prev.y, prev.x - next.x);
-            _areaGradients[k] = gradient;
-            sumGradientSquared += gradient.sqrMagnitude;
-        }
-        if (sumGradientSquared < 0.00000001f) return;
-
-        float correction = Mathf.Clamp01(pressureStiffness) * error / sumGradientSquared;
-        for (int k = 0; k < count; k++)
-            _positions[_boundary[k]] -= correction * _areaGradients[k];
-    }
-
-    private float SignedArea(Vector2[] points)
-    {
-        float sum = 0f;
-        Vector2 origin = points[_boundary[0]];
-        for (int k = 0; k < _boundary.Length; k++)
-        {
-            Vector2 a = points[_boundary[k]] - origin;
-            Vector2 b = points[_boundary[(k + 1) % _boundary.Length]] - origin;
-            sum += a.x * b.y - b.x * a.y;
-        }
-        return sum * 0.5f;
-    }
-
-    private void QueueImpulse(Vector2 point, Vector2 normal, float impact)
-    {
-        if (!squishEnabled || _positions == null || !IsFinite(point) || !IsFinite(normal)
-            || float.IsNaN(impact) || float.IsInfinity(impact)) return;
-
-        float cap = Mathf.Max(0f, maxImpulse);
-        float kick = Mathf.Clamp(impact * impulseScale, 0f, cap);
-        if (kick <= 0f) return;
-        float radius = Mathf.Max(0.01f, impulseRadius);
-        float invRadiusSquared = 1f / (radius * radius);
-        Vector2 direction = normal.normalized;
-        for (int i = 0; i < _positions.Length; i++)
-        {
-            float distanceSquared = (_positions[i] - point).sqrMagnitude;
-            float weight = Mathf.Exp(-distanceSquared * invRadiusSquared);
-            _pendingKicks[i] = Vector2.ClampMagnitude(_pendingKicks[i] + direction * (kick * weight), cap);
-        }
+        ConfigureSolver();
+        _solver.Step(dt);
     }
 
     private void WriteMesh()
     {
         if (_mesh == null || !UpdateGoals(_renderGoals, false)) return;
+        if (squishEnabled)
+        {
+            float alpha = Time.fixedDeltaTime > 0f
+                ? Mathf.Clamp01((Time.time - Time.fixedTime) / Time.fixedDeltaTime) : 1f;
+            _solver.WriteOffsets(_renderGoals, _offsets, alpha);
+        }
+
         for (int i = 0; i < _vertices.Length; i++)
         {
-            // 최신 렌더 포즈 위에 물리 스텝에서 계산한 변형만 더한다.
-            Vector2 offset = squishEnabled ? _positions[i] - _goals[i] : Vector2.zero;
-            Vector3 local = transform.InverseTransformPoint(_renderGoals[i] + offset);
+            Vector2 point = _renderGoals[i] + (squishEnabled ? _offsets[i] : Vector2.zero);
+            Vector3 local = transform.InverseTransformPoint(point);
             local.z = 0f;
             _vertices[i] = local;
         }
         _mesh.vertices = _vertices;
         _mesh.RecalculateBounds();
+        _renderer.sortingLayerName = sortingLayerName;
+        _renderer.sortingOrder = sortingOrder;
     }
-
-    private static bool IsFinite(Vector2 value) =>
-        !float.IsNaN(value.x) && !float.IsNaN(value.y)
-        && !float.IsInfinity(value.x) && !float.IsInfinity(value.y);
 
     private void SubscribeCollision()
     {
@@ -594,6 +448,11 @@ public class SquishMesh : MonoBehaviour
             Destroy(_mesh);
     }
 
-    private void OnSegmentCollision(Vector2 point, Vector2 normal, float impact) =>
-        QueueImpulse(point, normal, impact);
+    private void OnSegmentCollision(Vector2 point, Vector2 normal, float impact)
+    {
+        if (!squishEnabled || _solver == null) return;
+        if (_wasSquishEnabled != squishEnabled) ResetSimulation();
+        ConfigureSolver();
+        if (UpdateGoals(_goals, true)) _solver.AddImpact(_goals, point, normal, impact);
+    }
 }

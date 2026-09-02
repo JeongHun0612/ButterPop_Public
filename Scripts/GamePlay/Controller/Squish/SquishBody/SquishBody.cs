@@ -45,7 +45,7 @@ public partial class SquishBody : MonoBehaviour
     [Range(2, 32)]
     [SerializeField] private int boneCount = 6;
 
-    [Header("질량 / 중력 / 물성")]
+    [Header("물리")]
     [Min(0.001f)]
     [SerializeField] private float totalMass = 1.2f;
     [SerializeField] private float gravityScale = 1.5f;
