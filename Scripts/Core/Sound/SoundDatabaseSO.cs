@@ -14,10 +14,66 @@ public class SoundDatabaseSO : ScriptableObject
         public AudioClip clip;
     }
 
+    [Serializable]
+    public class ClipVolumeEntry
+    {
+        public AudioClip clip;
+
+        [Min(0f)]
+        public float volumeMultiplier = 1f;
+    }
+
     [Header("효과음")]
     [SerializeField] private SfxEntry[] sfxEntries;
 
+    [Header("클립별 볼륨 가중치\n0 = 음소거 · 1 = 원래 볼륨 · 2 = 2배")]
+    [Tooltip("효과음 타입과 직접 재생하는 클립 모두에 적용한다. 미등록 클립은 1배, 중복 클립은 첫 항목을 사용한다.")]
+    [SerializeField] private ClipVolumeEntry[] clipVolumes;
+
     private Dictionary<SfxType, AudioClip> _sfxMap;
+    private Dictionary<AudioClip, ClipVolumeEntry> _clipVolumeMap;
+
+    private void OnEnable() => ClearCache();
+
+    // 플레이 중 인스펙터 수정도 다음 재생부터 반영한다.
+    private void OnValidate() => ClearCache();
+
+    private void ClearCache()
+    {
+        _sfxMap = null;
+        _clipVolumeMap = null;
+    }
+
+    public float GetVolumeMultiplier(AudioClip clip)
+    {
+        if (clip == null) return 1f;
+
+        EnsureClipVolumesBuilt();
+        return _clipVolumeMap.TryGetValue(clip, out var entry)
+            ? Mathf.Max(0f, entry.volumeMultiplier)
+            : 1f;
+    }
+
+    private void EnsureClipVolumesBuilt()
+    {
+        if (_clipVolumeMap != null) return;
+
+        _clipVolumeMap = new Dictionary<AudioClip, ClipVolumeEntry>();
+        if (clipVolumes == null) return;
+
+        foreach (var entry in clipVolumes)
+        {
+            if (entry == null || entry.clip == null) continue;
+
+            if (_clipVolumeMap.ContainsKey(entry.clip))
+            {
+                Debug.LogWarning($"[SoundDatabaseSO] 볼륨 가중치 클립 중복: {entry.clip.name}. 첫 항목만 사용한다");
+                continue;
+            }
+
+            _clipVolumeMap[entry.clip] = entry;
+        }
+    }
 
     // SfxType에 매핑된 클립을 반환한다. 미등록이면 null.
     public AudioClip GetSfx(SfxType type)

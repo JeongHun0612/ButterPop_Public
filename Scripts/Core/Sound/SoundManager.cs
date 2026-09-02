@@ -44,6 +44,8 @@ public class SoundManager : MonoSingleton<SoundManager>
     {
         if (clip == null) return;
 
-        sfxSource.PlayOneShot(clip, volumeScale);
+        // 타입 조회/직접 재생 모두 여기서 한 번만 클립별 가중치를 적용한다.
+        float multiplier = database != null ? database.GetVolumeMultiplier(clip) : 1f;
+        sfxSource.PlayOneShot(clip, Mathf.Max(0f, volumeScale) * multiplier);
     }
 }
