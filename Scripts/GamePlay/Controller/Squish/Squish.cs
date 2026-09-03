@@ -29,10 +29,12 @@ public class Squish : MonoBehaviour
     public event Action OnDropped;
     public event Action<Bounds> OnSettled;
     public event Action OnFell;
+    public event Action<bool> OnSettlingChanged;
 
     public SquishBody Body => body;
     public SquishMesh Mesh => mesh;
     public SquishSkinSO CurrentSkin { get; private set; }
+    public bool IsSettling => settleDetector != null && settleDetector.IsSettling;
     public bool CanDrop => !_released && !_dropRequested && craneRig != null && !craneRig.IsPlaying;
 
     private void Awake()
@@ -52,6 +54,7 @@ public class Squish : MonoBehaviour
 
         settleDetector.OnSettled += HandleSettled;
         settleDetector.OnFell += HandleFell;
+        settleDetector.OnSettlingChanged += HandleSettlingChanged;
     }
 
     private void FixedUpdate()
@@ -72,6 +75,7 @@ public class Squish : MonoBehaviour
         {
             settleDetector.OnSettled -= HandleSettled;
             settleDetector.OnFell -= HandleFell;
+            settleDetector.OnSettlingChanged -= HandleSettlingChanged;
         }
     }
 
@@ -136,6 +140,8 @@ public class Squish : MonoBehaviour
 
     public void SuspendJudging() => settleDetector.SuspendJudging();
 
+    public void SetJudgingPaused(bool paused) => settleDetector.SetJudgingPaused(paused);
+
     public void ForceSettle(GameObject extraObject = null) => settleDetector.ForceSettle(extraObject);
 
     public void UpdateCameraBounds(Camera cam) => settleDetector.UpdateCameraBounds(cam);
@@ -155,6 +161,7 @@ public class Squish : MonoBehaviour
 
     private void HandleSettled(Bounds bounds) => OnSettled?.Invoke(bounds);
     private void HandleFell() => OnFell?.Invoke();
+    private void HandleSettlingChanged(bool settling) => OnSettlingChanged?.Invoke(settling);
 
     private void OnDrawGizmos()
     {

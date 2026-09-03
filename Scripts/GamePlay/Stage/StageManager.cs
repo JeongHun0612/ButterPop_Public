@@ -31,6 +31,7 @@ public class StageManager : MonoSingleton<StageManager>
     public event Action<Bounds> OnStageCleared;
     public event Action<bool> OnSkipAvailabilityChanged;
     public event Action<int> OnTryCountChanged;   // 실패 시도 횟수 변경 (리워드 스킨 로테이션·전면 광고 판단용)
+    public event Action<bool> OnSettlingChanged;  // 안착 임박(판정 타이머 누적) 여부 변경
 
     public GameState CurrentState { get; private set; } = GameState.None;
     public int CurrentTryCount => _currentTryCount;
@@ -38,6 +39,7 @@ public class StageManager : MonoSingleton<StageManager>
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
     public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
+    public bool IsSettling => _current?.Squish != null && _current.Squish.IsSettling;
     public StageDataSO CurrentStageData => _current?.Data;
     public Squish Squish => _current?.Squish;
     public ArmController ArmController => _current?.ArmController;
@@ -133,6 +135,9 @@ public class StageManager : MonoSingleton<StageManager>
         SetState(GameState.Ready);
     }
 
+    // 팝업이 떠 있는 동안 안착·낙하 판정을 멈춘다(물리는 계속 돈다).
+    public void SetJudgingPaused(bool paused) => _current?.Squish?.SetJudgingPaused(paused);
+
     public StageDataSO GetStageData(int index) =>
         stageList != null && stageList.IsValidIndex(index) ? stageList.Get(index) : null;
 
@@ -195,7 +200,10 @@ public class StageManager : MonoSingleton<StageManager>
         ctx.Squish.OnDropped += OnSquishDropped;
         ctx.Squish.OnSettled += OnSquishSettled;
         ctx.Squish.OnFell += OnSquishFell;
+        ctx.Squish.OnSettlingChanged += OnSquishSettlingChanged;
     }
+
+    private void OnSquishSettlingChanged(bool settling) => OnSettlingChanged?.Invoke(settling);
 
     private void OnSquishDropped()
     {

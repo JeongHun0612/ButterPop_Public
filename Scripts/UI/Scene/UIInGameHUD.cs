@@ -30,6 +30,10 @@ public class UIInGameHUD : UIScene
     private SquishSkinSO _trialCandidate;
     private bool _trialAppliedThisStage;
 
+    // 메뉴 버튼 상태의 두 조건(표시 / 클릭 가능). 소유자가 갈리면 서로 덮어쓰므로 한 곳에서 합쳐 계산한다.
+    private bool _menuOpen;
+    private bool _settling;
+
     public override void Initialize()
     {
         base.Initialize();
@@ -49,9 +53,11 @@ public class UIInGameHUD : UIScene
 
         stageManager.OnSkipAvailabilityChanged += SetSkipButtonActive;
         stageManager.OnTryCountChanged += UpdateSkinTrial;
+        stageManager.OnSettlingChanged += SetSettling;
 
         SetSkipButtonActive(stageManager.IsSkipAvailable);
         UpdateSkinTrial(stageManager.CurrentTryCount);
+        SetSettling(stageManager.IsSettling);
     }
 
     public override void OnAfterHide()
@@ -64,6 +70,25 @@ public class UIInGameHUD : UIScene
 
         stageManager.OnSkipAvailabilityChanged -= SetSkipButtonActive;
         stageManager.OnTryCountChanged -= UpdateSkinTrial;
+        stageManager.OnSettlingChanged -= SetSettling;
+    }
+
+    // ---------------- 메뉴 버튼  ----------------------
+
+    // 안착 판정이 진행 중이면 메뉴 버튼을 잠근다. 판정이 끝나기 직전에 팝업이 끼어들면 결과 연출과 겹친다.
+    private void SetSettling(bool settling)
+    {
+        _settling = settling;
+        RefreshMenuButton();
+    }
+
+    // 메뉴가 떠 있는 동안엔 버튼 자체를 감추고, 안착 판정 중에는 보이되 클릭만 막는다.
+    private void RefreshMenuButton()
+    {
+        if (menuButton == null) return;
+
+        menuButton.gameObject.SetActive(!_menuOpen);
+        menuButton.interactable = !_settling;
     }
 
     // ---------------- 스킵  ------------------------
@@ -213,7 +238,7 @@ public class UIInGameHUD : UIScene
 
     private void OnMenuButtonClicked() => ShowMenuAsync().Forget();
 
-    // 메뉴 팝업이 떠 있는 동안 메뉴 버튼을 숨기고, 팝업이 닫히면 복구한다.
+    // 메뉴가 떠 있는 동안 메뉴 버튼을 감추고 안착 판정을 멈춘다. 닫히면 둘 다 되돌린다.
     private async UniTaskVoid ShowMenuAsync()
     {
         var uiManager = UIManager.Instance;
@@ -222,19 +247,23 @@ public class UIInGameHUD : UIScene
         // 다른 팝업이 떠 있는 동안엔 열지 않는다. 그 팝업이 스택에 깔린 채 남으면 화면이 잠긴다.
         if (uiManager.CurrentPopup != null) return;
 
-        if (menuButton != null) menuButton.gameObject.SetActive(false);
+        _menuOpen = true;
+        RefreshMenuButton();
+
+        // 메뉴가 떠 있는 동안엔 안착·낙하가 판정되지 않게 한다(뒤에서 클리어돼 결과 화면이 끼어드는 것을 막는다).
+        bool paused = StageManager.TryGetInstance(out var stageManager);
+        if (paused) stageManager.SetJudgingPaused(true);
 
         var menu = await uiManager.ShowPopup<UIMenu>();
-        if (menu == null)
-        {
-            if (menuButton != null) menuButton.gameObject.SetActive(true);
-            return;
-        }
 
-        // 팝업이 닫힐 때까지(Hide로 비활성화될 때까지) 대기 후 버튼 복구.
-        await UniTask.WaitUntil(() => !menu.gameObject.activeSelf);
+        // 팝업이 닫힐 때까지(Hide로 비활성화될 때까지) 대기.
+        if (menu != null)
+            await UniTask.WaitUntil(() => !menu.gameObject.activeSelf);
 
-        if (menuButton != null) menuButton.gameObject.SetActive(true);
+        if (paused) stageManager.SetJudgingPaused(false);
+
+        _menuOpen = false;
+        RefreshMenuButton();
     }
 
     private void OnSkipButtonClicked() => SkipStageAsync().Forget();

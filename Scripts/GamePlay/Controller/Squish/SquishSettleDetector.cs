@@ -26,9 +26,14 @@ public class SquishSettleDetector : MonoBehaviour
 
     private float _settleTimer;
     private bool _judging;
+    private bool _paused;     // 팝업 등으로 잠시 멈춘 상태. _judging은 유지된다.
+    private bool _settling;   // 안착 조건 충족 중(안착 타이머 누적 중)
 
     public event Action<Bounds> OnSettled;
     public event Action OnFell;
+    public event Action<bool> OnSettlingChanged;
+
+    public bool IsSettling => _settling;
 
     private void Awake()
     {
@@ -46,7 +51,7 @@ public class SquishSettleDetector : MonoBehaviour
 
     private void Update()
     {
-        if (!_judging)
+        if (!_judging || _paused)
             return;
 
         var center = _body.WorldBounds.center;
@@ -56,7 +61,9 @@ public class SquishSettleDetector : MonoBehaviour
             return;
         }
 
-        if (_stageContacts.Count > 0 && _armContacts == 0 && _body.MaxBoneSpeed < settleSpeedThreshold)
+        SetSettling(_stageContacts.Count > 0 && _armContacts == 0 && _body.MaxBoneSpeed < settleSpeedThreshold);
+
+        if (_settling)
         {
             _settleTimer += Time.deltaTime;
             if (_settleTimer >= settleTimeRequired)
@@ -78,6 +85,17 @@ public class SquishSettleDetector : MonoBehaviour
 
     public void SuspendJudging() => _judging = false;
 
+    // 팝업이 떠 있는 동안 판정만 멈춘다(물리는 계속 돈다).
+    // 멈춘 사이 스퀴시가 움직였을 수 있으므로 재개 시 안착을 처음부터 다시 확인한다.
+    public void SetJudgingPaused(bool paused)
+    {
+        if (_paused == paused) return;
+
+        _paused = paused;
+        _settleTimer = 0f;
+        if (paused) SetSettling(false);
+    }
+
     // 카메라 시야 + 여백을 벗어나면 낙하로 본다. 좌우도 카메라 중심 기준이라
     // cameraCenter.x가 0이 아닌 스테이지에서도 경계가 대칭으로 잡힌다.
     public void UpdateCameraBounds(Camera cam)
@@ -97,12 +115,14 @@ public class SquishSettleDetector : MonoBehaviour
         _fallXMax = camPos.x + halfW + outOfBoundsMargin;
     }
 
+    // _paused는 팝업 쪽이 소유하므로 여기서 건드리지 않는다. 팝업이 열린 채 스테이지가 갈려도 잠금이 유지돼야 한다.
     public void ResetState()
     {
         _judging = false;
         _settleTimer = 0f;
         _stageContacts.Clear();
         _armContacts = 0;
+        SetSettling(false);
     }
 
     public Bounds GetSettledBounds()
@@ -130,9 +150,18 @@ public class SquishSettleDetector : MonoBehaviour
         OnSettled?.Invoke(bounds);
     }
 
+    private void SetSettling(bool value)
+    {
+        if (_settling == value) return;
+
+        _settling = value;
+        OnSettlingChanged?.Invoke(value);
+    }
+
     private void OnSuccess()
     {
         _judging = false;
+        SetSettling(false);
         Debug.Log("<color=green>[Result] SUCCESS - 스퀴시가 스테이지에 안착했습니다!</color>");
         OnSettled?.Invoke(GetSettledBounds());
     }
@@ -140,6 +169,7 @@ public class SquishSettleDetector : MonoBehaviour
     private void OnFailed()
     {
         _judging = false;
+        SetSettling(false);
         Debug.Log("<color=red>[Result] FAILED - 스퀴시가 떨어졌습니다!</color>");
         OnFell?.Invoke();
     }
