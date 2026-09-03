@@ -41,15 +41,9 @@ public class SkinCell : MonoBehaviour
         if (icon != null) icon.sprite = data.icon;
         RefreshNameAsync(data, ++_bindVersion).Forget();
 
-        // 에디터에서는 개발 편의상 보유 여부와 무관하게 잠금을 해제하고, 빌드에서는 실제 보유 여부를 반영한다.
-        if (lockOverlay != null)
-        {
-#if UNITY_EDITOR
-            lockOverlay.SetActive(false);
-#else
-            lockOverlay.SetActive(!owned);
-#endif
-        }
+        // 미보유 스킨은 잠금 표시 + 클릭 차단. 에디터 테스트는 세이브 디버그 창의 "전체 광고 제거"로 한다.
+        if (lockOverlay != null) lockOverlay.SetActive(!owned);
+        if (button != null) button.interactable = owned;
         if (selectedFrame != null) selectedFrame.SetActive(selected);
     }
 

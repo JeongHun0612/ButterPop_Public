@@ -89,6 +89,7 @@ public class MenuCustomPanel : MonoBehaviour
     {
         if (_currentTab == null || _selected == null) return;
         if (_service.IsEquipped(_currentTab.category, _selected)) return;
+        if (!_service.IsOwned(_currentTab, _selected)) return;
 
         _service.Equip(_currentTab.category, _selected);
     }
