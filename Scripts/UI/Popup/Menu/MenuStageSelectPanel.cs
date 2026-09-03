@@ -25,7 +25,7 @@ public class MenuStageSelectPanel : MonoBehaviour
     private readonly List<StageSelectCell> _cellPool = new();
     private int _activeCellCount;
     private bool _layoutReady;
-    private Func<UniTask> _closeMenu;
+    private Action _requestClose;
     private int _refreshVersion;
 
     private void LateUpdate()
@@ -54,10 +54,10 @@ public class MenuStageSelectPanel : MonoBehaviour
         _cellPool[nearest].SetSelected(true);
     }
 
-    /// <param name="closeMenu">스테이지 확정 시 메뉴 전체를 닫는 콜백</param>
-    public void Initialize(Func<UniTask> closeMenu)
+    /// <param name="requestClose">셀 클릭 시 메뉴에 닫기를 요청하는 콜백. 스테이지 확정은 메뉴가 주도한다.</param>
+    public void Initialize(Action requestClose)
     {
-        _closeMenu = closeMenu;
+        _requestClose = requestClose;
         var stageManager = StageManager.Instance;
         Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
 
@@ -121,11 +121,23 @@ public class MenuStageSelectPanel : MonoBehaviour
         LateUpdate();
     }
 
-    /// <summary>휠 중앙에 놓인 스테이지를 확정하고 메뉴를 닫는다. (메뉴의 닫기/뒤로가기용)</summary>
-    public void ConfirmCurrent()
+    /// <summary>휠 중앙 스테이지가 현재와 다르면 로드하고 true를 반환한다. 미해금 스테이지를 골랐으면 현재 스테이지로 간주한다.</summary>
+    public bool ConfirmCurrent()
     {
-        if (_activeCellCount == 0) return;
-        ConfirmAndCloseAsync(wheel.CurrentIndex).Forget();
+        if (_activeCellCount == 0) return false;
+
+        var stageManager = StageManager.Instance;
+        Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
+
+        int index = wheel.CurrentIndex;
+        bool playable = !lockUnrevealed || index <= stageManager.GetHighestClearedIndex() + 1;
+        int loadIndex = playable ? index : stageManager.CurrentStageIndex;
+
+        // 같은 스테이지면 다시 짓지 않는다. 재로드는 시도 횟수까지 초기화한다.
+        if (loadIndex == stageManager.CurrentStageIndex) return false;
+
+        stageManager.LoadStage(loadIndex);
+        return true;
     }
 
     // 뷰포트 크기가 확정된 활성 상태에서 호출해야 셀이 정확히 뷰포트 중앙에 정렬된다.
@@ -155,24 +167,13 @@ public class MenuStageSelectPanel : MonoBehaviour
         return await data.LocalizedName.GetLocalizedStringAsync();
     }
 
-    private async UniTaskVoid ConfirmAndCloseAsync(int index)
-    {
-        var stageManager = StageManager.Instance;
-        Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
-
-        bool playable = !lockUnrevealed || index <= stageManager.GetHighestClearedIndex() + 1;
-        int loadIndex = playable ? index : stageManager.CurrentStageIndex;
-
-        if (_closeMenu != null) await _closeMenu();
-
-        stageManager.LoadStage(loadIndex);
-    }
-
+    // 클릭한 셀로 휠을 옮겨 의사를 남기고 닫기를 요청한다. 실제 로드는 메뉴가 닫힌 뒤 ConfirmCurrent에서 처리된다.
     private void OnCellClicked(int index)
     {
         if (SoundManager.TryGetInstance(out var sound))
             sound.PlaySfx(SfxType.ButtonClick);
 
-        ConfirmAndCloseAsync(index).Forget();
+        wheel.MoveTo(index, instant: true);
+        _requestClose?.Invoke();
     }
 }

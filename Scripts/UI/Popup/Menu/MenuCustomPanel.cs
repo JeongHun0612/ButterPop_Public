@@ -84,14 +84,15 @@ public class MenuCustomPanel : MonoBehaviour
         BuildPages();
     }
 
-    // 메뉴가 닫힐 때 최종 선택을 실제 장착으로 확정
-    public void Commit()
+    // 메뉴가 닫힐 때 최종 선택을 실제 장착으로 확정한다. 장착이 실제로 바뀌었으면 true.
+    public bool Commit()
     {
-        if (_currentTab == null || _selected == null) return;
-        if (_service.IsEquipped(_currentTab.category, _selected)) return;
-        if (!_service.IsOwned(_currentTab, _selected)) return;
+        if (_currentTab == null || _selected == null) return false;
+        if (_service.IsEquipped(_currentTab.category, _selected)) return false;
+        if (!_service.IsOwned(_currentTab, _selected)) return false;
 
         _service.Equip(_currentTab.category, _selected);
+        return true;
     }
 
     private void SetContentVisible(bool hasSkins)
