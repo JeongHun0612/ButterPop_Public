@@ -21,6 +21,8 @@ public class StageManager : MonoSingleton<StageManager>
 
     private StageContext _current;
     private int _currentTryCount;
+    private int _failsSinceClear;   // 마지막 클리어·스킵 이후 누적 실패. 전면 광고(인터1) 판정용.
+    private int _sessionTryCount;   // 세션 총 실패. 로그 확인용.
 
     // 현재 스테이지 수명에 묶인 비동기 작업의 취소원. 스테이지가 교체되면 끊긴다.
     private CancellationTokenSource _stageCts;
@@ -35,6 +37,7 @@ public class StageManager : MonoSingleton<StageManager>
 
     public GameState CurrentState { get; private set; } = GameState.None;
     public int CurrentTryCount => _currentTryCount;
+    public int FailsSinceClear => _failsSinceClear;
     public int CurrentStageIndex { get; private set; }
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
@@ -152,6 +155,9 @@ public class StageManager : MonoSingleton<StageManager>
 
     private void MarkCleared(int index)
     {
+        // 클리어와 스킵이 모두 여기를 지난다. 막힘 지표라 진행도 갱신 여부와 무관하게 리셋한다.
+        _failsSinceClear = 0;
+
         if (!Services.TryGet<ISaveService>(out var save)) return;
         if (save.Data?.stage == null) return;
         if (index <= save.Data.stage.highestClearedIndex) return;
@@ -165,7 +171,9 @@ public class StageManager : MonoSingleton<StageManager>
     {
         bool wasAvailable = IsSkipAvailable;
         _currentTryCount++;
-        Debug.Log($"[StageManager] 실패 트라이: {_currentTryCount}/{skipTryThreshold}");
+        _failsSinceClear++;
+        _sessionTryCount++;
+        Debug.Log($"[StageManager] 실패 트라이: 스테이지 {_currentTryCount}/{skipTryThreshold} · 클리어 이후 {_failsSinceClear} · 세션 누적 {_sessionTryCount}");
 
         OnTryCountChanged?.Invoke(_currentTryCount);
 
