@@ -9,6 +9,8 @@ public abstract class SkinDataSO : ScriptableObject
 {
     [Header("식별")]
     public string id;
+    [Tooltip("무료 제공 스킨. 해금 없이 보유로 취급한다.")]
+    public bool isFree;
 
     [Header("표시 정보")]
     [SerializeField] private LocalizedString localizedName = new();

@@ -165,7 +165,8 @@ public class StageBuilder : MonoBehaviour
         if (skin != null) squish.ApplySkin(skin);
     }
 
-    // Squish 탭에서 장착된 스킨을 찾는다. 장착이 없으면 첫 스킨을 폴백으로 쓴다.
+    // Squish 탭의 장착 스킨을 가져온다. 장착이 없으면 서비스가 기본 스킨으로 확정한다.
+    // 서비스가 아직 없으면 저장 없이 기본 스킨만 적용한다.
     private SquishSkinSO ResolveEquippedSquishSkin()
     {
         if (skinDatabase == null) return null;
@@ -173,14 +174,9 @@ public class StageBuilder : MonoBehaviour
         var tab = skinDatabase.GetTab(SkinCategory.Squish);
         if (tab == null || tab.Count == 0) return null;
 
-        if (Services.TryGet(out ISkinService service))
-        {
-            foreach (var skin in tab.skins)
-                if (skin is SquishSkinSO squishSkin && service.IsEquipped(SkinCategory.Squish, skin))
-                    return squishSkin;
-        }
+        if (!Services.TryGet(out ISkinService service)) return tab.defaultSkin as SquishSkinSO;
 
-        return tab.skins[0] as SquishSkinSO;
+        return service.ResolveEquipped(tab) as SquishSkinSO;
     }
 
     private void ClearStageObjects()

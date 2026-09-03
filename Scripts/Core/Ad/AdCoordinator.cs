@@ -126,7 +126,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         TryShowInterstitialAsync().Forget();
     }
 
-    // Squish 탭 스킨 중 장착되지 않은 것들(체험 대상).
+    // Squish 탭 스킨 중 미보유·미장착인 것들(체험 대상).
     private List<SquishSkinSO> GetTrialPool()
     {
         _trialPool.Clear();
@@ -136,7 +136,9 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         if (tab == null) return _trialPool;
 
         foreach (var skin in tab.skins)
-            if (skin is SquishSkinSO squishSkin && !_skin.IsEquipped(SkinCategory.Squish, skin))
+            if (skin is SquishSkinSO squishSkin
+                && !_skin.IsOwned(tab, skin)
+                && !_skin.IsEquipped(SkinCategory.Squish, skin))
                 _trialPool.Add(squishSkin);
 
         return _trialPool;

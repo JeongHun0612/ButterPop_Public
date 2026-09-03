@@ -1,7 +1,7 @@
 public interface ISkinService
 {
-    bool IsOwned(SkinDataSO skin);
+    bool IsOwned(SkinTabSO tab, SkinDataSO skin);
     bool IsEquipped(SkinCategory category, SkinDataSO skin);
+    SkinDataSO ResolveEquipped(SkinTabSO tab);
     void Equip(SkinCategory category, SkinDataSO skin);
-    void Grant(SkinDataSO skin);
 }

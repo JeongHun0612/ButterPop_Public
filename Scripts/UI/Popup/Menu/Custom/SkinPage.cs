@@ -70,7 +70,7 @@ public class SkinPage : MonoBehaviour
         IReadOnlyList<SkinDataSO> skins,
         int startIndex,
         ISkinService service,
-        SkinCategory category,
+        SkinTabSO tab,
         SkinDataSO selected,
         Action<SkinDataSO> onSelect)
     {
@@ -89,7 +89,7 @@ public class SkinPage : MonoBehaviour
                 var data = skins[dataIndex];
                 cells[i].Bind(
                     data,
-                    service.IsOwned(data),
+                    service.IsOwned(tab, data),
                     data == selected,
                     onSelect);
                 cells[i].gameObject.SetActive(true);

@@ -12,7 +12,6 @@ public class SaveDataDebugWindow : EditorWindow
     private SaveData _data;
     private Vector2 _scroll;
     private Vector2 _jsonScroll;
-    private string _newOwnedSkinId = "";
     private bool _showJson;
 
     private static string FilePath => Path.Combine(Application.persistentDataPath, FileName);
@@ -95,32 +94,7 @@ public class SaveDataDebugWindow : EditorWindow
     {
         DrawSectionTitle("스킨");
 
-        EditorGUILayout.LabelField("보유 스킨 ID (ownedSkinIds)", EditorStyles.miniBoldLabel);
-        var owned = _data.skin.ownedSkinIds;
-        for (int i = 0; i < owned.Count; i++)
-        {
-            EditorGUILayout.BeginHorizontal();
-            owned[i] = EditorGUILayout.TextField(owned[i]);
-            if (GUILayout.Button("삭제", GUILayout.Width(48f)))
-            {
-                owned.RemoveAt(i);
-                GUIUtility.ExitGUI();
-            }
-            EditorGUILayout.EndHorizontal();
-        }
-        EditorGUILayout.BeginHorizontal();
-        _newOwnedSkinId = EditorGUILayout.TextField(_newOwnedSkinId);
-        using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(_newOwnedSkinId) || owned.Contains(_newOwnedSkinId)))
-        {
-            if (GUILayout.Button("추가", GUILayout.Width(48f)))
-            {
-                owned.Add(_newOwnedSkinId.Trim());
-                _newOwnedSkinId = "";
-            }
-        }
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(4f);
+        // 보유 목록은 세이브에 없다. 잠금 테스트는 "구매/광고"의 전체 광고 제거로.
         EditorGUILayout.LabelField("장착 (equipped)", EditorStyles.miniBoldLabel);
         var equipped = _data.skin.equipped;
         for (int i = 0; i < equipped.Count; i++)
@@ -238,7 +212,6 @@ public class SaveDataDebugWindow : EditorWindow
     {
         data.stage ??= new StageSaveData();
         data.skin ??= new SkinSaveData();
-        data.skin.ownedSkinIds ??= new List<string>();
         data.skin.equipped ??= new List<EquippedEntry>();
         data.purchase ??= new PurchaseSaveData();
         data.settings ??= new SettingsSaveData();

@@ -20,7 +20,6 @@ public class StageSaveData
 [Serializable]
 public class SkinSaveData
 {
-    public List<string> ownedSkinIds = new();
     public List<EquippedEntry> equipped = new();
 }
 

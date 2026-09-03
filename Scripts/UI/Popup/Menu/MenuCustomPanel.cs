@@ -78,7 +78,7 @@ public class MenuCustomPanel : MonoBehaviour
             return;
         }
 
-        _selected = FindEquipped() ?? _currentTab.skins[0];
+        _selected = _service.ResolveEquipped(_currentTab);
 
         ResizePagesToViewport();
         BuildPages();
@@ -98,14 +98,6 @@ public class MenuCustomPanel : MonoBehaviour
         if (pagedScroll != null) pagedScroll.gameObject.SetActive(hasSkins);
     }
 
-    private SkinDataSO FindEquipped()
-    {
-        foreach (var skin in _currentTab.skins)
-            if (_service.IsEquipped(_currentTab.category, skin))
-                return skin;
-        return null;
-    }
-
     private void BuildPages()
     {
         var skins = _currentTab.skins;
@@ -123,7 +115,7 @@ public class MenuCustomPanel : MonoBehaviour
         {
             var page = GetPage(p);
             page.gameObject.SetActive(true);
-            page.Bind(skins, p * perPage, _service, _currentTab.category, _selected, OnCellSelected);
+            page.Bind(skins, p * perPage, _service, _currentTab, _selected, OnCellSelected);
         }
 
         for (int p = totalPages; p < _activePageCount; p++)
