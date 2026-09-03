@@ -9,7 +9,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [SerializeField] private SkinDatabaseSO skinDatabase;
 
     [Header("전면 - 실패(인터1)")]
-    [Tooltip("한 스테이지에서 이 횟수만큼 실패할 때마다 강제 전면(리워드 시청 시 면제)")]
+    [Tooltip("이번 세션에서 누적 이 횟수만큼 실패할 때마다 강제 전면(리워드 시청 시 면제). 스테이지를 옮겨도 리셋되지 않는다")]
     [Min(1)]
     [SerializeField] private int interstitialFailThreshold = 10;
 
@@ -39,6 +39,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private readonly List<SquishSkinSO> _trialPool = new();
 
     private bool _rewardWatchedThisStage;
+    private int _sessionFailCount;      // 세션 누적 실패. 스테이지 카운터와 달리 스테이지 이동으로 리셋되지 않는다.
     private int _sessionClearedCount;
     private float _lastInterstitialTime = -999f;
     private int _sessionInterstitialCount;
@@ -182,11 +183,15 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private void OnStageCleared(Bounds bounds) => _sessionClearedCount++;
 
+    // 인터1: 세션 누적 N회 실패마다 강제 전면.
+    // 스테이지 카운터를 그대로 쓰면 스테이지를 옮길 때마다 0으로 리셋되어 전면을 계속 피할 수 있다.
+    // StageManager는 실패마다 1 오른 값을, 스테이지 리셋 시에는 0을 보내므로 양수 통지 1건 = 실패 1회다.
     private void OnTryCountChanged(int tryCount)
     {
-        // 인터1: N회 실패마다 강제 전면
         if (tryCount <= 0) return;
-        if (tryCount % interstitialFailThreshold != 0) return;
+
+        _sessionFailCount++;
+        if (_sessionFailCount % interstitialFailThreshold != 0) return;
 
         TryShowInterstitialAsync().Forget();
     }
