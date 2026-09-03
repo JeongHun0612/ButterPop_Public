@@ -30,7 +30,8 @@ public static class ServiceBootstrap
         Services.Register<ISkinService>(new SkinService(save, purchase));
 
         // 광고 서비스: 배너/전면/리워드를 재생한다. 광고 제거 게이팅을 위해 구매 서비스를 참조한다.
-#if LEVELPLAY_SDK
+        // 디버그 해금 빌드는 실제 SDK 대신 스텁을 써서 보상형 광고도 시청 없이 보상한다.
+#if LEVELPLAY_SDK && !BUTTERPOP_DEBUG_UNLOCK
         IAdProvider adProvider = new LevelPlayProvider();
 #else
         IAdProvider adProvider = new StubAdProvider();
