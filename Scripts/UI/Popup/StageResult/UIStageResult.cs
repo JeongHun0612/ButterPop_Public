@@ -20,6 +20,9 @@ public class UIStageResult : UIPopup
     [SerializeField] private RectTransform particleAnchor;
     [SerializeField] private UIParticle successParticlePrefab;
 
+    [Header("하트 연출")]
+    [SerializeField] private UIHeartLoopEffect heartLoopEffect;
+
     [Header("광고")]
     [Tooltip("클리어 연출 종료 후 전면 광고 노출까지의 대기 시간(초)")]
     [SerializeField] private float adPresentDelay = 0.6f;
@@ -47,6 +50,7 @@ public class UIStageResult : UIPopup
 
     protected override async UniTask OnShowAnimation()
     {
+        if (heartLoopEffect != null) heartLoopEffect.Stop();
         filmPanel.gameObject.SetActive(false);
 
         // 셔터 연출 (화면 플래시)
@@ -63,6 +67,13 @@ public class UIStageResult : UIPopup
             await shutterPanel.DOFade(0f, shutterFadeOutDuration).ToUniTask();
             shutterPanel.gameObject.SetActive(false);
         }
+        else
+        {
+            filmPanel.gameObject.SetActive(true);
+            SpawnParticle();
+        }
+
+        if (heartLoopEffect != null) heartLoopEffect.Play();
 
         // 클리어 연출 종료 후 전면 광고 자동 노출 시도. 실제로 광고가 나갈 때만 잠깐의 딜레이를 준다.
         if (AdCoordinator.TryGetInstance(out var adCoordinator))
@@ -76,6 +87,7 @@ public class UIStageResult : UIPopup
 
     public override void OnAfterHide()
     {
+        if (heartLoopEffect != null) heartLoopEffect.Stop();
         DespawnParticle();
         filmPanel.gameObject.SetActive(false);
     }
