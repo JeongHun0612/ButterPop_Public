@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "SkinTab", menuName = "BananaGallery/Skin/Skin Tab")]
+[CreateAssetMenu(fileName = "SkinTab", menuName = "ButterPop/Skin/Skin Tab")]
 public class SkinTabSO : ScriptableObject
 {
     public SkinCategory category;

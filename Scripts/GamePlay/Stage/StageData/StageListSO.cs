@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "StageList", menuName = "BananaGallery/Stage/Stage List")]
+[CreateAssetMenu(fileName = "StageList", menuName = "ButterPop/Stage/Stage List")]
 public class StageListSO : ScriptableObject
 {
     public List<StageDataSO> stages = new();

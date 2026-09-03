@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
-[CreateAssetMenu(fileName = "UIRegistry", menuName = "BananaGallery/UI/Registry")]
+[CreateAssetMenu(fileName = "UIRegistry", menuName = "ButterPop/UI/Registry")]
 public class UIRegistrySO : ScriptableObject
 {
     [Header("Scene UI")]

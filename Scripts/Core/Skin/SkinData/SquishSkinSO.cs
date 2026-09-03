@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "SquishSkin", menuName = "BananaGallery/Squish/Squish Skin")]
+[CreateAssetMenu(fileName = "SquishSkin", menuName = "ButterPop/Squish/Squish Skin")]
 public class SquishSkinSO : SkinDataSO
 {
     [Header("비주얼")]

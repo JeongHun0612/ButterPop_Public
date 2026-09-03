@@ -18,7 +18,7 @@ public class SaveDataDebugWindow : EditorWindow
     private static string TempPath => FilePath + ".tmp";
     private static bool FileExists => File.Exists(FilePath);
 
-    [MenuItem("BananaGallery/세이브/세이브 데이터 창")]
+    [MenuItem("ButterPop/세이브/세이브 데이터 창")]
     private static void Open()
     {
         var window = GetWindow<SaveDataDebugWindow>("세이브 데이터");
@@ -27,7 +27,7 @@ public class SaveDataDebugWindow : EditorWindow
         window.Show();
     }
 
-    [MenuItem("BananaGallery/세이브/세이브 폴더 열기")]
+    [MenuItem("ButterPop/세이브/세이브 폴더 열기")]
     private static void OpenSaveFolder() => EditorUtility.RevealInFinder(Application.persistentDataPath);
 
     private void OnEnable() => Reload();

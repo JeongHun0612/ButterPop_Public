@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Localization;
 using UnityEngine.Serialization;
 
-[CreateAssetMenu(fileName = "StageData", menuName = "BananaGallery/Stage/Stage Data")]
+[CreateAssetMenu(fileName = "StageData", menuName = "ButterPop/Stage/Stage Data")]
 public class StageDataSO : ScriptableObject
 {
     // 오브젝트·카메라 배치 기준 화면 비율(가로/세로). 19.5:9 (1170x2532)

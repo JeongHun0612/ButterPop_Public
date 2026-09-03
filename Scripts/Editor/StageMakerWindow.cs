@@ -62,7 +62,7 @@ public class StageMakerWindow : EditorWindow
 
     private Vector2 _scrollPos;
 
-    [MenuItem("BananaGallery/Stage Maker")]
+    [MenuItem("ButterPop/Stage Maker")]
     public static void Open()
     {
         var window = GetWindow<StageMakerWindow>("Stage Maker");

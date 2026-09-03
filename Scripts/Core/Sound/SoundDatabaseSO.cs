@@ -4,7 +4,7 @@ using UnityEngine;
 
 // SfxType ↔ AudioClip 매핑 테이블. SoundManager가 인스펙터로 직접 참조한다.
 // BGM이 필요해지면 아래에 별도 섹션(BgmType enum + 매핑)을 추가해 확장한다.
-[CreateAssetMenu(fileName = "SoundDatabase", menuName = "BananaGallery/Sound/Sound Database")]
+[CreateAssetMenu(fileName = "SoundDatabase", menuName = "ButterPop/Sound/Sound Database")]
 public class SoundDatabaseSO : ScriptableObject
 {
     [Serializable]
