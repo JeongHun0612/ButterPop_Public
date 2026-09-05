@@ -32,7 +32,7 @@ public class SkinCell : MonoBehaviour
     private void Awake()
     {
         if (button != null)
-            button.onClick.AddListener(() => _onClick?.Invoke(_data));
+            button.OnClickWithSound(() => _onClick?.Invoke(_data));
     }
 
     public void Bind(SkinDataSO data, bool owned, bool selected, Action<SkinDataSO> onClick)
