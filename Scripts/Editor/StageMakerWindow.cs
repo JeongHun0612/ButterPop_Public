@@ -69,6 +69,15 @@ public class StageMakerWindow : EditorWindow
         window.minSize = new Vector2(360, 600);
     }
 
+    public static void Open(StageDataSO stageData)
+    {
+        var window = GetWindow<StageMakerWindow>("Stage Maker");
+        window.minSize = new Vector2(360, 600);
+        window.LoadStageData(stageData);
+        window.Show();
+        window.Focus();
+    }
+
     private void OnEnable()
     {
         SceneView.duringSceneGui += OnSceneGUI;
@@ -109,6 +118,18 @@ public class StageMakerWindow : EditorWindow
         if (_data != null) return;
         _data = CreateInstance<WorkingData>();
         _data.hideFlags = HideFlags.DontSave;
+    }
+
+    private void LoadStageData(StageDataSO stageData)
+    {
+        if (stageData == null) return;
+
+        EnsureWorkingData();
+        if (_isEditMode) ExitEditMode();
+
+        _loadedSO = stageData;
+        LoadFromSO(stageData);
+        Repaint();
     }
 
     private void OnUndoRedo()
