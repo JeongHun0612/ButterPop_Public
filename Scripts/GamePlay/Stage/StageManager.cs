@@ -148,6 +148,9 @@ public class StageManager : MonoSingleton<StageManager>
 
     public int GetHighestClearedIndex()
     {
+        // 디버그 해금 빌드는 전 스테이지를 클리어한 것으로 취급한다(세이브 값은 건드리지 않는다).
+        if (BuildFlags.DebugUnlock) return StageCount - 1;
+
         if (!Services.TryGet<ISaveService>(out var save)) return -1;
         if (save.Data?.stage == null) return -1;
         return save.Data.stage.highestClearedIndex;
