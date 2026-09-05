@@ -26,7 +26,7 @@ public class MenuStageSelectPanel : MonoBehaviour
     private int _activeCellCount;
     private bool _layoutReady;
     private Action _requestClose;
-    private int _refreshVersion;
+    private string[] _localizedNames;   // 런타임 언어 변경이 없어 1회만 채우는 스테이지 이름 캐시
 
     private void LateUpdate()
     {
@@ -75,17 +75,13 @@ public class MenuStageSelectPanel : MonoBehaviour
         }
 
         _activeCellCount = count;
+
+        PreloadNamesAsync(stageManager).Forget();
     }
 
     public void Refresh()
     {
-        RefreshAsync().Forget();
-    }
-
-    private async UniTaskVoid RefreshAsync()
-    {
         if (_activeCellCount == 0) return;
-        int refreshVersion = ++_refreshVersion;
 
         // 레이아웃 측정은 패널이 활성화되어 뷰포트 크기가 확정된 뒤(최초 Refresh) 1회 수행한다.
         if (!_layoutReady)
@@ -97,23 +93,12 @@ public class MenuStageSelectPanel : MonoBehaviour
         var stageManager = StageManager.Instance;
         Debug.Assert(stageManager != null, "[MenuStageSelectPanel] StageManager가 없습니다");
 
-        var revealed = new bool[_activeCellCount];
-        var nameTasks = new UniTask<string>[_activeCellCount];
-
+        // 해금 여부는 진행도를 따라 달라지므로 열 때마다 다시 판정한다.
         for (int i = 0; i < _activeCellCount; i++)
         {
-            revealed[i] = !lockUnrevealed || i <= stageManager.GetHighestClearedIndex() + 1;
-            var data = stageManager.GetStageData(i);
-            nameTasks[i] = revealed[i] && data != null
-                ? GetLocalizedNameAsync(data)
-                : UniTask.FromResult(string.Empty);
+            bool revealed = !lockUnrevealed || i <= stageManager.GetHighestClearedIndex() + 1;
+            _cellPool[i].Bind(i, BuildLabel(i, revealed, GetCachedName(stageManager, i)));
         }
-
-        string[] names = await UniTask.WhenAll(nameTasks);
-        if (refreshVersion != _refreshVersion) return;
-
-        for (int i = 0; i < _activeCellCount; i++)
-            _cellPool[i].Bind(i, BuildLabel(i, revealed[i], names[i]));
 
         int start = Mathf.Clamp(stageManager.CurrentStageIndex, 0, _activeCellCount - 1);
         wheel.MoveTo(start, instant: true);
@@ -140,6 +125,23 @@ public class MenuStageSelectPanel : MonoBehaviour
         return true;
     }
 
+    // 로컬라이즈 테이블은 통째로 로드되므로 미해금 스테이지 이름까지 한 번에 받아둔다.
+    private async UniTaskVoid PreloadNamesAsync(StageManager stageManager)
+    {
+        var nameTasks = new UniTask<string>[_activeCellCount];
+
+        for (int i = 0; i < _activeCellCount; i++)
+        {
+            var data = stageManager.GetStageData(i);
+            nameTasks[i] = data != null ? GetLocalizedNameAsync(data) : UniTask.FromResult(string.Empty);
+        }
+
+        _localizedNames = await UniTask.WhenAll(nameTasks);
+
+        // 로드가 메뉴 오픈보다 늦었으면 라벨을 다시 채운다. 그 사이 패널이 파괴됐을 수 있다.
+        if (this != null && isActiveAndEnabled) Refresh();
+    }
+
     // 뷰포트 크기가 확정된 활성 상태에서 호출해야 셀이 정확히 뷰포트 중앙에 정렬된다.
     private void BuildLayout()
     {
@@ -150,6 +152,15 @@ public class MenuStageSelectPanel : MonoBehaviour
 
         for (int i = 0; i < _activeCellCount; i++)
             _cellPool[i].Rect.anchoredPosition = new Vector2(0f, wheel.GetItemY(i));
+    }
+
+    // 캐시가 아직 없으면 stageId로 대신한다.
+    private string GetCachedName(StageManager stageManager, int index)
+    {
+        if (_localizedNames != null) return _localizedNames[index];
+
+        var data = stageManager.GetStageData(index);
+        return data != null ? data.stageId : string.Empty;
     }
 
     private static string BuildLabel(int index, bool revealed, string localizedName)
