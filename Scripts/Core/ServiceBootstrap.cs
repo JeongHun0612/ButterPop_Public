@@ -14,11 +14,10 @@ public static class ServiceBootstrap
         Services.Register<ISaveService>(save);
 
         // 구매 서비스: 세이브의 구매 데이터를 읽고 쓰며, 초기화 시 스토어에서 보유 상품을 복원한다.
-        // 에디터는 스토어에 붙을 수 없어 스텁을 쓴다. 실기기 빌드만 Unity IAP를 탄다.
-#if UNITY_IAP && !UNITY_EDITOR
-        IIapProvider iapProvider = new UnityIapProvider();
-#else
+        // 스토어에 붙을 수 있는 모바일 릴리즈 빌드만 Unity IAP를 타고, 나머지는 스텁을 쓴다.
         IIapProvider iapProvider = new StubIapProvider();
+#if UNITY_IAP
+        if (BuildFlags.UseLiveIap) iapProvider = new UnityIapProvider();
 #endif
         var purchase = new PurchaseService(save, iapProvider);
         Services.Register<IPurchaseService>(purchase);
@@ -30,11 +29,12 @@ public static class ServiceBootstrap
         Services.Register<ISkinService>(new SkinService(save, purchase));
 
         // 광고 서비스: 배너/전면/리워드를 재생한다. 광고 제거 게이팅을 위해 구매 서비스를 참조한다.
-        // 디버그 해금 빌드는 실제 SDK 대신 스텁을 써서 보상형 광고도 시청 없이 보상한다.
-#if LEVELPLAY_SDK && !BUTTERPOP_DEBUG_UNLOCK
-        IAdProvider adProvider = new LevelPlayProvider();
-#else
+        // 실광고는 릴리즈 빌드만 태운다(LevelPlay는 에디터에서도 테스트되므로 에디터도 포함).
+        // 그 외는 스텁이라 배너가 없고 보상형도 시청 없이 보상한다.
+        // 아래 #if는 LevelPlayProvider의 컴파일 게이트와 동일하게 유지한다(클래스 존재 여부 판정).
         IAdProvider adProvider = new StubAdProvider();
+#if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS)
+        if (BuildFlags.IsRelease) adProvider = new LevelPlayProvider();
 #endif
         var ads = new AdsService(adProvider, purchase);
         Services.Register<IAdsService>(ads);

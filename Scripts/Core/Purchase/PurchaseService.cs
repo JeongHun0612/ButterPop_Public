@@ -16,16 +16,10 @@ public class PurchaseService : IPurchaseService
         _provider = provider;
     }
 
-#if BUTTERPOP_DEBUG_UNLOCK
-    // 디버그 해금은 구매 세이브를 바꾸지 않고 실행 중 권한에만 적용한다.
-    public bool RemoveBannerAds => true;
-    public bool RemoveAllAds => true;
-    public bool AllSkinsUnlocked => true;
-#else
-    public bool RemoveBannerAds => Data.bannerRemoveAds || Data.allRemoveAds;
-    public bool RemoveAllAds => Data.allRemoveAds;
-    public bool AllSkinsUnlocked => Data.allRemoveAds;
-#endif
+    // 디버그 해금 빌드는 구매 세이브를 바꾸지 않고 실행 중 권한만 열어 준다.
+    public bool RemoveBannerAds => BuildFlags.DebugUnlock || Data.bannerRemoveAds || Data.allRemoveAds;
+    public bool RemoveAllAds => BuildFlags.DebugUnlock || Data.allRemoveAds;
+    public bool AllSkinsUnlocked => BuildFlags.DebugUnlock || Data.allRemoveAds;
 
     // 스토어 실패가 게임 진행을 막지 않도록 예외를 삼킨다.
     public async UniTask InitializeAsync()

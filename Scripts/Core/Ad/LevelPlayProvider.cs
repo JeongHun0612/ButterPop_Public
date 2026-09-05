@@ -1,6 +1,7 @@
 // Unity LevelPlay(구 ironSource) 어댑터. com.unity.services.levelplay 9.x 기준.
-// LEVELPLAY_SDK 디파인이 있을 때만 컴파일된다(없으면 ServiceBootstrap이 StubAdProvider 사용)
-#if LEVELPLAY_SDK
+// LEVELPLAY_SDK 디파인 + 모바일 빌드 타겟일 때만 컴파일된다.
+// (그 외 플랫폼에선 ServiceBootstrap이 같은 조건으로 StubAdProvider를 골라 광고 없이 진행)
+#if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS)
 using System;
 using Cysharp.Threading.Tasks;
 using Unity.Services.LevelPlay;
@@ -13,13 +14,11 @@ public class LevelPlayProvider : IAdProvider
     private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-#elif UNITY_IOS
+#else // UNITY_IOS
     private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
     private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
-#else
-#error LevelPlayProvider는 Android/iOS 전용입니다. 빌드 타겟을 모바일로 바꾸거나 LEVELPLAY_SDK 디파인을 끄세요.
 #endif
 
     // 성공/실패 콜백이 둘 다 오지 않는 엣지 케이스를 대비한 초기화 대기 상한(초).
