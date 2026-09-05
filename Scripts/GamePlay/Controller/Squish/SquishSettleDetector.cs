@@ -15,6 +15,9 @@ public class SquishSettleDetector : MonoBehaviour
 
     private readonly Dictionary<StageObject, int> _stageContacts = new();
 
+    // 기믹이 직접 선언한 접촉. 조인트로 용접된 뼈는 물리 접촉이 끊겨도 얹힌 상태다.
+    private readonly HashSet<StageObject> _heldContacts = new();
+
     private SquishBody _body;
     private int _armContacts;
 
@@ -34,6 +37,8 @@ public class SquishSettleDetector : MonoBehaviour
     public event Action<bool> OnSettlingChanged;
 
     public bool IsSettling => _settling;
+
+    private bool IsOnStage => _stageContacts.Count > 0 || _heldContacts.Count > 0;
 
     private void Awake()
     {
@@ -61,7 +66,7 @@ public class SquishSettleDetector : MonoBehaviour
             return;
         }
 
-        SetSettling(_stageContacts.Count > 0 && _armContacts == 0 && _body.MaxBoneSpeed < settleSpeedThreshold);
+        SetSettling(IsOnStage && _armContacts == 0 && _body.MaxBoneSpeed < settleSpeedThreshold);
 
         if (_settling)
         {
@@ -96,6 +101,17 @@ public class SquishSettleDetector : MonoBehaviour
         if (paused) SetSettling(false);
     }
 
+    // 스퀴시를 조인트로 붙잡는 기믹이 얹혀 있음을 직접 선언한다.
+    public void HoldContact(StageObject stage)
+    {
+        if (stage == null) return;
+
+        _heldContacts.Add(stage);
+    }
+
+    // 파괴된 오브젝트도 빠지도록 null 체크 없이 넘긴다.
+    public void ReleaseContact(StageObject stage) => _heldContacts.Remove(stage);
+
     // 카메라 시야 + 여백을 벗어나면 낙하로 본다. 좌우도 카메라 중심 기준이라
     // cameraCenter.x가 0이 아닌 스테이지에서도 경계가 대칭으로 잡힌다.
     public void UpdateCameraBounds(Camera cam)
@@ -121,6 +137,7 @@ public class SquishSettleDetector : MonoBehaviour
         _judging = false;
         _settleTimer = 0f;
         _stageContacts.Clear();
+        _heldContacts.Clear();
         _armContacts = 0;
         SetSettling(false);
     }
@@ -130,6 +147,12 @@ public class SquishSettleDetector : MonoBehaviour
         var bounds = _body.WorldBounds;
 
         foreach (var stage in _stageContacts.Keys)
+        {
+            if (stage == null) continue;
+            bounds.Encapsulate(RendererUtils.GetWorldBounds(stage.gameObject));
+        }
+
+        foreach (var stage in _heldContacts)
         {
             if (stage == null) continue;
             bounds.Encapsulate(RendererUtils.GetWorldBounds(stage.gameObject));

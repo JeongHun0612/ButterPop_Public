@@ -144,6 +144,10 @@ public class Squish : MonoBehaviour
 
     public void ForceSettle(GameObject extraObject = null) => settleDetector.ForceSettle(extraObject);
 
+    public void HoldStageContact(StageObject stage) => settleDetector.HoldContact(stage);
+
+    public void ReleaseStageContact(StageObject stage) => settleDetector.ReleaseContact(stage);
+
     public void UpdateCameraBounds(Camera cam) => settleDetector.UpdateCameraBounds(cam);
 
     private void DropInternal()
