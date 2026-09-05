@@ -185,10 +185,33 @@ public class MenuCustomPanel : MonoBehaviour
     {
         int current = pagedScroll.CurrentPage;
         int total = pagedScroll.PageCount;
+        bool hasMultiplePages = total > 1;
 
-        if (pageText != null) pageText.text = $"{current + 1} / {total}";
-        if (prevButton != null) prevButton.interactable = current > 0;
-        if (nextButton != null) nextButton.interactable = current < total - 1;
+        if (pageText != null)
+        {
+            pageText.gameObject.SetActive(hasMultiplePages);
+            pageText.text = $"{current + 1} / {total}";
+        }
+
+        if (prevButton != null)
+        {
+            prevButton.gameObject.SetActive(hasMultiplePages);
+            prevButton.interactable = hasMultiplePages && current > 0;
+        }
+
+        if (nextButton != null)
+        {
+            nextButton.gameObject.SetActive(hasMultiplePages);
+            nextButton.interactable = hasMultiplePages && current < total - 1;
+        }
+
+        pagedScroll.enabled = hasMultiplePages;
+
+        if (_scrollRect != null)
+        {
+            _scrollRect.horizontal = hasMultiplePages;
+            if (!hasMultiplePages) _scrollRect.velocity = Vector2.zero;
+        }
     }
 
     private void OnPageChanged(int page)

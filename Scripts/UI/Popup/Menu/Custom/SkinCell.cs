@@ -17,6 +17,8 @@ public class SkinCell : MonoBehaviour
     [Header("상태")]
     [SerializeField] private GameObject lockOverlay;    // 미소유(잠금)
     [SerializeField] private GameObject selectedFrame;  // 선택 = 장착 (즉시 장착 모델)
+    [SerializeField] private Color selectedTextColor = Color.black;
+    [SerializeField] private Color normalTextColor = Color.white;
 
     [Header("클릭")]
     [SerializeField] private Button button;
@@ -44,12 +46,13 @@ public class SkinCell : MonoBehaviour
         // 미보유 스킨은 잠금 표시 + 클릭 차단. 에디터 테스트는 세이브 디버그 창의 "전체 광고 제거"로 한다.
         if (lockOverlay != null) lockOverlay.SetActive(!owned);
         if (button != null) button.interactable = owned;
-        if (selectedFrame != null) selectedFrame.SetActive(selected);
+        SetSelected(selected);
     }
 
     public void SetSelected(bool selected)
     {
         if (selectedFrame != null) selectedFrame.SetActive(selected);
+        if (nameText != null) nameText.color = selected ? selectedTextColor : normalTextColor;
     }
 
     private async UniTaskVoid RefreshNameAsync(SkinDataSO data, int bindVersion)

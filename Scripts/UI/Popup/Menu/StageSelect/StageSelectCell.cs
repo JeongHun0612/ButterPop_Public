@@ -2,7 +2,6 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI;
 
 /// <summary>스테이지 선택 휠의 셀 1칸. 표시와 포커스 연출만 담당한다.</summary>
 [RequireComponent(typeof(CanvasGroup))]
@@ -10,7 +9,9 @@ public class StageSelectCell : MonoBehaviour, IPointerClickHandler
 {
     [Header("표시")]
     [SerializeField] private TextMeshProUGUI label;
-    [SerializeField] private Image background;
+    [SerializeField] private GameObject focus;
+    [SerializeField] private Color focusTextColor = Color.black;
+    [SerializeField] private Color normalTextColor = Color.white;
 
     private RectTransform _rect;
     private CanvasGroup _canvasGroup;
@@ -35,15 +36,19 @@ public class StageSelectCell : MonoBehaviour, IPointerClickHandler
 
     public void SetSelected(bool selected)
     {
-        if (background != null) background.enabled = selected;
+        if (focus != null) focus.SetActive(selected);
+        if (label != null) label.color = selected ? focusTextColor : normalTextColor;
     }
 
-    public void ApplyFocus(float scale, float alpha)
-    {
-        Rect.localScale = new Vector3(scale, scale, 1f);
+    public void ApplyFocus(float scale) => Rect.localScale = new Vector3(scale, scale, 1f);
 
+    public void SetVisible(bool visible)
+    {
         if (_canvasGroup == null) _canvasGroup = GetComponent<CanvasGroup>();
-        _canvasGroup.alpha = alpha;
+
+        _canvasGroup.alpha = visible ? 1f : 0f;
+        _canvasGroup.interactable = visible;
+        _canvasGroup.blocksRaycasts = visible;
     }
 
     public void OnPointerClick(PointerEventData eventData)

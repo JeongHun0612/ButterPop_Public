@@ -13,8 +13,6 @@ public class MenuStageSelectPanel : MonoBehaviour
     [Header("포커스 연출")]
     [SerializeField] private float centerScale = 1.6f;   // 정중앙 셀 배율
     [SerializeField] private float sideScale = 1f;       // 나머지 셀 배율
-    [Tooltip("중앙에서 한 칸 멀어질 때 줄어드는 불투명도")]
-    [SerializeField] private float alphaStep = 0.2f;
     [Tooltip("중앙 기준 위/아래로 보이는 셀 수 (그 바깥은 숨김)")]
     [SerializeField] private int visibleRange = 2;
 
@@ -38,12 +36,6 @@ public class MenuStageSelectPanel : MonoBehaviour
         for (int i = 0; i < _activeCellCount; i++)
         {
             float dist = wheel.GetFocusDistance(i);
-
-            _cellPool[i].ApplyFocus(
-                Mathf.Lerp(centerScale, sideScale, Mathf.Clamp01(dist)),
-                dist > visibleRange ? 0f : Mathf.Clamp01(1f - alphaStep * dist));
-            _cellPool[i].SetSelected(false);
-
             if (dist < minDist)
             {
                 minDist = dist;
@@ -51,7 +43,13 @@ public class MenuStageSelectPanel : MonoBehaviour
             }
         }
 
-        _cellPool[nearest].SetSelected(true);
+        for (int i = 0; i < _activeCellCount; i++)
+        {
+            float dist = wheel.GetFocusDistance(i);
+            _cellPool[i].ApplyFocus(Mathf.Lerp(centerScale, sideScale, Mathf.Clamp01(dist)));
+            _cellPool[i].SetVisible(dist <= visibleRange);
+            _cellPool[i].SetSelected(i == nearest);
+        }
     }
 
     /// <param name="requestClose">셀 클릭 시 메뉴에 닫기를 요청하는 콜백. 스테이지 확정은 메뉴가 주도한다.</param>
