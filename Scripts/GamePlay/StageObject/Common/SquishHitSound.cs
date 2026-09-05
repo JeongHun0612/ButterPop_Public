@@ -9,7 +9,7 @@ public class SquishHitSound : MonoBehaviour, ISquishHittable
 
     [Header("재생 제한")]
     [Tooltip("연속 충돌로 소리가 겹치는 것을 막는 최소 재생 간격(초)")]
-    [SerializeField] private float playCooldown = 0.3f;
+    [SerializeField] private float playCooldown = 0.5f;
 
     private float _lastPlayTime = float.NegativeInfinity;
 
