@@ -41,6 +41,7 @@ public class StageManager : MonoSingleton<StageManager>
     public int CurrentStageIndex { get; private set; }
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
+    public int SkipTryThreshold => skipTryThreshold;
     public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
     public bool IsSettling => _current?.Squish != null && _current.Squish.IsSettling;
     public StageDataSO CurrentStageData => _current?.Data;

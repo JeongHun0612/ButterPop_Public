@@ -15,17 +15,16 @@ public class UIInGameHUD : UIScene
     [SerializeField] private Image skinTrialIcon;
     [SerializeField] private float skinTrialShowDuration = 0.35f;
     [SerializeField] private Ease skinTrialShowEase = Ease.OutBack;
-    [Tooltip("후보 스킨 교체 시 아이콘 펀치 세기")]
-    [SerializeField] private float skinTrialPunch = 0.2f;
-    [SerializeField] private float skinTrialPunchDuration = 0.25f;
 
     [Header("스킵 버튼 연출")]
     [SerializeField] private float skipShowDuration = 0.35f;
     [SerializeField] private Ease skipShowEase = Ease.OutBack;
+    [Tooltip("스킵 버튼 리마인드 시 펀치 세기")]
+    [SerializeField] private float skipReminderPunch = 0.15f;
+    [SerializeField] private float skipReminderDuration = 0.3f;
 
     private Tween _skipShowTween;
     private Tween _skinTrialShowTween;
-    private Tween _skinTrialIconTween;
 
     private SquishSkinSO _trialCandidate;
     private bool _trialAppliedThisStage;
@@ -52,6 +51,7 @@ public class UIInGameHUD : UIScene
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
         stageManager.OnSkipAvailabilityChanged += SetSkipButtonActive;
+        stageManager.OnTryCountChanged += RemindSkipButton;
         stageManager.OnTryCountChanged += UpdateSkinTrial;
         stageManager.OnSettlingChanged += SetSettling;
 
@@ -64,11 +64,11 @@ public class UIInGameHUD : UIScene
     {
         _skipShowTween?.Kill();
         _skinTrialShowTween?.Kill();
-        _skinTrialIconTween?.Kill();
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
         stageManager.OnSkipAvailabilityChanged -= SetSkipButtonActive;
+        stageManager.OnTryCountChanged -= RemindSkipButton;
         stageManager.OnTryCountChanged -= UpdateSkinTrial;
         stageManager.OnSettlingChanged -= SetSettling;
     }
@@ -113,6 +113,21 @@ public class UIInGameHUD : UIScene
         _skipShowTween = buttonTransform
             .DOScale(Vector3.one, skipShowDuration)
             .SetEase(skipShowEase);
+    }
+
+    // 최초 노출 이후 다시 기준 횟수만큼 실패할 때마다 버튼을 가볍게 강조한다.
+    private void RemindSkipButton(int tryCount)
+    {
+        if (skipButton == null || !skipButton.gameObject.activeSelf) return;
+
+        int interval = StageManager.Instance.SkipTryThreshold;
+        if (tryCount <= interval || tryCount % interval != 0) return;
+
+        _skipShowTween?.Kill();
+        skipButton.transform.localScale = Vector3.one;
+        _skipShowTween = skipButton.transform.DOPunchScale(
+            Vector3.one * skipReminderPunch,
+            skipReminderDuration);
     }
 
     private async UniTaskVoid SkipStageAsync()
@@ -163,7 +178,7 @@ public class UIInGameHUD : UIScene
             return;
         }
 
-        // 후보가 실제로 바뀌었을 때만 아이콘 교체·연출한다(같은 후보 유지 구간에선 연출 생략).
+        // 후보가 실제로 바뀌었을 때만 아이콘을 교체한다.
         bool changed = candidate != _trialCandidate;
         _trialCandidate = candidate;
 
@@ -171,17 +186,16 @@ public class UIInGameHUD : UIScene
         SetSkinTrialActive(true, changed);
     }
 
-    // active: 버튼 노출 여부. changed: 이미 표시 중인 상태에서 후보가 바뀌었는지(펀치 연출용).
+    // 최초 노출 또는 후보 스킨 교체 시에만 버튼 전체를 다시 등장시킨다.
     private void SetSkinTrialActive(bool active, bool changed = false)
     {
         if (skinTrialButton == null) return;
-
-        _skinTrialShowTween?.Kill();
 
         var buttonTransform = skinTrialButton.transform;
 
         if (!active)
         {
+            _skinTrialShowTween?.Kill();
             buttonTransform.localScale = Vector3.one;
             skinTrialButton.gameObject.SetActive(false);
             return;
@@ -190,27 +204,14 @@ public class UIInGameHUD : UIScene
         bool wasActive = skinTrialButton.gameObject.activeSelf;
         skinTrialButton.gameObject.SetActive(true);
 
-        if (!wasActive)
+        if (!wasActive || changed)
         {
-            // 새로 등장: 스케일 팝인
+            _skinTrialShowTween?.Kill();
             buttonTransform.localScale = Vector3.zero;
             _skinTrialShowTween = buttonTransform
                 .DOScale(Vector3.one, skinTrialShowDuration)
                 .SetEase(skinTrialShowEase);
         }
-        else if (changed)
-        {
-            PunchTrialIcon();
-        }
-    }
-
-    private void PunchTrialIcon()
-    {
-        if (skinTrialIcon == null) return;
-
-        _skinTrialIconTween?.Kill();
-        skinTrialIcon.transform.localScale = Vector3.one;
-        _skinTrialIconTween = skinTrialIcon.transform.DOPunchScale(Vector3.one * skinTrialPunch, skinTrialPunchDuration);
     }
 
     private async UniTaskVoid SkinTrialAsync()
