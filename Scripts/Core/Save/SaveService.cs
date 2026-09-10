@@ -17,7 +17,7 @@ public class SaveService : ISaveService
     {
         var service = new SaveService(storage);
         service.Data = await storage.LoadAsync() ?? new SaveData();
-        service.Migrate();
+        SaveMigration.Apply(service.Data);
         Debug.Log($"[SaveService] 로드 완료 (v{service.Data.version})");
         return service;
     }
@@ -50,10 +50,5 @@ public class SaveService : ISaveService
         catch { /* 무시: 이 저장과는 무관한 앞 요청의 실패 */ }
 
         return await _storage.SaveAsync(Data);
-    }
-
-    private void Migrate()
-    {
-        // while (Data.version < CurrentVersion) { 단계별 변환; Data.version++; }
     }
 }

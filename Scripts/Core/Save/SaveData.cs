@@ -4,7 +4,9 @@ using System.Collections.Generic;
 [Serializable]
 public class SaveData
 {
-    public int version = 1;
+    public const int CurrentVersion = 1;   // 정식 출시 빌드의 세이브 구조. 출시 후 구조를 바꾸면 올린다
+
+    public int version = CurrentVersion;
     public StageSaveData stage = new();
     public SkinSaveData skin = new();
     public PurchaseSaveData purchase = new();
