@@ -127,6 +127,7 @@ public class SaveDataDebugWindow : EditorWindow
         _data.settings.bgmVolume = EditorGUILayout.Slider("BGM 볼륨", _data.settings.bgmVolume, 0f, 1f);
         _data.settings.sfxVolume = EditorGUILayout.Slider("SFX 볼륨", _data.settings.sfxVolume, 0f, 1f);
         _data.settings.vibration = EditorGUILayout.Toggle("진동", _data.settings.vibration);
+        _data.settings.muted = EditorGUILayout.Toggle("음소거", _data.settings.muted);
     }
 
     private void DrawJsonPreview()

@@ -45,4 +45,5 @@ public class SettingsSaveData
     public float bgmVolume = 1f;
     public float sfxVolume = 1f;
     public bool vibration = true;
+    public bool muted;
 }

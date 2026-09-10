@@ -27,6 +27,11 @@ public class GameManager : MonoSingleton<GameManager>
         uiManager.ShowInitialLoading().Forget();
 
         await ServiceBootstrap.Initialize();
+
+        // 세이브가 준비된 직후 음소거를 복원한다.
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.Initialize();
+
         await uiManager.InitializeAsync();
 
         var stageManager = StageManager.Instance;
