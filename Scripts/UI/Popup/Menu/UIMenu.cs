@@ -11,6 +11,7 @@ public class UIMenu : UIPopup
 
     [Header("공통")]
     [SerializeField] private Button closeButton;
+    [SerializeField] private Button leaderboardButton;
 
     // OnHide에서 확정한 장착 변경 여부. 닫힌 뒤 스테이지를 다시 지을지 판단하는 데 쓴다.
     private bool _skinChanged;
@@ -24,6 +25,7 @@ public class UIMenu : UIPopup
         if (customPanel != null) customPanel.Initialize();
 
         if (closeButton != null) closeButton.OnClickWithSound(OnClickBack);
+        if (leaderboardButton != null) leaderboardButton.OnClickWithSound(OnClickLeaderboard);
     }
 
     protected override UniTask OnShow()
@@ -31,6 +33,12 @@ public class UIMenu : UIPopup
         if (storePanel != null) storePanel.Refresh();
         if (stagePanel != null) stagePanel.Refresh();
         if (customPanel != null) customPanel.Refresh();
+
+        // 로그인이 끝나야 순위 화면을 띄울 수 있다. 메뉴를 열 때마다 다시 판단한다.
+        if (leaderboardButton != null)
+            leaderboardButton.gameObject.SetActive(
+                Services.TryGet<ILeaderboardService>(out var leaderboard) && leaderboard.IsAvailable);
+
         return UniTask.CompletedTask;
     }
 
@@ -56,5 +64,11 @@ public class UIMenu : UIPopup
         // 스테이지가 그대로라도 스킨이 바뀌었으면 다시 지어야 새 스킨이 반영된다.
         if (!stageLoaded && _skinChanged && StageManager.TryGetInstance(out var stageManager))
             stageManager.LoadStage(stageManager.CurrentStageIndex);
+    }
+
+    // 순위 화면은 Play Games가 게임 위에 직접 그리므로 메뉴를 닫지 않는다.
+    private void OnClickLeaderboard()
+    {
+        if (Services.TryGet<ILeaderboardService>(out var leaderboard)) leaderboard.ShowLeaderboard();
     }
 }

@@ -169,6 +169,9 @@ public class StageManager : MonoSingleton<StageManager>
         save.Data.stage.highestClearedIndex = index;
         save.Save();
         Debug.Log($"[StageManager] 클리어 갱신: {index}");
+
+        // 진행도가 오르는 유일한 지점이라 여기서만 랭킹에 올린다.
+        if (Services.TryGet<ILeaderboardService>(out var leaderboard)) leaderboard.SubmitHighestStage(index);
     }
 
     private void IncrementTryCount()
