@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -17,7 +18,7 @@ public class StubIapProvider : IIapProvider
         await UniTask.CompletedTask;
     }
 
-    public async UniTask<PurchaseState> PurchaseAsync(string productId)
+    public async UniTask<PurchaseState> PurchaseAsync(string productId, Func<string, bool> processGrant)
     {
         await UniTask.CompletedTask;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -38,13 +39,15 @@ public class StubIapProvider : IIapProvider
 #endif
     }
 
-    public async UniTask RestoreAsync()
+    public async UniTask RestoreAsync(Func<string, UniTask<bool>> processGrant)
     {
         Debug.Log("[StubIapProvider] 복원(스텁)");
         await UniTask.CompletedTask;
     }
 
     public IReadOnlyList<string> GetOwnedProductIds() => _owned;
+
+    public IReadOnlyList<string> GetRevokedProductIds() => System.Array.Empty<string>();
 
     // 스토어가 없어 더미 가격을 돌려준다.
     public bool TryGetLocalizedPrice(string productId, out string price)

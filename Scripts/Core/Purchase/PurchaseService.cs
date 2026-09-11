@@ -42,7 +42,7 @@ public class PurchaseService : IPurchaseService
         PurchaseState state;
         try
         {
-            state = await _provider.PurchaseAsync(productId);
+            state = await _provider.PurchaseAsync(productId, GrantImmediately);
         }
         catch (Exception e)
         {
@@ -67,7 +67,7 @@ public class PurchaseService : IPurchaseService
     {
         try
         {
-            await _provider.RestoreAsync();
+            await _provider.RestoreAsync(GrantRecoveredAsync);
         }
         catch (Exception e)
         {
@@ -81,6 +81,13 @@ public class PurchaseService : IPurchaseService
         bool changed = false;
         for (int i = 0; i < owned.Count; i++)
             changed |= ApplyEntitlement(owned[i]);
+
+        var revoked = _provider.GetRevokedProductIds();
+        if (revoked != null)
+        {
+            for (int i = 0; i < revoked.Count; i++)
+                changed |= RevokeEntitlement(revoked[i]);
+        }
 
         if (changed) CommitEntitlements();
     }
@@ -107,6 +114,58 @@ public class PurchaseService : IPurchaseService
         }
 
         Debug.Log($"[PurchaseService] 권한 적용: {productId}");
+        return true;
+    }
+
+    // Apps in Toss의 ProcessProductGrant는 결제 오버레이가 player loop를 멈춘 상태에서
+    // 동기로 호출된다. 권한은 즉시 메모리에 반영하고 저장은 큐에 예약한다.
+    private bool GrantImmediately(string productId)
+    {
+        bool changed = ApplyEntitlement(productId);
+        if (changed) CommitEntitlements();
+        return HasEntitlement(productId);
+    }
+
+    // 미결 주문 복구는 오버레이 밖에서 실행되므로 영속 저장 성공까지 기다린 뒤
+    // 프로바이더가 토스에 지급 완료를 통지할 수 있게 한다.
+    private async UniTask<bool> GrantRecoveredAsync(string productId)
+    {
+        bool changed = ApplyEntitlement(productId);
+        if (!HasEntitlement(productId)) return false;
+
+        bool saved = await _save.SaveAsync();
+        if (changed && saved) OnPurchasesUpdated?.Invoke();
+        return saved;
+    }
+
+    private bool HasEntitlement(string productId)
+    {
+        return productId switch
+        {
+            ProductIds.RemoveBannerAds => Data.bannerRemoveAds || Data.allRemoveAds,
+            ProductIds.RemoveAllAds => Data.allRemoveAds,
+            _ => false
+        };
+    }
+
+    private bool RevokeEntitlement(string productId)
+    {
+        switch (productId)
+        {
+            case ProductIds.RemoveBannerAds:
+                if (!Data.bannerRemoveAds) return false;
+                Data.bannerRemoveAds = false;
+                break;
+            case ProductIds.RemoveAllAds:
+                if (!Data.allRemoveAds) return false;
+                Data.allRemoveAds = false;
+                break;
+            default:
+                Debug.LogWarning($"[PurchaseService] 알 수 없는 회수 상품 ID: {productId}");
+                return false;
+        }
+
+        Debug.Log($"[PurchaseService] 환불 권한 회수: {productId}");
         return true;
     }
 

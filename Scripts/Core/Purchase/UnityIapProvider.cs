@@ -49,7 +49,7 @@ public class UnityIapProvider : IIapProvider
         await FetchProductsAsync();
     }
 
-    public async UniTask<PurchaseState> PurchaseAsync(string productId)
+    public async UniTask<PurchaseState> PurchaseAsync(string productId, Func<string, bool> processGrant)
     {
         if (_store == null)
         {
@@ -87,7 +87,7 @@ public class UnityIapProvider : IIapProvider
         return state;
     }
 
-    public async UniTask RestoreAsync()
+    public async UniTask RestoreAsync(Func<string, UniTask<bool>> processGrant)
     {
         if (_store == null) return;
 
@@ -109,6 +109,8 @@ public class UnityIapProvider : IIapProvider
     }
 
     public IReadOnlyList<string> GetOwnedProductIds() => _owned;
+
+    public IReadOnlyList<string> GetRevokedProductIds() => Array.Empty<string>();
 
     public bool TryGetLocalizedPrice(string productId, out string price)
     {

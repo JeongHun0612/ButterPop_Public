@@ -8,7 +8,7 @@ public static class ServiceBootstrap
         Services.Register<ILocalizationService>(await CreateLocalizationAsync());
 
         // 이후 서비스들이 세이브를 인자로 받으므로 가장 먼저 준비한다.
-        var save = await SaveService.CreateAsync(new FileSaveStorage("save.dat"));
+        var save = await SaveService.CreateAsync(CreateSaveStorage());
         Services.Register<ISaveService>(save);
 
         var purchase = new PurchaseService(save, CreateIapProvider());
@@ -38,10 +38,21 @@ public static class ServiceBootstrap
         return localization;
     }
 
+    private static ISaveStorage CreateSaveStorage()
+    {
+#if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
+        return new AppsInTossSaveStorage("butterpop.save.v1");
+#else
+        return new FileSaveStorage("save.dat");
+#endif
+    }
+
     // 스토어에 붙을 수 있는 모바일 릴리즈 빌드만 Unity IAP를 탄다.
     private static IIapProvider CreateIapProvider()
     {
-#if UNITY_IAP
+#if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
+        return new AppsInTossIapProvider();
+#elif UNITY_IAP
         if (BuildFlags.UseLiveIap) return new UnityIapProvider();
 #endif
         return new StubIapProvider();
@@ -51,7 +62,9 @@ public static class ServiceBootstrap
     // #if 조건은 LevelPlayProvider의 컴파일 게이트와 동일하게 유지한다.
     private static IAdProvider CreateAdProvider()
     {
-#if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS)
+#if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
+        return new AppsInTossAdProvider();
+#elif LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS)
         if (BuildFlags.IsRelease) return new LevelPlayProvider();
 #endif
         return new StubAdProvider();
