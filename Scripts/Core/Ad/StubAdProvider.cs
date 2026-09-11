@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -5,6 +6,8 @@ using UnityEngine;
 // 실 SDK(AdMob·LevelPlay 등)를 붙일 때 이 자리에 해당 IAdProvider 구현을 교체한다.
 public class StubAdProvider : IAdProvider
 {
+    public event Action<bool> OnRewardedAvailabilityChanged;
+
     public bool IsInterstitialReady => true;
     public bool IsRewardedReady => true;
 
@@ -15,6 +18,7 @@ public class StubAdProvider : IAdProvider
     public async UniTask InitializeAsync()
     {
         Debug.Log("[StubAdProvider] 초기화(스텁)");
+        OnRewardedAvailabilityChanged?.Invoke(true);
         await UniTask.CompletedTask;
     }
 

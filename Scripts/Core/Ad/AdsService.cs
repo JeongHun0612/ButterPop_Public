@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -11,11 +12,14 @@ public class AdsService : IAdsService
     private bool _initialized;
     private bool _bannerRequested;   // 게임이 배너 노출을 요청했는지.
 
+    public event Action<bool> OnRewardedAvailabilityChanged;
+
     public AdsService(IAdProvider provider, IPurchaseService purchase)
     {
         _provider = provider;
         _purchase = purchase;
         _purchase.OnPurchasesUpdated += OnPurchasesUpdated;
+        _provider.OnRewardedAvailabilityChanged += OnProviderRewardedAvailabilityChanged;
     }
 
     public bool IsRewardedReady => _provider.IsRewardedReady;
@@ -91,4 +95,7 @@ public class AdsService : IAdsService
     {
         if (_purchase.RemoveBannerAds) _provider.HideBanner();
     }
+
+    private void OnProviderRewardedAvailabilityChanged(bool available) =>
+        OnRewardedAvailabilityChanged?.Invoke(available);
 }

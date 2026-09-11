@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 
 // 광고 SDK를 얇게 래핑하는 어댑터 계약. AdMob·LevelPlay 등 SDK 교체는 이 구현만 바꾼다.
@@ -20,6 +21,7 @@ public interface IAdProvider
 
     // 리워드
     bool IsRewardedReady { get; }
+    event Action<bool> OnRewardedAvailabilityChanged;
     void LoadRewarded();
     UniTask<bool> ShowRewardedAsync();        // 시청 완료(보상 지급) 시 true
 }
