@@ -11,6 +11,10 @@ public static class ServiceBootstrap
         var save = await SaveService.CreateAsync(new FileSaveStorage("save.dat"));
         Services.Register<ISaveService>(save);
 
+        // 결제·광고·리더보드가 이벤트를 남길 수 있도록 그보다 먼저 준비한다.
+        var analytics = new AnalyticsService(CreateAnalyticsProvider());
+        Services.Register<IAnalyticsService>(analytics);
+
         var purchase = new PurchaseService(save, CreateIapProvider());
         Services.Register<IPurchaseService>(purchase);
 
@@ -26,6 +30,7 @@ public static class ServiceBootstrap
 
         // SDK 응답을 기다리면 네트워크가 없을 때 부팅이 멈추므로 떼어 낸다.
         // 구독자가 모두 붙은 뒤 시작해야 복원 완료 통지를 놓치지 않는다.
+        analytics.InitializeAsync().Forget();
         purchase.InitializeAsync().Forget();
         ads.InitializeAsync().Forget();
         leaderboard.InitializeAsync().Forget();
@@ -36,6 +41,16 @@ public static class ServiceBootstrap
         var localization = new LocalizationService();
         await localization.InitializeAsync();
         return localization;
+    }
+
+    // 디버그 빌드 이벤트가 실데이터에 섞이지 않도록 릴리즈 기기 빌드만 수집한다.
+    // 에디터의 Firebase는 데스크톱 스텁이라 수집되지 않으므로 제외한다.
+    private static IAnalyticsProvider CreateAnalyticsProvider()
+    {
+#if FIREBASE_SDK && UNITY_ANDROID && !UNITY_EDITOR
+        if (BuildFlags.IsRelease) return new FirebaseAnalyticsProvider();
+#endif
+        return new StubAnalyticsProvider();
     }
 
     // 스토어에 붙을 수 있는 모바일 릴리즈 빌드만 Unity IAP를 탄다.
