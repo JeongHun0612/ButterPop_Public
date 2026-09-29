@@ -113,6 +113,7 @@ public class StageManager : MonoSingleton<StageManager>
     public void SkipCurrentStage()
     {
         Debug.Log($"[StageManager] 스테이지 스킵: {CurrentStageIndex}");
+        LogFirstClear(true);
         MarkCleared(CurrentStageIndex);
         LoadNextStage();
     }
@@ -167,8 +168,6 @@ public class StageManager : MonoSingleton<StageManager>
         if (index <= save.Data.stage.highestClearedIndex) return;
 
         save.Data.stage.highestClearedIndex = index;
-        string stageId = GetStageData(index)?.stageId;
-        save.Data.stage.failsBeforeClear.RemoveAll(e => e.stageId == stageId);
         save.Save();
         Debug.Log($"[StageManager] 클리어 갱신: {index}");
 
@@ -176,44 +175,20 @@ public class StageManager : MonoSingleton<StageManager>
         if (Services.TryGet<ILeaderboardService>(out var leaderboard)) leaderboard.SubmitHighestStage(index);
     }
 
-    // 최초 클리어 전 실패만 누적한다. 저장은 다음 세이브나 일시정지 flush에 맡긴다.
-    private void RecordFailBeforeClear()
+    // 진행도를 올리는 클리어·스킵만 기록하므로 MarkCleared보다 먼저 호출해야 한다. 재클리어는 제외된다.
+    // 시도 횟수는 스테이지 로드·앱 재시작 때 0으로 돌아가는 현재 스테이지 기준이다.
+    private void LogFirstClear(bool skipped)
     {
-        var stageSave = GetStageSave();
-        if (stageSave == null || CurrentStageIndex <= stageSave.highestClearedIndex) return;
-
-        string stageId = CurrentStageData.stageId;
-        var entry = FindFailEntry(stageSave, stageId);
-        if (entry == null)
-        {
-            entry = new StageFailEntry { stageId = stageId };
-            stageSave.failsBeforeClear.Add(entry);
-        }
-        entry.count++;
-    }
-
-    // 진행도를 올리는 클리어만 기록하므로 MarkCleared보다 먼저 호출해야 한다. 스킵·재클리어는 제외된다.
-    private void LogFirstClear()
-    {
-        var stageSave = GetStageSave();
-        if (stageSave == null || CurrentStageIndex <= stageSave.highestClearedIndex) return;
+        if (!Services.TryGet<ISaveService>(out var save)) return;
+        if (save.Data?.stage == null || CurrentStageIndex <= save.Data.stage.highestClearedIndex) return;
         if (!Services.TryGet<IAnalyticsService>(out var analytics)) return;
 
-        // 한 번도 실패하지 않았으면 항목이 없다.
-        int fails = 0;
-        var entry = FindFailEntry(stageSave, CurrentStageData.stageId);
-        if (entry != null) fails = entry.count;
-
-        bool rewardWatched = AdCoordinator.TryGetInstance(out var adCoordinator) && 
+        // 클리어는 성공한 시도를 포함하고, 스킵은 실패한 시도만 센다.
+        int attemptCount = skipped ? _currentTryCount : _currentTryCount + 1;
+        bool rewardWatched = AdCoordinator.TryGetInstance(out var adCoordinator) &&
             adCoordinator.RewardWatchedThisStage;
-        analytics.LogStageClear(CurrentStageIndex, fails + 1, rewardWatched);
+        analytics.LogStageClear(CurrentStageIndex, attemptCount, rewardWatched, skipped);
     }
-
-    private static StageSaveData GetStageSave() =>
-        Services.TryGet<ISaveService>(out var save) ? save.Data?.stage : null;
-
-    private static StageFailEntry FindFailEntry(StageSaveData stageSave, string stageId) =>
-        stageSave.failsBeforeClear.Find(e => e.stageId == stageId);
 
     private void IncrementTryCount()
     {
@@ -271,7 +246,7 @@ public class StageManager : MonoSingleton<StageManager>
     {
         _current.Squish.Freeze();
         SetState(GameState.Result);
-        LogFirstClear();
+        LogFirstClear(false);
         MarkCleared(CurrentStageIndex);
 
         if (SoundManager.TryGetInstance(out var sound))
@@ -283,7 +258,6 @@ public class StageManager : MonoSingleton<StageManager>
     private void OnSquishFell()
     {
         IncrementTryCount();
-        RecordFailBeforeClear();
         RespawnAfterDelayAsync(_stageCts.Token).Forget();
     }
 

@@ -73,11 +73,18 @@ public class AnalyticsService : IAnalyticsService
             ["value"] = impression.Revenue,
         });
 
-    public void LogStageClear(int stageIndex, int attemptCount, bool rewardWatched) =>
-        LogEvent("stage_clear", new Dictionary<string, object>
+    public void LogStageClear(int stageIndex, int attemptCount, bool rewardWatched, bool skipped)
+    {
+        // UI 표기(#1부터)와 맞춘다.
+        int stageNumber = stageIndex + 1;
+        string prefix = skipped ? "stage_clear_skip" : "stage_clear";
+        string eventName = $"{prefix}_{stageNumber:D2}";   // 예: stage_clear_01, stage_clear_skip_01
+
+        LogEvent(eventName, new Dictionary<string, object>
         {
-            ["stage_number"] = stageIndex + 1,
+            ["stage_number"] = stageNumber,
             ["attempt_count"] = attemptCount,
             ["reward_watched"] = rewardWatched,
         });
+    }
 }
