@@ -11,8 +11,8 @@ public interface IIapProvider
     // 보유 상품 재조회. 애플은 명시적 복원이 필수다.
     UniTask RestoreAsync();
 
-    // 스토어가 보유로 확인한 상품 ID들.
-    IReadOnlyList<string> GetOwnedProductIds();
+    // 스토어가 보유로 확인한 상품 ID들. 보유 조회에 성공한 적이 없으면 false(보유 없음과 구분).
+    bool TryGetOwnedProductIds(out IReadOnlyList<string> productIds);
 
     // 스토어에 등록된 현지화 가격("₩3,300"). 조회 실패 시 false.
     bool TryGetLocalizedPrice(string productId, out string price);

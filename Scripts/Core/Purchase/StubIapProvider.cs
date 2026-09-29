@@ -8,9 +8,6 @@ public class StubIapProvider : IIapProvider
     // 개발용 스위치. true로 바꾸면 구매가 항상 실패해 실패 안내 UI를 확인할 수 있다.
     private static readonly bool ForceFailure = false;
 
-    // 스토어가 없어 이번 실행 동안 산 상품만 기억한다. 영구 보유는 세이브가 담당한다.
-    private readonly List<string> _owned = new();
-
     public async UniTask InitializeAsync()
     {
         Debug.Log("[StubIapProvider] 초기화(스텁)");
@@ -29,7 +26,6 @@ public class StubIapProvider : IIapProvider
 
         // 즉시승인: 스토어 연동 전 개발빌드 한정으로 결제 성공을 흉내낸다.
         // 릴리즈 빌드에는 이 분기가 컴파일되지 않아 공짜 지급이 새지 않는다.
-        if (!_owned.Contains(productId)) _owned.Add(productId);
         Debug.Log($"[StubIapProvider] 개발빌드 즉시승인: {productId}");
         return PurchaseState.Success;
 #else
@@ -44,7 +40,12 @@ public class StubIapProvider : IIapProvider
         await UniTask.CompletedTask;
     }
 
-    public IReadOnlyList<string> GetOwnedProductIds() => _owned;
+    // 스토어가 없어 항상 미확인으로 답한다(세이브 권한 유지).
+    public bool TryGetOwnedProductIds(out IReadOnlyList<string> productIds)
+    {
+        productIds = null;
+        return false;
+    }
 
     // 스토어가 없어 더미 가격을 돌려준다.
     public bool TryGetLocalizedPrice(string productId, out string price)

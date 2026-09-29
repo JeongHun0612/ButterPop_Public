@@ -20,7 +20,7 @@ public class SkinService : ISkinService
     public bool IsEquipped(SkinCategory category, SkinDataSO skin) =>
         Data.equipped.Exists(e => e.category == category && e.skinId == skin.id);
 
-    // 장착 스킨을 반환한다. 장착 정보가 없거나 탭에서 사라진 스킨을 가리키면 기본 스킨으로 확정해 저장한다.
+    // 장착 스킨을 반환한다. 장착 정보가 없거나 탭에 없거나 미보유 스킨이면 기본 스킨으로 확정해 저장한다.
     public SkinDataSO ResolveEquipped(SkinTabSO tab)
     {
         if (tab == null) return null;
@@ -29,7 +29,7 @@ public class SkinService : ISkinService
         if (entry != null)
         {
             var equipped = tab.skins.Find(s => s != null && s.id == entry.skinId);
-            if (equipped != null) return equipped;
+            if (equipped != null && IsOwned(tab, equipped)) return equipped;
         }
 
         if (tab.defaultSkin == null) return null;
