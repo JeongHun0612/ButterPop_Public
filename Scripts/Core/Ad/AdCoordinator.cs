@@ -49,6 +49,8 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private float SessionPlaySeconds => Time.realtimeSinceStartup - _sessionStartTime;
 
+    public bool RewardWatchedThisStage => _rewardWatchedThisStage;
+
     // 올스킨 보유(전체 광고 제거)면 체험이 불필요. 후보가 있어야 노출.
     public bool IsSkinTrialAvailable =>
         _initialized && skinDatabase != null && !_purchase.AllSkinsUnlocked && GetTrialPool().Count > 0;

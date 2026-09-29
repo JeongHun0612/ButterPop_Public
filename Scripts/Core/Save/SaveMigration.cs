@@ -21,6 +21,7 @@ public static class SaveMigration
     private static void EnsureSubObjects(SaveData data)
     {
         data.stage ??= new StageSaveData();
+        data.stage.failsBeforeClear ??= new List<StageFailEntry>();
         data.skin ??= new SkinSaveData();
         data.skin.equipped ??= new List<EquippedEntry>();
         data.purchase ??= new PurchaseSaveData();

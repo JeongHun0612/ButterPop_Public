@@ -60,4 +60,24 @@ public class AnalyticsService : IAnalyticsService
 
         if (_pending.Count < MaxPendingEvents) _pending.Enqueue((name, parameters));
     }
+
+    // GA4 표준 파라미터 이름을 써야 광고 수익으로 인식된다.
+    public void LogAdImpression(AdImpression impression) =>
+        LogEvent("ad_impression", new Dictionary<string, object>
+        {
+            ["ad_platform"] = impression.Platform,
+            ["ad_source"] = impression.Network,
+            ["ad_format"] = impression.Format,
+            ["ad_unit_name"] = impression.UnitName,
+            ["currency"] = "USD",
+            ["value"] = impression.Revenue,
+        });
+
+    public void LogStageClear(int stageIndex, int attemptCount, bool rewardWatched) =>
+        LogEvent("stage_clear", new Dictionary<string, object>
+        {
+            ["stage_number"] = stageIndex + 1,
+            ["attempt_count"] = attemptCount,
+            ["reward_watched"] = rewardWatched,
+        });
 }

@@ -22,6 +22,9 @@ public class LevelPlayProvider : IAdProvider
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
 #endif
 
+    // ad_impression의 ad_platform 값. 리포트에서 미디에이션을 구분하는 라벨이라 바꾸지 않는다.
+    private const string AdPlatformName = "ironSource";
+
     // 성공/실패 콜백이 둘 다 오지 않는 엣지 케이스를 대비한 초기화 대기 상한(초).
     private const float InitTimeoutSeconds = 5f;
 
@@ -68,6 +71,7 @@ public class LevelPlayProvider : IAdProvider
     private bool _rewardGranted;
 
     public event Action<bool> OnRewardedAvailabilityChanged;
+    public event Action<AdImpression> OnAdImpression;
 
     public bool IsInterstitialReady => _interstitial != null && _interstitial.IsAdReady();
     public bool IsRewardedReady => _rewarded != null && _rewarded.IsAdReady();
@@ -198,6 +202,7 @@ public class LevelPlayProvider : IAdProvider
         _banner.OnAdLoaded += OnBannerLoaded;
         _banner.OnAdLoadFailed += OnBannerLoadFailed;
         _banner.OnAdDisplayFailed += OnBannerDisplayFailed;
+        _banner.OnAdImpressionDataReady += OnImpressionDataReady;
     }
 
     private void CreateInterstitial()
@@ -205,6 +210,7 @@ public class LevelPlayProvider : IAdProvider
         _interstitial = new LevelPlayInterstitialAd(InterstitialAdUnitId);
         _interstitial.OnAdClosed += _ => _interstitialShowTcs?.TrySetResult(true);
         _interstitial.OnAdDisplayFailed += (_, __) => _interstitialShowTcs?.TrySetResult(false);
+        _interstitial.OnAdImpressionDataReady += OnImpressionDataReady;
         // 최초 로드는 AdsService.InitializeAsync가 LoadInterstitial()로 건다.
     }
 
@@ -214,6 +220,7 @@ public class LevelPlayProvider : IAdProvider
         _rewarded.OnAdLoaded += OnRewardedLoaded;
         _rewarded.OnAdLoadFailed += OnRewardedLoadFailed;
         _rewarded.OnAdRewarded += (_, __) => _rewardGranted = true;
+        _rewarded.OnAdImpressionDataReady += OnImpressionDataReady;
         _rewarded.OnAdClosed += _ =>
         {
             OnRewardedAvailabilityChanged?.Invoke(false);
@@ -225,6 +232,21 @@ public class LevelPlayProvider : IAdProvider
             OnRewardedAvailabilityChanged?.Invoke(false);
             _rewardedShowTcs?.TrySetResult(false);
         };
+    }
+
+    // SDK가 백그라운드 스레드에서 호출하므로 값만 꺼내고 발화는 메인 스레드로 넘긴다.
+    private void OnImpressionDataReady(LevelPlayImpressionData data)
+    {
+        if (data?.Revenue == null) return;
+
+        var impression = new AdImpression(
+            AdPlatformName,
+            data.AdNetwork,
+            data.AdFormat,
+            data.MediationAdUnitName,
+            data.Revenue.Value);
+
+        UniTask.Post(() => OnAdImpression?.Invoke(impression));
     }
 
     private void OnRewardedLoaded(LevelPlayAdInfo info)

@@ -22,7 +22,7 @@ public static class ServiceBootstrap
         Services.Register<ISkinService>(new SkinService(save, purchase));
 
         // 광고 제거 게이팅에 구매 여부가 필요하다.
-        var ads = new AdsService(CreateAdProvider(), purchase);
+        var ads = new AdsService(CreateAdProvider(), purchase, analytics);
         Services.Register<IAdsService>(ads);
 
         var leaderboard = CreateLeaderboard();

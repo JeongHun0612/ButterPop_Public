@@ -24,4 +24,7 @@ public interface IAdProvider
     event Action<bool> OnRewardedAvailabilityChanged;
     void LoadRewarded();
     UniTask<bool> ShowRewardedAsync();        // 시청 완료(보상 지급) 시 true
+
+    // 광고가 노출될 때마다 수익 정보와 함께 메인 스레드에서 발화한다.
+    event Action<AdImpression> OnAdImpression;
 }

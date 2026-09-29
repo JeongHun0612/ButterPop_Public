@@ -17,6 +17,14 @@ public class SaveData
 public class StageSaveData
 {
     public int highestClearedIndex = -1;
+    public List<StageFailEntry> failsBeforeClear = new();   // 최초 클리어 전까지의 누적 실패. 클리어하면 항목을 지운다
+}
+
+[Serializable]
+public class StageFailEntry
+{
+    public string stageId;
+    public int count;
 }
 
 [Serializable]

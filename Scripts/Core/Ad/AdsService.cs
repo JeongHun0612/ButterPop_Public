@@ -8,18 +8,21 @@ public class AdsService : IAdsService
 {
     private readonly IAdProvider _provider;
     private readonly IPurchaseService _purchase;
+    private readonly IAnalyticsService _analytics;
 
     private bool _initialized;
     private bool _bannerRequested;   // 게임이 배너 노출을 요청했는지.
 
     public event Action<bool> OnRewardedAvailabilityChanged;
 
-    public AdsService(IAdProvider provider, IPurchaseService purchase)
+    public AdsService(IAdProvider provider, IPurchaseService purchase, IAnalyticsService analytics)
     {
         _provider = provider;
         _purchase = purchase;
+        _analytics = analytics;
         _purchase.OnPurchasesUpdated += OnPurchasesUpdated;
         _provider.OnRewardedAvailabilityChanged += OnProviderRewardedAvailabilityChanged;
+        _provider.OnAdImpression += _analytics.LogAdImpression;
     }
 
     public bool IsRewardedReady => _provider.IsRewardedReady;

@@ -8,6 +8,9 @@ public class StubAdProvider : IAdProvider
 {
     public event Action<bool> OnRewardedAvailabilityChanged;
 
+    // 스텁은 수익이 없어 발화하지 않는다.
+    public event Action<AdImpression> OnAdImpression { add { } remove { } }
+
     public bool IsInterstitialReady => true;
     public bool IsRewardedReady => true;
 
