@@ -173,6 +173,9 @@ public class StageListSOEditor : Editor
         EnsurePreview(stage);
         if (_previewUtility != null && Event.current.type == EventType.Repaint)
         {
+            // 배경색은 캐시된 프리뷰를 다시 만들지 않아도 현재 스테이지 값을 반영한다.
+            _previewUtility.camera.clearFlags = CameraClearFlags.SolidColor;
+            _previewUtility.camera.backgroundColor = stage.backgroundColor;
             _previewUtility.BeginPreview(previewRect, GUIStyle.none);
             _previewUtility.Render(true);
             Texture texture = _previewUtility.EndPreview();
@@ -216,8 +219,6 @@ public class StageListSOEditor : Editor
         previewCamera.transform.rotation = Quaternion.identity;
         previewCamera.nearClipPlane = 0.01f;
         previewCamera.farClipPlane = 100f;
-        previewCamera.clearFlags = CameraClearFlags.SolidColor;
-        previewCamera.backgroundColor = stage.backgroundColor;
 
         AddControllerPreview(SquishPrefabPath, stage.squishSpawnPosition, "[StageList Preview] Squish");
         AddControllerPreview(ArmPrefabPath, stage.armPosition, "[StageList Preview] Arm");
