@@ -3,7 +3,6 @@
 // (그 외 플랫폼에선 ServiceBootstrap이 같은 조건으로 StubAdProvider를 골라 광고 없이 진행)
 #if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS)
 using System;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using Unity.Services.LevelPlay;
 using UnityEngine;
@@ -54,16 +53,15 @@ public class LevelPlayProvider : IAdProvider
     private LevelPlayInterstitialAd _interstitial;
     private LevelPlayRewardedAd _rewarded;
 
+    private readonly AdRetryTimer _rewardedRetry = new AdRetryTimer(nameof(LevelPlayProvider), "리워드", RewardedRetryDelays);
+    private readonly AdRetryTimer _bannerRetry = new AdRetryTimer(nameof(LevelPlayProvider), "배너", BannerRetryDelays);
+
     private bool _rewardedLoadInProgress;
-    private int _rewardedRetryAttempt;
-    private CancellationTokenSource _rewardedRetryCts;
 
     private bool _bannerRequested;       // 게임이 현재 배너 노출을 원하는지.
     private bool _bannerLoadInProgress;  // LoadAd 중복 호출 방지.
     private bool _bannerHasLoaded;       // 최초 로드 성공 여부(자동 갱신 실패와 구분).
     private bool _bannerVisible;         // 배너가 실제로 화면에 노출 중인지.
-    private int _bannerRetryAttempt;
-    private CancellationTokenSource _bannerRetryCts;
 
     // 표시 중인 전면/리워드의 완료를 await로 받기 위한 완료 소스.
     private UniTaskCompletionSource<bool> _interstitialShowTcs;
@@ -156,7 +154,7 @@ public class LevelPlayProvider : IAdProvider
     public void HideBanner()
     {
         _bannerRequested = false;
-        CancelBannerRetry();
+        _bannerRetry.Cancel();
         if (_banner == null) return;
         _banner.HideAd();
         _bannerVisible = false;
@@ -252,8 +250,7 @@ public class LevelPlayProvider : IAdProvider
     private void OnRewardedLoaded(LevelPlayAdInfo info)
     {
         _rewardedLoadInProgress = false;
-        _rewardedRetryAttempt = 0;
-        CancelRewardedRetry();
+        _rewardedRetry.Reset();
         Debug.Log($"[LevelPlayProvider] 리워드 로드 성공: {info}");
         OnRewardedAvailabilityChanged?.Invoke(true);
     }
@@ -263,7 +260,7 @@ public class LevelPlayProvider : IAdProvider
         _rewardedLoadInProgress = false;
         Debug.LogWarning($"[LevelPlayProvider] 리워드 로드 실패: {error}");
         OnRewardedAvailabilityChanged?.Invoke(false);
-        ScheduleRewardedRetry();
+        if (_rewarded != null) _rewardedRetry.Schedule(RequestRewardedLoad);
     }
 
     private void RequestRewardedLoad()
@@ -272,43 +269,6 @@ public class LevelPlayProvider : IAdProvider
 
         _rewardedLoadInProgress = true;
         _rewarded.LoadAd();
-    }
-
-    private void ScheduleRewardedRetry()
-    {
-        if (_rewarded == null || _rewardedRetryCts != null) return;
-
-        int delayIndex = Math.Min(_rewardedRetryAttempt, RewardedRetryDelays.Length - 1);
-        TimeSpan delay = RewardedRetryDelays[delayIndex];
-        _rewardedRetryAttempt++;
-
-        _rewardedRetryCts = new CancellationTokenSource();
-        RetryRewardedAfterDelayAsync(delay, _rewardedRetryCts.Token).Forget();
-        Debug.LogWarning($"[LevelPlayProvider] 리워드를 {delay.TotalSeconds:0}초 후 재시도합니다 (시도 {_rewardedRetryAttempt})");
-    }
-
-    private async UniTask RetryRewardedAfterDelayAsync(TimeSpan delay, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await UniTask.Delay(delay, cancellationToken: cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        CancelRewardedRetry();
-        RequestRewardedLoad();
-    }
-
-    private void CancelRewardedRetry()
-    {
-        if (_rewardedRetryCts == null) return;
-
-        _rewardedRetryCts.Cancel();
-        _rewardedRetryCts.Dispose();
-        _rewardedRetryCts = null;
     }
 
     // OnAdRewarded/OnAdClosed 호출 순서가 플랫폼마다 달라, 닫힘 후 한 프레임 뒤 보상 여부를 확정한다.
@@ -323,8 +283,7 @@ public class LevelPlayProvider : IAdProvider
     {
         _bannerLoadInProgress = false;
         _bannerHasLoaded = true;
-        _bannerRetryAttempt = 0;
-        CancelBannerRetry();
+        _bannerRetry.Reset();
 
         int height = info?.AdSize?.Height ?? 0;
         if (height > 0) _bannerHeightDp = height;
@@ -374,39 +333,8 @@ public class LevelPlayProvider : IAdProvider
 
     private void ScheduleBannerRetry()
     {
-        if (!_bannerRequested || _banner == null || _bannerRetryCts != null) return;
-
-        int delayIndex = Math.Min(_bannerRetryAttempt, BannerRetryDelays.Length - 1);
-        TimeSpan delay = BannerRetryDelays[delayIndex];
-        _bannerRetryAttempt++;
-
-        _bannerRetryCts = new CancellationTokenSource();
-        RetryBannerAfterDelayAsync(delay, _bannerRetryCts.Token).Forget();
-        Debug.LogWarning($"[LevelPlayProvider] 배너를 {delay.TotalSeconds:0}초 후 재시도합니다 (시도 {_bannerRetryAttempt})");
-    }
-
-    private async UniTask RetryBannerAfterDelayAsync(TimeSpan delay, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await UniTask.Delay(delay, cancellationToken: cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        CancelBannerRetry();
-        RequestBannerLoad();
-    }
-
-    private void CancelBannerRetry()
-    {
-        if (_bannerRetryCts == null) return;
-
-        _bannerRetryCts.Cancel();
-        _bannerRetryCts.Dispose();
-        _bannerRetryCts = null;
+        if (!_bannerRequested || _banner == null) return;
+        _bannerRetry.Schedule(RequestBannerLoad);
     }
 }
 #endif

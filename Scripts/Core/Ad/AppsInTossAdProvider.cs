@@ -1,6 +1,5 @@
 #if APPS_IN_TOSS
 using System;
-using System.Threading;
 using AppsInToss;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -22,8 +21,8 @@ public sealed class AppsInTossAdProvider : IAdProvider
         TimeSpan.FromSeconds(60),
     };
 
-    private readonly RetryTimer _rewardedRetry = new RetryTimer("리워드");
-    private readonly RetryTimer _bannerRetry = new RetryTimer("배너");
+    private readonly AdRetryTimer _rewardedRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "리워드", RetryDelays);
+    private readonly AdRetryTimer _bannerRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "배너", RetryDelays);
 
     private bool _interstitialReady;
     private bool _rewardedReady;
@@ -279,52 +278,6 @@ public sealed class AppsInTossAdProvider : IAdProvider
                 Debug.LogWarning($"[AppsInTossAdProvider] 배너 표시 실패: {evt}");
                 if (_bannerRequested) _bannerRetry.Schedule(ShowBanner);
                 break;
-        }
-    }
-
-    // 실패가 이어질수록 RetryDelays 간격을 늘리며, 한 번에 하나만 예약한다.
-    private sealed class RetryTimer
-    {
-        private readonly string _label;
-        private int _attempt;
-        private CancellationTokenSource _cts;
-
-        public RetryTimer(string label) => _label = label;
-
-        public void Schedule(Action retry)
-        {
-            if (_cts != null) return;
-
-            TimeSpan delay = RetryDelays[Math.Min(_attempt, RetryDelays.Length - 1)];
-            _attempt++;
-            _cts = new CancellationTokenSource();
-            RunAsync(delay, retry, _cts.Token).Forget();
-            Debug.LogWarning($"[AppsInTossAdProvider] {_label}를 {delay.TotalSeconds:0}초 후 재시도합니다 (시도 {_attempt})");
-        }
-
-        // 성공하면 다음 실패는 첫 간격부터 다시 센다.
-        public void Reset()
-        {
-            _attempt = 0;
-            Cancel();
-        }
-
-        public void Cancel()
-        {
-            if (_cts == null) return;
-
-            _cts.Cancel();
-            _cts.Dispose();
-            _cts = null;
-        }
-
-        private async UniTaskVoid RunAsync(TimeSpan delay, Action retry, CancellationToken token)
-        {
-            bool canceled = await UniTask.Delay(delay, cancellationToken: token).SuppressCancellationThrow();
-            if (canceled) return;
-
-            Cancel();
-            retry();
         }
     }
 }
