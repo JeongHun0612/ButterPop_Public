@@ -123,11 +123,14 @@ public class PurchaseService : IPurchaseService
 
     // Apps in Toss의 ProcessProductGrant는 결제 오버레이가 player loop를 멈춘 상태에서
     // 동기로 호출된다. 권한은 즉시 메모리에 반영하고 저장은 큐에 예약한다.
+    // 반환값이 토스에 지급 결과로 전달되므로 통지보다 먼저 확정한다. 여기서 예외가 새면
+    // SDK가 false로 응답해 결제됐는데 환불 안내가 뜬다.
     private bool GrantImmediately(string productId)
     {
         bool changed = ApplyEntitlement(productId);
+        bool granted = HasEntitlement(productId);
         if (changed) CommitEntitlements();
-        return HasEntitlement(productId);
+        return granted;
     }
 
     // 미결 주문 복구는 오버레이 밖에서 실행되므로 영속 저장 성공까지 기다린 뒤
@@ -138,7 +141,7 @@ public class PurchaseService : IPurchaseService
         if (!HasEntitlement(productId)) return false;
 
         bool saved = await _save.SaveAsync();
-        if (changed && saved) OnPurchasesUpdated?.Invoke();
+        if (changed && saved) NotifyPurchasesUpdated();
         return saved;
     }
 
@@ -192,10 +195,37 @@ public class PurchaseService : IPurchaseService
         return true;
     }
 
-    // 권한 변경을 저장하고 구독자에게 알린다.
+    // 권한 변경을 저장하고 구독자에게 알린다. 지급 응답·복원 흐름이 끊기지 않도록 예외를 밖으로 내지 않는다.
     private void CommitEntitlements()
     {
-        _save.Save();
-        OnPurchasesUpdated?.Invoke();
+        try
+        {
+            _save.Save();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[PurchaseService] 권한 저장 예약 실패: {e}");
+        }
+
+        NotifyPurchasesUpdated();
+    }
+
+    // 구독자 하나의 예외가 다른 구독자(배너 숨김 등)의 통지를 막지 않도록 하나씩 호출한다.
+    private void NotifyPurchasesUpdated()
+    {
+        var handlers = OnPurchasesUpdated;
+        if (handlers == null) return;
+
+        foreach (Action handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PurchaseService] 구매 상태 구독자 예외: {e}");
+            }
+        }
     }
 }
