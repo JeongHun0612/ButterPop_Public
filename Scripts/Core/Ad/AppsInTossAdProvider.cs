@@ -1,5 +1,6 @@
 #if APPS_IN_TOSS
 using System;
+using System.Threading;
 using AppsInToss;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -9,13 +10,30 @@ public sealed class AppsInTossAdProvider : IAdProvider
 {
     private const float ShowTimeoutSeconds = 120f;
 
+    // 로드 응답이 끝내 오지 않으면 이후 전면·리워드 로드가 모두 막히므로 이 시간이 지나면 실패로 본다.
+    private const float LoadTimeoutSeconds = 30f;
+
+    // 실패가 이어져도 세션 안에서 복구되도록 간격을 늘려 가며 재시도한다(마지막 간격은 반복).
+    private static readonly TimeSpan[] RetryDelays =
+    {
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromSeconds(60),
+    };
+
+    private readonly RetryTimer _rewardedRetry = new RetryTimer("리워드");
+    private readonly RetryTimer _bannerRetry = new RetryTimer("배너");
+
     private bool _interstitialReady;
     private bool _rewardedReady;
     private bool _fullScreenLoadInProgress;
+    private bool _interstitialLoadQueued;
     private bool _rewardedLoadQueued;
-    private bool _bannerVisible;
-    private float _bannerHeightPixels;
+    private int _fullScreenLoadId;
     private Action _loadDisposer;
+    private bool _bannerRequested;   // 게임이 배너 노출을 원하는지. 실패해도 유지해 재시도 대상이 된다.
+    private float _bannerHeightPixels;
 
     public event Action<bool> OnRewardedAvailabilityChanged;
 
@@ -24,7 +42,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
 
     public bool IsInterstitialReady => _interstitialReady;
     public bool IsRewardedReady => _rewardedReady;
-    public float BannerHeightPixels => _bannerVisible ? _bannerHeightPixels : 0f;
+    public float BannerHeightPixels => _bannerRequested ? _bannerHeightPixels : 0f;
     public BannerSide BannerSide => BannerSide.Top;
 
     public async UniTask InitializeAsync()
@@ -40,20 +58,30 @@ public sealed class AppsInTossAdProvider : IAdProvider
         string id = AppsInTossServiceSettings.BannerAdGroupId;
         if (!ValidateId(id, "배너")) return;
 
-        _bannerVisible = true;
+        _bannerRequested = true;
+        _bannerRetry.Cancel();
         AITBannerAd.Show(id, AITBannerPosition.Top);
     }
 
     public void HideBanner()
     {
+        _bannerRequested = false;
+        _bannerRetry.Cancel();
         AITBannerAd.Hide();
-        _bannerVisible = false;
         _bannerHeightPixels = 0f;
     }
 
     public void LoadInterstitial()
     {
         if (_interstitialReady) return;
+
+        // 구버전 토스 앱에서도 두 전면 광고 그룹을 동시에 로드하지 않도록 직렬화한다.
+        if (_fullScreenLoadInProgress)
+        {
+            _interstitialLoadQueued = true;
+            return;
+        }
+
         StartFullScreenLoad(AppsInTossServiceSettings.InterstitialAdGroupId, rewarded: false);
     }
 
@@ -61,7 +89,9 @@ public sealed class AppsInTossAdProvider : IAdProvider
     {
         if (_rewardedReady) return;
 
-        // 구버전 토스 앱에서도 두 전면 광고 그룹을 동시에 로드하지 않도록 직렬화한다.
+        // 예약된 재시도를 기다리지 않고 지금 로드한다.
+        _rewardedRetry.Cancel();
+
         if (_fullScreenLoadInProgress)
         {
             _rewardedLoadQueued = true;
@@ -91,16 +121,18 @@ public sealed class AppsInTossAdProvider : IAdProvider
         if (_fullScreenLoadInProgress || !ValidateId(adGroupId, rewarded ? "리워드" : "전면")) return;
 
         _fullScreenLoadInProgress = true;
+        int loadId = ++_fullScreenLoadId;
         _loadDisposer?.Invoke();
         _loadDisposer = AIT.LoadFullScreenAd(
             adGroupId,
             onEvent: evt =>
             {
-                if (evt?.Type != "loaded") return;
+                if (!IsCurrentLoad(loadId) || evt?.Type != "loaded") return;
 
                 if (rewarded)
                 {
                     _rewardedReady = true;
+                    _rewardedRetry.Reset();
                     OnRewardedAvailabilityChanged?.Invoke(true);
                 }
                 else
@@ -112,10 +144,38 @@ public sealed class AppsInTossAdProvider : IAdProvider
             },
             onError: error =>
             {
-                Debug.LogWarning($"[AppsInTossAdProvider] {(rewarded ? "리워드" : "전면")} 로드 실패: {error.Message}");
-                if (rewarded) OnRewardedAvailabilityChanged?.Invoke(false);
-                FinishFullScreenLoad();
+                if (!IsCurrentLoad(loadId)) return;
+                FailFullScreenLoad(rewarded, error.Message);
             });
+
+        WatchLoadTimeoutAsync(loadId, rewarded).Forget();
+    }
+
+    // 타임아웃 뒤 늦게 도착한 응답이 다음 로드 상태를 건드리지 않게 한다.
+    private bool IsCurrentLoad(int loadId) => _fullScreenLoadInProgress && loadId == _fullScreenLoadId;
+
+    private async UniTaskVoid WatchLoadTimeoutAsync(int loadId, bool rewarded)
+    {
+        await UniTask.Delay(TimeSpan.FromSeconds(LoadTimeoutSeconds));
+        if (!IsCurrentLoad(loadId)) return;
+
+        FailFullScreenLoad(rewarded, $"{LoadTimeoutSeconds:0}초 동안 응답 없음");
+    }
+
+    // 전면은 다음 표시 기회에 AdsService가 다시 로드하므로 리워드만 재시도한다.
+    private void FailFullScreenLoad(bool rewarded, string reason)
+    {
+        Debug.LogWarning($"[AppsInTossAdProvider] {(rewarded ? "리워드" : "전면")} 로드 실패: {reason}");
+
+        if (rewarded)
+        {
+            // 로드 중에 쌓인 리워드 요청은 재시도가 대신하므로 즉시 재로드하지 않는다.
+            _rewardedLoadQueued = false;
+            OnRewardedAvailabilityChanged?.Invoke(false);
+            _rewardedRetry.Schedule(LoadRewarded);
+        }
+
+        FinishFullScreenLoad();
     }
 
     private void FinishFullScreenLoad()
@@ -124,10 +184,17 @@ public sealed class AppsInTossAdProvider : IAdProvider
         _loadDisposer = null;
         _fullScreenLoadInProgress = false;
 
+        // 대기 중인 요청은 버튼 노출에 직결되는 리워드부터 처리한다.
         if (_rewardedLoadQueued)
         {
             _rewardedLoadQueued = false;
             LoadRewarded();
+        }
+
+        if (_interstitialLoadQueued && !_fullScreenLoadInProgress)
+        {
+            _interstitialLoadQueued = false;
+            LoadInterstitial();
         }
     }
 
@@ -183,32 +250,82 @@ public sealed class AppsInTossAdProvider : IAdProvider
         }
     }
 
+    private static bool ValidateId(string id, string type)
+    {
+        if (!string.IsNullOrWhiteSpace(id)) return true;
+        Debug.LogWarning($"[AppsInTossAdProvider] {type} 광고 그룹 ID가 비어 있어 광고를 사용하지 않습니다.");
+        return false;
+    }
+
     private void OnBannerEvent(AITBannerAdEvent evt)
     {
         if (evt == null) return;
 
         switch (evt.Kind)
         {
+            case AITBannerAdEventKind.Rendered:
+                _bannerRetry.Reset();
+                break;
             case AITBannerAdEventKind.Resized:
                 _bannerHeightPixels = evt.HeightFraction > 0f
                     ? evt.HeightFraction * Screen.height
                     : evt.Height;
                 break;
+            // 재시도의 Show가 슬롯을 새로 만들어 교체한다. 초기화 실패도 다음 Show에서 다시 초기화된다.
             case AITBannerAdEventKind.FailedToRender:
             case AITBannerAdEventKind.InitializationFailed:
             case AITBannerAdEventKind.NoFill:
-                _bannerVisible = false;
                 _bannerHeightPixels = 0f;
                 Debug.LogWarning($"[AppsInTossAdProvider] 배너 표시 실패: {evt}");
+                if (_bannerRequested) _bannerRetry.Schedule(ShowBanner);
                 break;
         }
     }
 
-    private static bool ValidateId(string id, string type)
+    // 실패가 이어질수록 RetryDelays 간격을 늘리며, 한 번에 하나만 예약한다.
+    private sealed class RetryTimer
     {
-        if (!string.IsNullOrWhiteSpace(id)) return true;
-        Debug.LogWarning($"[AppsInTossAdProvider] {type} 광고 그룹 ID가 비어 있어 광고를 사용하지 않습니다.");
-        return false;
+        private readonly string _label;
+        private int _attempt;
+        private CancellationTokenSource _cts;
+
+        public RetryTimer(string label) => _label = label;
+
+        public void Schedule(Action retry)
+        {
+            if (_cts != null) return;
+
+            TimeSpan delay = RetryDelays[Math.Min(_attempt, RetryDelays.Length - 1)];
+            _attempt++;
+            _cts = new CancellationTokenSource();
+            RunAsync(delay, retry, _cts.Token).Forget();
+            Debug.LogWarning($"[AppsInTossAdProvider] {_label}를 {delay.TotalSeconds:0}초 후 재시도합니다 (시도 {_attempt})");
+        }
+
+        // 성공하면 다음 실패는 첫 간격부터 다시 센다.
+        public void Reset()
+        {
+            _attempt = 0;
+            Cancel();
+        }
+
+        public void Cancel()
+        {
+            if (_cts == null) return;
+
+            _cts.Cancel();
+            _cts.Dispose();
+            _cts = null;
+        }
+
+        private async UniTaskVoid RunAsync(TimeSpan delay, Action retry, CancellationToken token)
+        {
+            bool canceled = await UniTask.Delay(delay, cancellationToken: token).SuppressCancellationThrow();
+            if (canceled) return;
+
+            Cancel();
+            retry();
+        }
     }
 }
 #endif
