@@ -88,7 +88,10 @@ public static class ServiceBootstrap
     // 광고·결제와 달리 릴리즈 여부로 가르지 않는다. 붙는 비용이 없고 디버그 빌드에서 실제로 검증해야 한다.
     private static ILeaderboardService CreateLeaderboard()
     {
-#if GPGS_SDK && UNITY_ANDROID && !UNITY_EDITOR
+#if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
+        // 게임센터 리더보드를 연결하기 전까지 랭킹 진입 버튼을 숨긴다.
+        return new StubLeaderboardService(isAvailable: false);
+#elif GPGS_SDK && UNITY_ANDROID && !UNITY_EDITOR
         return new GpgsLeaderboardService();
 #else
         return new StubLeaderboardService();

@@ -1,10 +1,15 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-// 에디터·PC용 스텁. 제출 값을 로그로만 확인한다.
+// 플랫폼 랭킹이 연결되지 않은 환경용 스텁. 제출 값을 로그로만 확인한다.
+// 진입 버튼 노출 여부는 생성 시 정한다(에디터는 UI 확인을 위해 노출).
 public class StubLeaderboardService : ILeaderboardService
 {
-    public bool IsAvailable => true;
+    private readonly bool _isAvailable;
+
+    public StubLeaderboardService(bool isAvailable = true) => _isAvailable = isAvailable;
+
+    public bool IsAvailable => _isAvailable;
 
     public UniTask InitializeAsync()
     {
