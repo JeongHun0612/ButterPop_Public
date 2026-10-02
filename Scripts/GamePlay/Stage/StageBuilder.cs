@@ -44,7 +44,7 @@ public class StageBuilder : MonoBehaviour
         };
 
         ClearStageObjects();
-        SpawnStageObjects(data);
+        SpawnStageObjects(data, context);
         SpawnArm(data, context);
         SpawnSquish(data, context);
         SetupCamera(data);
@@ -63,7 +63,7 @@ public class StageBuilder : MonoBehaviour
         return context;
     }
 
-    private void SpawnStageObjects(StageDataSO data)
+    private void SpawnStageObjects(StageDataSO data, StageContext context)
     {
         if (data.stageObjects == null) return;
 
@@ -82,6 +82,8 @@ public class StageBuilder : MonoBehaviour
 
             foreach (var receiver in instance.GetComponentsInChildren<IStageContextReceiver>(true))
                 _contextReceivers.Add(receiver);
+
+            context.ClearEffects.AddRange(instance.GetComponentsInChildren<IStageClearEffect>(true));
 
             _spawnedStageObjects.Add(instance);
         }

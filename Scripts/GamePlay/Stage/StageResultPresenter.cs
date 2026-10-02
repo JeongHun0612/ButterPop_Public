@@ -88,7 +88,9 @@ public class StageResultPresenter : MonoBehaviour
     private async UniTaskVoid ShowStageResultAsync(Bounds captureBounds)
     {
         var uiManager = UIManager.Instance;
+        var stageManager = StageManager.Instance;
         Debug.Assert(uiManager != null, "[StageResultPresenter] UIManager가 없습니다");
+        Debug.Assert(stageManager != null, "[StageResultPresenter] StageManager가 없습니다");
 
         var resultUI = uiManager.GetPanel<UIStageResult>();
         if (resultUI == null)
@@ -96,6 +98,10 @@ public class StageResultPresenter : MonoBehaviour
             Debug.LogError("[StageResultPresenter] UIStageResult 패널이 없어 결과 화면을 띄우지 못했습니다");
             return;
         }
+
+        // 스테이지 고유 클리어 연출이 끝난 장면을 찍는다. 그 사이 스테이지가 교체되면 결과 화면을 띄우지 않는다.
+        bool canceled = await stageManager.PlayClearEffectsAsync().SuppressCancellationThrow();
+        if (canceled) return;
 
         // 캡처 실패가 결과 화면까지 막지 않도록 분리한다. 막히면 클리어 후 진행이 끊긴다.
         if (CanCapture)

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -142,6 +143,16 @@ public class StageManager : MonoSingleton<StageManager>
 
     // 팝업이 떠 있는 동안 안착·낙하 판정을 멈춘다(물리는 계속 돈다).
     public void SetJudgingPaused(bool paused) => _current?.Squish?.SetJudgingPaused(paused);
+
+    // 스테이지 고유 클리어 연출을 모두 끝까지 기다린다. 스테이지가 교체되면 취소된다.
+    public UniTask PlayClearEffectsAsync()
+    {
+        var effects = _current?.ClearEffects;
+        if (effects == null || effects.Count == 0) return UniTask.CompletedTask;
+
+        var token = _stageCts.Token;
+        return UniTask.WhenAll(effects.Select(effect => effect.PlayClearEffectAsync(token)));
+    }
 
     public StageDataSO GetStageData(int index) =>
         stageList != null && stageList.IsValidIndex(index) ? stageList.Get(index) : null;
