@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -9,6 +10,7 @@ public class SaveService : ISaveService
     private UniTask<bool> _pending = UniTask.FromResult(true);
 
     public SaveData Data { get; private set; }
+    public bool IsReadOnly { get; private set; } = true;
 
     private SaveService(ISaveStorage storage) => _storage = storage;
 
@@ -16,9 +18,18 @@ public class SaveService : ISaveService
     public static async UniTask<SaveService> CreateAsync(ISaveStorage storage)
     {
         var service = new SaveService(storage);
-        service.Data = await storage.LoadAsync() ?? new SaveData();
-        SaveMigration.Apply(service.Data);
-        Debug.Log($"[SaveService] 로드 완료 (v{service.Data.version})");
+        try
+        {
+            service.Data = await storage.LoadAsync() ?? new SaveData();
+            SaveMigration.Apply(service.Data);
+            service.IsReadOnly = false;
+            Debug.Log($"[SaveService] 로드 완료 (v{service.Data.version})");
+        }
+        catch (Exception e)
+        {
+            service.Data = new SaveData();
+            Debug.LogError($"[SaveService] 로드 실패, 기존 데이터 보호를 위해 이번 세션의 저장·삭제를 차단합니다: {e.Message}");
+        }
         return service;
     }
 
@@ -29,6 +40,12 @@ public class SaveService : ISaveService
     // (File.Replace의 원자성은 읽는 쪽만 보호할 뿐 작성자끼리를 조정하지 않는다)
     public UniTask<bool> SaveAsync()
     {
+        if (IsReadOnly)
+        {
+            Debug.LogWarning("[SaveService] 로드 실패 세션의 저장 요청을 차단했습니다");
+            return UniTask.FromResult(false);
+        }
+
         // Preserve: 반환분(호출자)과 다음 요청의 체인이 같은 UniTask를 함께 await 해야 한다.
         _pending = ChainSaveAsync(_pending).Preserve();
         return _pending;
@@ -36,6 +53,12 @@ public class SaveService : ISaveService
 
     public void DeleteAll()
     {
+        if (IsReadOnly)
+        {
+            Debug.LogWarning("[SaveService] 로드 실패 세션의 삭제 요청을 차단했습니다");
+            return;
+        }
+
         _storage.DeleteAsync().Forget();
         Data = new SaveData();
         Debug.Log("[SaveService] 세이브 삭제");

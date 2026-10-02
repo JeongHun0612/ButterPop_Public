@@ -13,19 +13,7 @@ public sealed class AppsInTossSaveStorage : ISaveStorage
 
     public AppsInTossSaveStorage(string key) => _key = key;
 
-    public async UniTask<SaveData> LoadAsync()
-    {
-        try
-        {
-            string json = await AIT.StorageGetItem(_key, TimeoutMs);
-            return string.IsNullOrWhiteSpace(json) ? null : JsonUtility.FromJson<SaveData>(json);
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[AppsInTossSaveStorage] 로드 실패, 새 세이브로 폴백: {e.Message}");
-            return null;
-        }
-    }
+    public UniTask<SaveData> LoadAsync() => AppsInTossSaveLoader.LoadAsync(GetItemAsync);
 
     public async UniTask<bool> SaveAsync(SaveData data)
     {
@@ -52,5 +40,7 @@ public sealed class AppsInTossSaveStorage : ISaveStorage
             Debug.LogError($"[AppsInTossSaveStorage] 삭제 실패: {e.Message}");
         }
     }
+
+    private async UniTask<string> GetItemAsync(int timeoutMs) => await AIT.StorageGetItem(_key, timeoutMs);
 }
 #endif

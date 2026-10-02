@@ -16,18 +16,21 @@ public class FileSaveStorage : ISaveStorage
 
     public async UniTask<SaveData> LoadAsync()
     {
+        // File.Exists는 접근 오류도 false로 반환하므로, 실제 읽기 결과로 파일 부재를 구분한다.
+        string json;
         try
         {
-            if (!File.Exists(_path)) return null;
-            // 파일 읽기만 스레드풀에서, 역직렬화는 메인 스레드에서 (JsonUtility는 메인 스레드 전용)
-            var json = await UniTask.RunOnThreadPool(() => File.ReadAllText(_path));
-            return JsonUtility.FromJson<SaveData>(json);
+            json = await UniTask.RunOnThreadPool(() => File.ReadAllText(_path));
         }
-        catch (Exception e)
-        {
-            Debug.LogError($"[FileSaveStorage] 로드 실패, 새 세이브로 폴백: {e.Message}");
-            return null;
-        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+
+        if (string.IsNullOrWhiteSpace(json))
+            throw new FormatException("세이브 파일이 비어 있습니다");
+
+        var data = JsonUtility.FromJson<SaveData>(json);
+        if (data == null) throw new FormatException("세이브 파일을 역직렬화할 수 없습니다");
+        return data;
     }
 
     // 호출자가 겹치지 않는다는 전제로 임시 파일 하나를 재사용한다(직렬화는 SaveService가 담당).
