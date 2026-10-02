@@ -82,8 +82,15 @@ public sealed class AppsInTossIapProvider : IIapProvider
                 options: options,
                 onError: error =>
                 {
-                    Debug.LogWarning($"[AppsInTossIapProvider] 구매 실패({productId}): {error.ErrorCode} {error.Message}");
-                    source.TrySetResult(IsCancelled(error) ? PurchaseState.Cancelled : PurchaseState.Failed);
+                    if (AppsInTossPurchaseError.IsCancelled(error?.ErrorCode, error?.Message))
+                    {
+                        Debug.Log($"[AppsInTossIapProvider] 구매 취소({productId}): {error?.Message}");
+                        source.TrySetResult(PurchaseState.Cancelled);
+                        return;
+                    }
+
+                    Debug.LogWarning($"[AppsInTossIapProvider] 구매 실패({productId}): {error?.ErrorCode} {error?.Message}");
+                    source.TrySetResult(PurchaseState.Failed);
                 });
 
             var (timedOut, state) = await source.Task
@@ -201,11 +208,5 @@ public sealed class AppsInTossIapProvider : IIapProvider
 
     private static bool IsKnownProduct(string productId)
         => productId == ProductIds.RemoveBannerAds || productId == ProductIds.RemoveAllAds;
-
-    private static bool IsCancelled(AITException error)
-    {
-        string value = $"{error?.ErrorCode} {error?.Message}";
-        return value.IndexOf("cancel", StringComparison.OrdinalIgnoreCase) >= 0;
-    }
 }
 #endif
