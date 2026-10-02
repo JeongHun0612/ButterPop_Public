@@ -15,6 +15,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
     private readonly List<string> _revoked = new();
     private readonly Dictionary<string, string> _prices = new();
     private bool _purchaseInProgress;
+    private bool _ownedFetched;   // 이번 복원에서 결제 이력·미결 주문을 모두 조회했는지
 
     public async UniTask InitializeAsync()
     {
@@ -70,8 +71,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
                 {
                     if (result?.Type == "success")
                     {
-                        if (!_owned.Contains(productId)) _owned.Add(productId);
-                        _revoked.Remove(productId);
+                        MarkOwned(productId);
                         source.TrySetResult(PurchaseState.Success);
                     }
                     else
@@ -109,11 +109,21 @@ public sealed class AppsInTossIapProvider : IIapProvider
     {
         _owned.Clear();
         _revoked.Clear();
+        _ownedFetched = false;
 
-        await ReconcileCompletedAndRefundedAsync();
+        bool historyFetched = await ReconcileCompletedAndRefundedAsync();
 
         var pending = await AIT.IAPGetPendingOrders(ApiTimeoutMs);
         if (pending?.Orders == null) return;
+
+        // 결제가 끝난 주문이므로 지급·완료 통지 결과와 무관하게 보유로 본다.
+        // 빠뜨리면 보유 동기화가 방금 복구한 권한을 회수한다.
+        foreach (var order in pending.Orders)
+        {
+            if (order != null && IsKnownProduct(order.Sku)) MarkOwned(order.Sku);
+        }
+
+        _ownedFetched = historyFetched;
 
         foreach (var order in pending.Orders)
         {
@@ -135,8 +145,6 @@ public sealed class AppsInTossIapProvider : IIapProvider
 
             if (completed)
             {
-                if (!_owned.Contains(order.Sku)) _owned.Add(order.Sku);
-                _revoked.Remove(order.Sku);
                 Debug.Log($"[AppsInTossIapProvider] 미결 주문 복구 완료: {order.OrderId}");
             }
             else
@@ -146,16 +154,29 @@ public sealed class AppsInTossIapProvider : IIapProvider
         }
     }
 
-    public IReadOnlyList<string> GetOwnedProductIds() => _owned;
+    // 조회 실패로 빈 목록을 넘기면 보유 동기화가 구매 권한을 회수하므로, 조회가 끝났을 때만 true.
+    public bool TryGetOwnedProductIds(out IReadOnlyList<string> productIds)
+    {
+        productIds = _owned;
+        return _ownedFetched;
+    }
+
     public IReadOnlyList<string> GetRevokedProductIds() => _revoked;
 
     public bool TryGetLocalizedPrice(string productId, out string price)
         => _prices.TryGetValue(productId, out price);
 
-    private async UniTask ReconcileCompletedAndRefundedAsync()
+    private void MarkOwned(string productId)
+    {
+        if (!_owned.Contains(productId)) _owned.Add(productId);
+        _revoked.Remove(productId);
+    }
+
+    // 결제 이력 조회에 성공하면 true.
+    private async UniTask<bool> ReconcileCompletedAndRefundedAsync()
     {
         var history = await AIT.IAPGetCompletedOrRefundedOrders(ApiTimeoutMs);
-        if (history?.Orders == null) return;
+        if (history?.Orders == null) return false;
 
         // 같은 SKU에 여러 이력이 있으면 ISO 날짜가 가장 최신인 주문 상태를 사용한다.
         var latest = new Dictionary<string, CompletedOrRefundedOrdersResultOrder>();
@@ -174,6 +195,8 @@ public sealed class AppsInTossIapProvider : IIapProvider
             else
                 _revoked.Add(pair.Key);
         }
+
+        return true;
     }
 
     private static bool IsKnownProduct(string productId)
