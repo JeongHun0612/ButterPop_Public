@@ -10,12 +10,12 @@ using UnityEngine;
 public class LevelPlayProvider : IAdProvider
 {
 #if UNITY_ANDROID
-    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
+    public const string AppKey = "PUBLIC_SAMPLE_CONFIG";
     private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
 #else // UNITY_IOS
-    private const string AppKey = "PUBLIC_SAMPLE_CONFIG";
+    public const string AppKey = "PUBLIC_SAMPLE_CONFIG";
     private const string BannerAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string InterstitialAdUnitId = "PUBLIC_SAMPLE_CONFIG";
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";

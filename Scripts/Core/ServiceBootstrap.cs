@@ -34,6 +34,10 @@ public static class ServiceBootstrap
         purchase.InitializeAsync().Forget();
         ads.InitializeAsync().Forget();
         leaderboard.InitializeAsync().Forget();
+
+#if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS) && BUTTERPOP_AD_TEST_SUITE && !UNITY_EDITOR
+        LevelPlayTestSuite.Launch();
+#endif
     }
 
     private static async UniTask<ILocalizationService> CreateLocalizationAsync()
