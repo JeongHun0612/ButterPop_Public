@@ -18,6 +18,7 @@ public class UnityIapProvider : IIapProvider
     private readonly List<string> _owned = new();
     private UniTaskCompletionSource<PurchaseState> _purchaseSource;
     private bool _initialized;
+    private bool _ownedFetched;   // 보유 조회에 한 번이라도 성공했는지
 
     public async UniTask InitializeAsync()
     {
@@ -108,7 +109,11 @@ public class UnityIapProvider : IIapProvider
         await FetchPurchasesAsync();
     }
 
-    public IReadOnlyList<string> GetOwnedProductIds() => _owned;
+    public bool TryGetOwnedProductIds(out IReadOnlyList<string> productIds)
+    {
+        productIds = _owned;
+        return _ownedFetched;
+    }
 
     public IReadOnlyList<string> GetRevokedProductIds() => Array.Empty<string>();
 
@@ -197,6 +202,8 @@ public class UnityIapProvider : IIapProvider
     {
         _owned.Clear();
         if (orders == null) return;
+
+        _ownedFetched = true;
 
         foreach (Order order in orders.ConfirmedOrders)
             AddOwned(GetProductId(order));

@@ -15,8 +15,8 @@ public interface IIapProvider
     // Apps in Toss의 미결 주문은 지급 저장이 끝난 뒤 완료 처리해야 하므로 비동기 콜백을 받는다.
     UniTask RestoreAsync(Func<string, UniTask<bool>> processGrant);
 
-    // 스토어가 보유로 확인한 상품 ID들.
-    IReadOnlyList<string> GetOwnedProductIds();
+    // 스토어가 보유로 확인한 상품 ID들. 보유 조회에 성공한 적이 없으면 false(보유 없음과 구분).
+    bool TryGetOwnedProductIds(out IReadOnlyList<string> productIds);
 
     // 환불 등으로 회수해야 할 상품 ID들. 회수 정보를 제공하지 않는 스토어는 빈 목록을 반환한다.
     IReadOnlyList<string> GetRevokedProductIds();

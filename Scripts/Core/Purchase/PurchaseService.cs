@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -62,7 +63,7 @@ public class PurchaseService : IPurchaseService
         return state;
     }
 
-    // 스토어 보유 목록을 세이브에 반영한다(재설치·기기 변경 복원).
+    // 스토어 보유 목록으로 세이브 권한을 복원·회수한다. 조회 실패 시 세이브를 유지한다.
     public async UniTask RestoreAsync()
     {
         try
@@ -75,12 +76,15 @@ public class PurchaseService : IPurchaseService
             return;
         }
 
-        var owned = _provider.GetOwnedProductIds();
-        if (owned == null) return;
+        if (!_provider.TryGetOwnedProductIds(out var owned) || owned == null)
+        {
+            Debug.Log("[PurchaseService] 보유 조회 미확인 - 세이브 권한 유지");
+            return;
+        }
 
         bool changed = false;
-        for (int i = 0; i < owned.Count; i++)
-            changed |= ApplyEntitlement(owned[i]);
+        changed |= SyncEntitlement(ref Data.bannerRemoveAds, ProductIds.RemoveBannerAds, owned);
+        changed |= SyncEntitlement(ref Data.allRemoveAds, ProductIds.RemoveAllAds, owned);
 
         var revoked = _provider.GetRevokedProductIds();
         if (revoked != null)
@@ -166,6 +170,25 @@ public class PurchaseService : IPurchaseService
         }
 
         Debug.Log($"[PurchaseService] 환불 권한 회수: {productId}");
+        return true;
+    }
+
+    // 플래그를 스토어 보유 여부에 맞춘다. 바뀌었으면 true.
+    private static bool SyncEntitlement(ref bool flag, string productId, IReadOnlyList<string> owned)
+    {
+        bool isOwned = false;
+        for (int i = 0; i < owned.Count; i++)
+        {
+            if (owned[i] != productId) continue;
+            isOwned = true;
+            break;
+        }
+
+        if (flag == isOwned) return false;
+
+        flag = isOwned;
+        if (isOwned) Debug.Log($"[PurchaseService] 권한 복원: {productId}");
+        else Debug.LogWarning($"[PurchaseService] 스토어 미보유 - 권한 회수: {productId}");
         return true;
     }
 

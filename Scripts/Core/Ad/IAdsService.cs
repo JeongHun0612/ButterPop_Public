@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 
 public interface IAdsService
@@ -22,6 +23,9 @@ public interface IAdsService
 
     /// <summary>리워드 광고가 재생 준비됐는지. (버튼 활성화 판단용)</summary>
     bool IsRewardedReady { get; }
+
+    /// <summary>리워드 광고의 재생 준비 상태가 바뀔 때 통지한다.</summary>
+    event Action<bool> OnRewardedAvailabilityChanged;
 
     /// <summary>배너가 차지하는 화면 높이(px). 광고 제거 구매·배너 미표시 시 0. (UI 여백 확보용)</summary>
     float BannerHeightPixels { get; }

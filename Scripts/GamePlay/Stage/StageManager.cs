@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -113,6 +114,7 @@ public class StageManager : MonoSingleton<StageManager>
     public void SkipCurrentStage()
     {
         Debug.Log($"[StageManager] 스테이지 스킵: {CurrentStageIndex}");
+        LogFirstClear(true);
         MarkCleared(CurrentStageIndex);
         LoadNextStage();
     }
@@ -141,6 +143,16 @@ public class StageManager : MonoSingleton<StageManager>
 
     // 팝업이 떠 있는 동안 안착·낙하 판정을 멈춘다(물리는 계속 돈다).
     public void SetJudgingPaused(bool paused) => _current?.Squish?.SetJudgingPaused(paused);
+
+    // 스테이지 고유 클리어 연출을 모두 끝까지 기다린다. 스테이지가 교체되면 취소된다.
+    public UniTask PlayClearEffectsAsync()
+    {
+        var effects = _current?.ClearEffects;
+        if (effects == null || effects.Count == 0) return UniTask.CompletedTask;
+
+        var token = _stageCts.Token;
+        return UniTask.WhenAll(effects.Select(effect => effect.PlayClearEffectAsync(token)));
+    }
 
     public StageDataSO GetStageData(int index) =>
         stageList != null && stageList.IsValidIndex(index) ? stageList.Get(index) : null;
@@ -172,6 +184,21 @@ public class StageManager : MonoSingleton<StageManager>
 
         // 진행도가 오르는 유일한 지점이라 여기서만 랭킹에 올린다.
         if (Services.TryGet<ILeaderboardService>(out var leaderboard)) leaderboard.SubmitHighestStage(index);
+    }
+
+    // 진행도를 올리는 클리어·스킵만 기록하므로 MarkCleared보다 먼저 호출해야 한다. 재클리어는 제외된다.
+    // 시도 횟수는 스테이지 로드·앱 재시작 때 0으로 돌아가는 현재 스테이지 기준이다.
+    private void LogFirstClear(bool skipped)
+    {
+        if (!Services.TryGet<ISaveService>(out var save)) return;
+        if (save.Data?.stage == null || CurrentStageIndex <= save.Data.stage.highestClearedIndex) return;
+        if (!Services.TryGet<IAnalyticsService>(out var analytics)) return;
+
+        // 클리어는 성공한 시도를 포함하고, 스킵은 실패한 시도만 센다.
+        int attemptCount = skipped ? _currentTryCount : _currentTryCount + 1;
+        bool rewardWatched = AdCoordinator.TryGetInstance(out var adCoordinator) &&
+            adCoordinator.RewardWatchedThisStage;
+        analytics.LogStageClear(CurrentStageIndex, attemptCount, rewardWatched, skipped);
     }
 
     private void IncrementTryCount()
@@ -230,6 +257,7 @@ public class StageManager : MonoSingleton<StageManager>
     {
         _current.Squish.Freeze();
         SetState(GameState.Result);
+        LogFirstClear(false);
         MarkCleared(CurrentStageIndex);
 
         if (SoundManager.TryGetInstance(out var sound))

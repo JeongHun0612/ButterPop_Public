@@ -28,6 +28,9 @@ public class UIInGameHUD : UIScene
 
     private SquishSkinSO _trialCandidate;
     private bool _trialAppliedThisStage;
+    private bool _skipEligible;
+    private bool _skinTrialEligible;
+    private bool _rewardedInProgress;
 
     // 메뉴 버튼 상태의 두 조건(표시 / 클릭 가능). 소유자가 갈리면 서로 덮어쓰므로 한 곳에서 합쳐 계산한다.
     private bool _menuOpen;
@@ -48,6 +51,9 @@ public class UIInGameHUD : UIScene
 
     public override void OnBeforeShow()
     {
+        if (Services.TryGet<IAdsService>(out var adsService))
+            adsService.OnRewardedAvailabilityChanged += OnRewardedAvailabilityChanged;
+
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
         stageManager.OnSkipAvailabilityChanged += SetSkipButtonActive;
@@ -64,6 +70,9 @@ public class UIInGameHUD : UIScene
     {
         _skipShowTween?.Kill();
         _skinTrialShowTween?.Kill();
+
+        if (Services.TryGet<IAdsService>(out var adsService))
+            adsService.OnRewardedAvailabilityChanged -= OnRewardedAvailabilityChanged;
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
@@ -94,8 +103,15 @@ public class UIInGameHUD : UIScene
     // ---------------- 스킵  ------------------------
     private void SetSkipButtonActive(bool active)
     {
+        _skipEligible = active;
+        RefreshSkipButton();
+    }
+
+    private void RefreshSkipButton()
+    {
         if (skipButton == null) return;
 
+        bool active = _skipEligible && IsRewardedReady();
         _skipShowTween?.Kill();
 
         var buttonTransform = skipButton.transform;
@@ -138,7 +154,21 @@ public class UIInGameHUD : UIScene
             return;
         }
 
-        bool rewarded = await adsService.ShowRewardedAsync();
+        if (_rewardedInProgress || !adsService.IsRewardedReady) return;
+
+        _rewardedInProgress = true;
+        RefreshRewardedButtons();
+
+        bool rewarded;
+        try
+        {
+            rewarded = await adsService.ShowRewardedAsync();
+        }
+        finally
+        {
+            _rewardedInProgress = false;
+            RefreshRewardedButtons();
+        }
         if (!rewarded)
         {
             Debug.Log("[UIInGameHUD] 광고 미시청으로 스킵 취소");
@@ -189,8 +219,15 @@ public class UIInGameHUD : UIScene
     // 최초 노출 또는 후보 스킨 교체 시에만 버튼 전체를 다시 등장시킨다.
     private void SetSkinTrialActive(bool active, bool changed = false)
     {
+        _skinTrialEligible = active;
+        RefreshSkinTrialButton(changed);
+    }
+
+    private void RefreshSkinTrialButton(bool changed = false)
+    {
         if (skinTrialButton == null) return;
 
+        bool active = _skinTrialEligible && IsRewardedReady();
         var buttonTransform = skinTrialButton.transform;
 
         if (!active)
@@ -218,8 +255,21 @@ public class UIInGameHUD : UIScene
     {
         if (_trialCandidate == null) return;
         if (!Services.TryGet<IAdsService>(out var adsService)) return;
+        if (_rewardedInProgress || !adsService.IsRewardedReady) return;
 
-        bool rewarded = await adsService.ShowRewardedAsync();
+        _rewardedInProgress = true;
+        RefreshRewardedButtons();
+
+        bool rewarded;
+        try
+        {
+            rewarded = await adsService.ShowRewardedAsync();
+        }
+        finally
+        {
+            _rewardedInProgress = false;
+            RefreshRewardedButtons();
+        }
         if (!rewarded)
         {
             Debug.Log("[UIInGameHUD] 광고 미시청으로 스킨 체험 취소");
@@ -270,4 +320,17 @@ public class UIInGameHUD : UIScene
     private void OnSkipButtonClicked() => SkipStageAsync().Forget();
 
     private void OnSkinTrialButtonClicked() => SkinTrialAsync().Forget();
+
+    private bool IsRewardedReady() =>
+        !_rewardedInProgress
+        && Services.TryGet<IAdsService>(out var adsService)
+        && adsService.IsRewardedReady;
+
+    private void RefreshRewardedButtons()
+    {
+        RefreshSkipButton();
+        RefreshSkinTrialButton();
+    }
+
+    private void OnRewardedAvailabilityChanged(bool _) => RefreshRewardedButtons();
 }

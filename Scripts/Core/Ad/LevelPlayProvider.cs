@@ -22,11 +22,22 @@ public class LevelPlayProvider : IAdProvider
     private const string RewardedAdUnitId = "PUBLIC_SAMPLE_CONFIG";
 #endif
 
+    // ad_impression의 ad_platform 값. 리포트에서 미디에이션을 구분하는 라벨이라 바꾸지 않는다.
+    private const string AdPlatformName = "ironSource";
+
     // 성공/실패 콜백이 둘 다 오지 않는 엣지 케이스를 대비한 초기화 대기 상한(초).
     private const float InitTimeoutSeconds = 5f;
 
     // 최초 배너 로드가 일시적으로 실패해도 세션 내에서 다시 복구할 수 있도록 점진적으로 재시도한다.
     private static readonly TimeSpan[] BannerRetryDelays =
+    {
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromSeconds(60),
+    };
+
+    private static readonly TimeSpan[] RewardedRetryDelays =
     {
         TimeSpan.FromSeconds(5),
         TimeSpan.FromSeconds(15),
@@ -43,6 +54,10 @@ public class LevelPlayProvider : IAdProvider
     private LevelPlayInterstitialAd _interstitial;
     private LevelPlayRewardedAd _rewarded;
 
+    private bool _rewardedLoadInProgress;
+    private int _rewardedRetryAttempt;
+    private CancellationTokenSource _rewardedRetryCts;
+
     private bool _bannerRequested;       // 게임이 현재 배너 노출을 원하는지.
     private bool _bannerLoadInProgress;  // LoadAd 중복 호출 방지.
     private bool _bannerHasLoaded;       // 최초 로드 성공 여부(자동 갱신 실패와 구분).
@@ -54,6 +69,9 @@ public class LevelPlayProvider : IAdProvider
     private UniTaskCompletionSource<bool> _interstitialShowTcs;
     private UniTaskCompletionSource<bool> _rewardedShowTcs;
     private bool _rewardGranted;
+
+    public event Action<bool> OnRewardedAvailabilityChanged;
+    public event Action<AdImpression> OnAdImpression;
 
     public bool IsInterstitialReady => _interstitial != null && _interstitial.IsAdReady();
     public bool IsRewardedReady => _rewarded != null && _rewarded.IsAdReady();
@@ -155,12 +173,13 @@ public class LevelPlayProvider : IAdProvider
         return await _interstitialShowTcs.Task;
     }
 
-    public void LoadRewarded() => _rewarded?.LoadAd();
+    public void LoadRewarded() => RequestRewardedLoad();
 
     public async UniTask<bool> ShowRewardedAsync()
     {
         if (!IsRewardedReady) return false;
 
+        OnRewardedAvailabilityChanged?.Invoke(false);
         _rewardGranted = false;
         _rewardedShowTcs = new UniTaskCompletionSource<bool>();
         _rewarded.ShowAd();
@@ -183,6 +202,7 @@ public class LevelPlayProvider : IAdProvider
         _banner.OnAdLoaded += OnBannerLoaded;
         _banner.OnAdLoadFailed += OnBannerLoadFailed;
         _banner.OnAdDisplayFailed += OnBannerDisplayFailed;
+        _banner.OnAdImpressionDataReady += OnImpressionDataReady;
     }
 
     private void CreateInterstitial()
@@ -190,15 +210,105 @@ public class LevelPlayProvider : IAdProvider
         _interstitial = new LevelPlayInterstitialAd(InterstitialAdUnitId);
         _interstitial.OnAdClosed += _ => _interstitialShowTcs?.TrySetResult(true);
         _interstitial.OnAdDisplayFailed += (_, __) => _interstitialShowTcs?.TrySetResult(false);
+        _interstitial.OnAdImpressionDataReady += OnImpressionDataReady;
         // 최초 로드는 AdsService.InitializeAsync가 LoadInterstitial()로 건다.
     }
 
     private void CreateRewarded()
     {
         _rewarded = new LevelPlayRewardedAd(RewardedAdUnitId);
+        _rewarded.OnAdLoaded += OnRewardedLoaded;
+        _rewarded.OnAdLoadFailed += OnRewardedLoadFailed;
         _rewarded.OnAdRewarded += (_, __) => _rewardGranted = true;
-        _rewarded.OnAdClosed += _ => ResolveRewardedNextFrame().Forget();
-        _rewarded.OnAdDisplayFailed += (_, __) => _rewardedShowTcs?.TrySetResult(false);
+        _rewarded.OnAdImpressionDataReady += OnImpressionDataReady;
+        _rewarded.OnAdClosed += _ =>
+        {
+            OnRewardedAvailabilityChanged?.Invoke(false);
+            ResolveRewardedNextFrame().Forget();
+        };
+        _rewarded.OnAdDisplayFailed += (_, error) =>
+        {
+            Debug.LogWarning($"[LevelPlayProvider] 리워드 표시 실패: {error}");
+            OnRewardedAvailabilityChanged?.Invoke(false);
+            _rewardedShowTcs?.TrySetResult(false);
+        };
+    }
+
+    // SDK가 백그라운드 스레드에서 호출하므로 값만 꺼내고 발화는 메인 스레드로 넘긴다.
+    private void OnImpressionDataReady(LevelPlayImpressionData data)
+    {
+        if (data?.Revenue == null) return;
+
+        var impression = new AdImpression(
+            AdPlatformName,
+            data.AdNetwork,
+            data.AdFormat,
+            data.MediationAdUnitName,
+            data.Revenue.Value);
+
+        UniTask.Post(() => OnAdImpression?.Invoke(impression));
+    }
+
+    private void OnRewardedLoaded(LevelPlayAdInfo info)
+    {
+        _rewardedLoadInProgress = false;
+        _rewardedRetryAttempt = 0;
+        CancelRewardedRetry();
+        Debug.Log($"[LevelPlayProvider] 리워드 로드 성공: {info}");
+        OnRewardedAvailabilityChanged?.Invoke(true);
+    }
+
+    private void OnRewardedLoadFailed(LevelPlayAdError error)
+    {
+        _rewardedLoadInProgress = false;
+        Debug.LogWarning($"[LevelPlayProvider] 리워드 로드 실패: {error}");
+        OnRewardedAvailabilityChanged?.Invoke(false);
+        ScheduleRewardedRetry();
+    }
+
+    private void RequestRewardedLoad()
+    {
+        if (_rewarded == null || IsRewardedReady || _rewardedLoadInProgress) return;
+
+        _rewardedLoadInProgress = true;
+        _rewarded.LoadAd();
+    }
+
+    private void ScheduleRewardedRetry()
+    {
+        if (_rewarded == null || _rewardedRetryCts != null) return;
+
+        int delayIndex = Math.Min(_rewardedRetryAttempt, RewardedRetryDelays.Length - 1);
+        TimeSpan delay = RewardedRetryDelays[delayIndex];
+        _rewardedRetryAttempt++;
+
+        _rewardedRetryCts = new CancellationTokenSource();
+        RetryRewardedAfterDelayAsync(delay, _rewardedRetryCts.Token).Forget();
+        Debug.LogWarning($"[LevelPlayProvider] 리워드를 {delay.TotalSeconds:0}초 후 재시도합니다 (시도 {_rewardedRetryAttempt})");
+    }
+
+    private async UniTask RetryRewardedAfterDelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UniTask.Delay(delay, cancellationToken: cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        CancelRewardedRetry();
+        RequestRewardedLoad();
+    }
+
+    private void CancelRewardedRetry()
+    {
+        if (_rewardedRetryCts == null) return;
+
+        _rewardedRetryCts.Cancel();
+        _rewardedRetryCts.Dispose();
+        _rewardedRetryCts = null;
     }
 
     // OnAdRewarded/OnAdClosed 호출 순서가 플랫폼마다 달라, 닫힘 후 한 프레임 뒤 보상 여부를 확정한다.

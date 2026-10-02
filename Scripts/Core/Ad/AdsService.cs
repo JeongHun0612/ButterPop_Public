@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -7,15 +8,21 @@ public class AdsService : IAdsService
 {
     private readonly IAdProvider _provider;
     private readonly IPurchaseService _purchase;
+    private readonly IAnalyticsService _analytics;
 
     private bool _initialized;
     private bool _bannerRequested;   // 게임이 배너 노출을 요청했는지.
 
-    public AdsService(IAdProvider provider, IPurchaseService purchase)
+    public event Action<bool> OnRewardedAvailabilityChanged;
+
+    public AdsService(IAdProvider provider, IPurchaseService purchase, IAnalyticsService analytics)
     {
         _provider = provider;
         _purchase = purchase;
+        _analytics = analytics;
         _purchase.OnPurchasesUpdated += OnPurchasesUpdated;
+        _provider.OnRewardedAvailabilityChanged += OnProviderRewardedAvailabilityChanged;
+        _provider.OnAdImpression += _analytics.LogAdImpression;
     }
 
     public bool IsRewardedReady => _provider.IsRewardedReady;
@@ -39,9 +46,10 @@ public class AdsService : IAdsService
 
     public void ShowBanner()
     {
-        if (_purchase.RemoveBannerAds) return;
-
+        // 권한이 회수되면 띄울 수 있도록 요청은 항상 기억한다.
         _bannerRequested = true;
+
+        if (_purchase.RemoveBannerAds) return;
 
         // 초기화 전이면 요청만 기억하고, 완료 시 InitializeAsync가 자동으로 노출한다.
         if (!_initialized)
@@ -86,9 +94,13 @@ public class AdsService : IAdsService
         return rewarded;
     }
 
-    // 광고 제거 구매가 반영되면 이미 떠 있는 배너를 즉시 내린다.
+    // 배너 제거 권한 변경에 맞춰 배너를 내리거나 다시 띄운다.
     private void OnPurchasesUpdated()
     {
         if (_purchase.RemoveBannerAds) _provider.HideBanner();
+        else if (_initialized && _bannerRequested) _provider.ShowBanner();
     }
+
+    private void OnProviderRewardedAvailabilityChanged(bool available) =>
+        OnRewardedAvailabilityChanged?.Invoke(available);
 }
