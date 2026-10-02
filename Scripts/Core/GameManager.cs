@@ -24,6 +24,7 @@ public class GameManager : MonoSingleton<GameManager>
 #if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
         // 첫 화면부터 노치·토스 X 버튼을 피하도록 서비스 준비를 기다리지 않고 연결한다.
         AppsInTossSafeArea.Initialize();
+        AppsInTossBackgroundAudio.Initialize();
 #endif
         var uiManager = UIManager.Instance;
         Debug.Assert(uiManager != null, "[GameManager] UIManager가 없습니다");

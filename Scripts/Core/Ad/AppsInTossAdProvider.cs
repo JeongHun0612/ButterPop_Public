@@ -199,9 +199,8 @@ public sealed class AppsInTossAdProvider : IAdProvider
 
     private async UniTask<bool> ShowFullScreenAsync(string adGroupId, bool rewarded)
     {
-        bool previousAudioPause = AudioListener.pause;
         bool rewardEarned = false;
-        AudioListener.pause = true;
+        var audioPause = AudioPauseGate.Acquire();
 
         var source = new UniTaskCompletionSource<bool>();
         Action dispose = null;
@@ -245,7 +244,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
         finally
         {
             dispose?.Invoke();
-            AudioListener.pause = previousAudioPause;
+            audioPause.Dispose();
         }
     }
 

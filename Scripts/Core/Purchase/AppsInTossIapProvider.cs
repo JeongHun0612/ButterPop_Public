@@ -52,8 +52,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
         }
 
         _purchaseInProgress = true;
-        bool previousAudioPause = AudioListener.pause;
-        AudioListener.pause = true;
+        var audioPause = AudioPauseGate.Acquire();
 
         var source = new UniTaskCompletionSource<PurchaseState>();
         Action dispose = null;
@@ -107,7 +106,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
         finally
         {
             dispose?.Invoke();
-            AudioListener.pause = previousAudioPause;
+            audioPause.Dispose();
             _purchaseInProgress = false;
         }
     }
