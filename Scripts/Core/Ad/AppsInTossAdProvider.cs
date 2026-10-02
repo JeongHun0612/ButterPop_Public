@@ -17,6 +17,11 @@ public sealed class AppsInTossAdProvider : IAdProvider
     private float _bannerHeightPixels;
     private Action _loadDisposer;
 
+    public event Action<bool> OnRewardedAvailabilityChanged;
+
+    // 앱인토스 광고 SDK는 노출 이벤트에 수익 정보를 주지 않아 발화하지 않는다.
+    public event Action<AdImpression> OnAdImpression { add { } remove { } }
+
     public bool IsInterstitialReady => _interstitialReady;
     public bool IsRewardedReady => _rewardedReady;
     public float BannerHeightPixels => _bannerVisible ? _bannerHeightPixels : 0f;
@@ -77,6 +82,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
     {
         if (!_rewardedReady) return false;
         _rewardedReady = false;
+        OnRewardedAvailabilityChanged?.Invoke(false);
         return await ShowFullScreenAsync(AppsInTossServiceSettings.RewardedAdGroupId, rewarded: true);
     }
 
@@ -92,13 +98,22 @@ public sealed class AppsInTossAdProvider : IAdProvider
             {
                 if (evt?.Type != "loaded") return;
 
-                if (rewarded) _rewardedReady = true;
-                else _interstitialReady = true;
+                if (rewarded)
+                {
+                    _rewardedReady = true;
+                    OnRewardedAvailabilityChanged?.Invoke(true);
+                }
+                else
+                {
+                    _interstitialReady = true;
+                }
+
                 FinishFullScreenLoad();
             },
             onError: error =>
             {
                 Debug.LogWarning($"[AppsInTossAdProvider] {(rewarded ? "리워드" : "전면")} 로드 실패: {error.Message}");
+                if (rewarded) OnRewardedAvailabilityChanged?.Invoke(false);
                 FinishFullScreenLoad();
             });
     }
