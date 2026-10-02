@@ -1,6 +1,7 @@
 using UnityEngine;
 
 // 배너 광고 높이만큼 이 RectTransform의 세로 offset을 자동으로 파낸다(높이·방향은 IAdsService에서 취득).
+// 상단은 배너가 없어도 MinTopPixels만큼은 비운다.
 // anchor는 건드리지 않으므로 SafeArea와 같은 오브젝트에 붙여도 된다.
 [RequireComponent(typeof(RectTransform))]
 public class BannerSafeArea : MonoBehaviour
@@ -9,6 +10,10 @@ public class BannerSafeArea : MonoBehaviour
     private Canvas _canvas;
     private float _appliedTop = float.NaN;
     private float _appliedBottom = float.NaN;
+
+    // 안전 영역 안쪽 상단에 겹쳐 그려지는 플랫폼 버튼(앱인토스 X 캡슐)을 피할 최소 높이(px).
+    // 상단 배너는 그 자리를 덮으므로 배너 높이와 합치지 않고 큰 쪽을 쓴다.
+    public static float MinTopPixels { get; set; }
 
     private void Awake()
     {
@@ -24,17 +29,17 @@ public class BannerSafeArea : MonoBehaviour
     {
         if (_rect == null) return;
 
-        float pad = ResolvePadding();
-        bool top = !Services.TryGet<IAdsService>(out var ads) || ads.BannerSide == BannerSide.Top;
-        SetPadding(top ? pad : 0f, top ? 0f : pad);
+        // 서비스가 없거나 제거 구매 시 배너 높이는 0.
+        bool hasAds = Services.TryGet<IAdsService>(out var ads);
+        float banner = hasAds ? ToCanvasUnits(ads.BannerHeightPixels) : 0f;
+        float minTop = ToCanvasUnits(MinTopPixels);
+        bool top = !hasAds || ads.BannerSide == BannerSide.Top;
+        SetPadding(top ? Mathf.Max(banner, minTop) : minTop, top ? 0f : banner);
     }
 
-    // 배너 실제 높이(px) → 캔버스 단위. 서비스/배너 없거나 제거 구매 시 0.
-    private float ResolvePadding()
+    // 스크린 px → 캔버스 단위.
+    private float ToCanvasUnits(float px)
     {
-        if (!Services.TryGet<IAdsService>(out var ads)) return 0f;
-
-        float px = ads.BannerHeightPixels;
         if (px <= 0f) return 0f;
 
         float sf = _canvas != null ? _canvas.scaleFactor : 1f;
