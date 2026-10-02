@@ -24,6 +24,14 @@ public class AppsInTossPurchaseErrorTests
     public bool MessageDecidesWithoutCode(string errorCode, string message)
         => AppsInTossPurchaseError.IsCancelled(errorCode, message);
 
+    [TestCase("", "[PAYMENT_PENDING] 결제 승인을 기다리고 있어요", ExpectedResult = true)]
+    [TestCase("PAYMENT_PENDING", "", ExpectedResult = true)]
+    [TestCase("", "[USER_CANCELED] 결제를 취소했어요", ExpectedResult = false)]
+    [TestCase("", "payment pending", ExpectedResult = false)]
+    [TestCase(null, null, ExpectedResult = false)]
+    public bool PendingDecidedByCodeOnly(string errorCode, string message)
+        => AppsInTossPurchaseError.IsPending(errorCode, message);
+
     [TestCase("", "[USER_CANCELED] 결제를 취소했어요", ExpectedResult = "USER_CANCELED")]
     [TestCase("ITEM_ALREADY_OWNED", "[USER_CANCELED] x", ExpectedResult = "ITEM_ALREADY_OWNED")]
     [TestCase("", "[object Object]", ExpectedResult = "")]

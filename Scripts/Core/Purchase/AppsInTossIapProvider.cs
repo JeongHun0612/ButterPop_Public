@@ -6,6 +6,7 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 // 앱인토스의 SKU 기반 일회성 결제를 기존 IIapProvider 계약에 연결한다.
+// 콘솔 SKU는 AppsInTossServiceSettings로 게임 상품 ID와 변환하고, 이 클래스 밖으로는 게임 상품 ID만 내보낸다.
 public sealed class AppsInTossIapProvider : IIapProvider
 {
     private const float PurchaseTimeoutSeconds = 900f;
@@ -30,11 +31,19 @@ public sealed class AppsInTossIapProvider : IIapProvider
 
         foreach (var product in result.Products)
         {
-            if (!string.IsNullOrEmpty(product.Sku) && !string.IsNullOrEmpty(product.DisplayAmount))
-                _prices[product.Sku] = product.DisplayAmount;
+            if (product == null) continue;
+
+            // 콘솔 SKU를 AppsInTossServiceSettings에 옮겨 적을 수 있도록 연결되지 않은 상품을 남긴다.
+            if (!AppsInTossServiceSettings.TryGetProductId(product.Sku, out string productId))
+            {
+                Debug.LogWarning($"[AppsInTossIapProvider] 연결되지 않은 콘솔 상품: {product.Sku} ({product.DisplayName})");
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(product.DisplayAmount)) _prices[productId] = product.DisplayAmount;
         }
 
-        Debug.Log($"[AppsInTossIapProvider] 상품 조회 완료: {_prices.Count}개");
+        Debug.Log($"[AppsInTossIapProvider] 상품 조회 완료: 콘솔 {result.Products.Length}개 중 {_prices.Count}개 연결");
     }
 
     public async UniTask<PurchaseState> PurchaseAsync(string productId, Func<string, bool> processGrant)
@@ -45,9 +54,9 @@ public sealed class AppsInTossIapProvider : IIapProvider
             return PurchaseState.Failed;
         }
 
-        if (!IsKnownProduct(productId))
+        if (!AppsInTossServiceSettings.TryGetSku(productId, out string sku))
         {
-            Debug.LogError($"[AppsInTossIapProvider] 알 수 없는 SKU: {productId}");
+            Debug.LogError($"[AppsInTossIapProvider] SKU가 설정되지 않은 상품: {productId}");
             return PurchaseState.Failed;
         }
 
@@ -61,7 +70,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
         {
             var options = new IapCreateOneTimePurchaseOrderOptionsOptions
             {
-                Sku = productId,
+                Sku = sku,
                 ProcessProductGrant = _ => processGrant?.Invoke(productId) == true
             };
 
@@ -70,7 +79,7 @@ public sealed class AppsInTossIapProvider : IIapProvider
                 {
                     if (result?.Type == "success")
                     {
-                        MarkOwned(productId);
+                        AddOwned(_owned, _revoked, productId);
                         source.TrySetResult(PurchaseState.Success);
                     }
                     else
@@ -85,6 +94,14 @@ public sealed class AppsInTossIapProvider : IIapProvider
                     {
                         Debug.Log($"[AppsInTossIapProvider] 구매 취소({productId}): {error?.Message}");
                         source.TrySetResult(PurchaseState.Cancelled);
+                        return;
+                    }
+
+                    // 승인되면 미결 주문으로 남아 다음 복원에서 지급된다.
+                    if (AppsInTossPurchaseError.IsPending(error?.ErrorCode, error?.Message))
+                    {
+                        Debug.Log($"[AppsInTossIapProvider] 결제 승인 대기({productId}): {error?.Message}");
+                        source.TrySetResult(PurchaseState.Pending);
                         return;
                     }
 
@@ -113,51 +130,41 @@ public sealed class AppsInTossIapProvider : IIapProvider
 
     public async UniTask RestoreAsync(Func<string, UniTask<bool>> processGrant)
     {
-        _owned.Clear();
-        _revoked.Clear();
         _ownedFetched = false;
 
-        bool historyFetched = await ReconcileCompletedAndRefundedAsync();
+        if (!AppsInTossServiceSettings.IsIapConfigured)
+        {
+            Debug.LogWarning("[AppsInTossIapProvider] 인앱결제 SKU가 설정되지 않아 복원을 건너뜁니다.");
+            return;
+        }
 
-        var pending = await AIT.IAPGetPendingOrders(ApiTimeoutMs);
-        if (pending?.Orders == null) return;
+        // 복원이 겹쳐도 서로의 중간 결과를 지우지 않도록 지역 목록에 모은 뒤 마지막에 교체한다.
+        var owned = new List<string>();
+        var revoked = new List<string>();
+        bool historyFetched = await TryReconcileCompletedAndRefundedAsync(owned, revoked);
+
+        var pendingOrders = await TryGetPendingOrdersAsync();
+        if (pendingOrders == null) return;
 
         // 결제가 끝난 주문이므로 지급·완료 통지 결과와 무관하게 보유로 본다.
         // 빠뜨리면 보유 동기화가 방금 복구한 권한을 회수한다.
-        foreach (var order in pending.Orders)
+        var pending = new List<(string OrderId, string ProductId)>();
+        foreach (var order in pendingOrders)
         {
-            if (order != null && IsKnownProduct(order.Sku)) MarkOwned(order.Sku);
+            if (order == null || !AppsInTossServiceSettings.TryGetProductId(order.Sku, out string productId)) continue;
+
+            AddOwned(owned, revoked, productId);
+            pending.Add((order.OrderId, productId));
         }
 
+        _owned.Clear();
+        _owned.AddRange(owned);
+        _revoked.Clear();
+        _revoked.AddRange(revoked);
         _ownedFetched = historyFetched;
 
-        foreach (var order in pending.Orders)
-        {
-            if (order == null || !IsKnownProduct(order.Sku)) continue;
-
-            bool granted = processGrant != null && await processGrant(order.Sku);
-            if (!granted)
-            {
-                Debug.LogError($"[AppsInTossIapProvider] 미결 주문 지급 저장 실패: {order.OrderId}");
-                continue;
-            }
-
-            bool completed = await AIT.IAPCompleteProductGrant(
-                new IAPCompleteProductGrantArgs_0
-                {
-                    Params = new IAPCompleteProductGrantArgs_0Params { OrderId = order.OrderId }
-                },
-                ApiTimeoutMs);
-
-            if (completed)
-            {
-                Debug.Log($"[AppsInTossIapProvider] 미결 주문 복구 완료: {order.OrderId}");
-            }
-            else
-            {
-                Debug.LogError($"[AppsInTossIapProvider] 미결 주문 완료 통지 실패: {order.OrderId}");
-            }
-        }
+        foreach (var (orderId, productId) in pending)
+            await RecoverPendingOrderAsync(orderId, productId, processGrant);
     }
 
     // 조회 실패로 빈 목록을 넘기면 보유 동기화가 구매 권한을 회수하므로, 조회가 끝났을 때만 true.
@@ -172,40 +179,105 @@ public sealed class AppsInTossIapProvider : IIapProvider
     public bool TryGetLocalizedPrice(string productId, out string price)
         => _prices.TryGetValue(productId, out price);
 
-    private void MarkOwned(string productId)
+    private static void AddOwned(List<string> owned, List<string> revoked, string productId)
     {
-        if (!_owned.Contains(productId)) _owned.Add(productId);
-        _revoked.Remove(productId);
+        if (!owned.Contains(productId)) owned.Add(productId);
+        revoked.Remove(productId);
     }
 
-    // 결제 이력 조회에 성공하면 true.
-    private async UniTask<bool> ReconcileCompletedAndRefundedAsync()
+    // 결제 이력을 끝까지 조회해 보유·회수 목록을 채웠으면 true.
+    private static async UniTask<bool> TryReconcileCompletedAndRefundedAsync(List<string> owned, List<string> revoked)
     {
-        var history = await AIT.IAPGetCompletedOrRefundedOrders(ApiTimeoutMs);
-        if (history?.Orders == null) return false;
+        CompletedOrRefundedOrdersResult history;
+        try
+        {
+            history = await AIT.IAPGetCompletedOrRefundedOrders(ApiTimeoutMs);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[AppsInTossIapProvider] 결제 이력 조회 실패: {e.Message}");
+            return false;
+        }
 
-        // 같은 SKU에 여러 이력이 있으면 ISO 날짜가 가장 최신인 주문 상태를 사용한다.
+        if (history?.Orders == null)
+        {
+            Debug.LogWarning($"[AppsInTossIapProvider] 결제 이력 응답 없음: {history?.error}");
+            return false;
+        }
+
+        // SDK가 다음 페이지 키를 받지 않아 첫 페이지(최대 50건)만 볼 수 있다. 나머지에 보유 주문이 있을 수 있어 미확인으로 둔다.
+        if (history.HasNext)
+        {
+            Debug.LogWarning("[AppsInTossIapProvider] 결제 이력이 한 페이지를 넘어 보유 동기화를 건너뜁니다.");
+            return false;
+        }
+
+        // 같은 상품에 여러 이력이 있으면 ISO 날짜가 가장 최신인 주문 상태를 사용한다.
         var latest = new Dictionary<string, CompletedOrRefundedOrdersResultOrder>();
         foreach (var order in history.Orders)
         {
-            if (order == null || !IsKnownProduct(order.Sku)) continue;
-            if (!latest.TryGetValue(order.Sku, out var previous)
+            if (order == null || !AppsInTossServiceSettings.TryGetProductId(order.Sku, out string productId)) continue;
+            if (!latest.TryGetValue(productId, out var previous)
                 || string.CompareOrdinal(order.Date, previous.Date) > 0)
-                latest[order.Sku] = order;
+                latest[productId] = order;
         }
 
         foreach (var pair in latest)
         {
             if (pair.Value.Status == CompletedOrRefundedOrdersResultOrderStatus.COMPLETED)
-                _owned.Add(pair.Key);
-            else
-                _revoked.Add(pair.Key);
+                AddOwned(owned, revoked, pair.Key);
+            else if (!revoked.Contains(pair.Key))
+                revoked.Add(pair.Key);
         }
 
         return true;
     }
 
-    private static bool IsKnownProduct(string productId)
-        => productId == ProductIds.RemoveBannerAds || productId == ProductIds.RemoveAllAds;
+    // 조회에 실패하면 null.
+    private static async UniTask<IAPGetPendingOrdersResultOrder[]> TryGetPendingOrdersAsync()
+    {
+        try
+        {
+            var result = await AIT.IAPGetPendingOrders(ApiTimeoutMs);
+            if (result?.Orders == null)
+                Debug.LogWarning($"[AppsInTossIapProvider] 미결 주문 응답 없음: {result?.error}");
+            return result?.Orders;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[AppsInTossIapProvider] 미결 주문 조회 실패: {e.Message}");
+            return null;
+        }
+    }
+
+    // 지급 저장이 끝난 주문만 완료 통지한다. 한 주문의 실패가 다른 주문 복구를 막지 않도록 예외를 여기서 끊는다.
+    private static async UniTask RecoverPendingOrderAsync(string orderId, string productId, Func<string, UniTask<bool>> processGrant)
+    {
+        try
+        {
+            bool granted = processGrant != null && await processGrant(productId);
+            if (!granted)
+            {
+                Debug.LogError($"[AppsInTossIapProvider] 미결 주문 지급 저장 실패: {orderId}");
+                return;
+            }
+
+            bool completed = await AIT.IAPCompleteProductGrant(
+                new IAPCompleteProductGrantArgs_0
+                {
+                    Params = new IAPCompleteProductGrantArgs_0Params { OrderId = orderId }
+                },
+                ApiTimeoutMs);
+
+            if (completed)
+                Debug.Log($"[AppsInTossIapProvider] 미결 주문 복구 완료: {orderId}");
+            else
+                Debug.LogError($"[AppsInTossIapProvider] 미결 주문 완료 통지 실패: {orderId}");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[AppsInTossIapProvider] 미결 주문 복구 오류({orderId}): {e.Message}");
+        }
+    }
 }
 #endif
