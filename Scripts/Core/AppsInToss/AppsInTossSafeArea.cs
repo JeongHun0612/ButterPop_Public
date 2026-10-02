@@ -24,6 +24,9 @@ public static class AppsInTossSafeArea
     private static Vector2Int _queriedScreen;
     private static bool _querying;
 
+    // CSS px → 스크린 px 배율. Initialize 전에는 1.
+    public static float DevicePixelRatio => _dpr;
+
     public static void Initialize()
     {
         UpdateDevicePixelRatio();

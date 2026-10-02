@@ -21,6 +21,9 @@ public sealed class AppsInTossAdProvider : IAdProvider
         TimeSpan.FromSeconds(60),
     };
 
+    // 배너 위치 단일 소스. 상단 고정 배너는 게임 내비게이션 캡슐(··· X)에 오른쪽이 가려진다.
+    private static readonly AITBannerPosition BannerPos = AITBannerPosition.Bottom;
+
     private readonly AdRetryTimer _rewardedRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "리워드", RetryDelays);
     private readonly AdRetryTimer _bannerRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "배너", RetryDelays);
 
@@ -42,14 +45,14 @@ public sealed class AppsInTossAdProvider : IAdProvider
     public bool IsInterstitialReady => _interstitialReady;
     public bool IsRewardedReady => _rewardedReady;
     public float BannerHeightPixels => _bannerRequested ? _bannerHeightPixels : 0f;
-    public BannerSide BannerSide => BannerSide.Top;
+    public BannerSide BannerSide => BannerPos == AITBannerPosition.Top ? BannerSide.Top : BannerSide.Bottom;
 
     public async UniTask InitializeAsync()
     {
         AITBannerAd.OnAdEvent -= OnBannerEvent;
         AITBannerAd.OnAdEvent += OnBannerEvent;
         await UniTask.CompletedTask;
-        Debug.Log("[AppsInTossAdProvider] 초기화 완료");
+        Debug.Log($"[AppsInTossAdProvider] 초기화 완료 ({(AppsInTossServiceSettings.UseProductionAds ? "실광고" : "테스트 광고")} ID)");
     }
 
     public void ShowBanner()
@@ -59,7 +62,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
 
         _bannerRequested = true;
         _bannerRetry.Cancel();
-        AITBannerAd.Show(id, AITBannerPosition.Top);
+        AITBannerAd.Show(id, BannerPos);
     }
 
     public void HideBanner()
@@ -264,10 +267,11 @@ public sealed class AppsInTossAdProvider : IAdProvider
             case AITBannerAdEventKind.Rendered:
                 _bannerRetry.Reset();
                 break;
+            // Height는 CSS px라 비율이 없을 때는 캔버스 배율을 곱해 스크린 px로 바꾼다.
             case AITBannerAdEventKind.Resized:
                 _bannerHeightPixels = evt.HeightFraction > 0f
                     ? evt.HeightFraction * Screen.height
-                    : evt.Height;
+                    : evt.Height * AppsInTossSafeArea.DevicePixelRatio;
                 break;
             // 재시도의 Show가 슬롯을 새로 만들어 교체한다. 초기화 실패도 다음 Show에서 다시 초기화된다.
             case AITBannerAdEventKind.FailedToRender:
