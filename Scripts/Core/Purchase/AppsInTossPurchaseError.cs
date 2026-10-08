@@ -1,7 +1,7 @@
 using System;
 
 // 앱인토스 결제 오류를 사용자 취소·승인 대기·실패로 나눈다.
-// SDK 브릿지는 오류 코드를 버리고 메시지만 넘기므로, IAP jslib 로컬 패치가 메시지 앞에 붙인 "[CODE] "에서 코드를 읽는다.
+// SDK 브릿지는 오류 코드를 버리고 메시지만 넘기므로, AppsInTossIapErrorCode.jslib 훅이 메시지 앞에 붙인 "[CODE] "에서 코드를 읽는다.
 // 문자열만 받으므로 APPS_IN_TOSS 디파인이 없는 빌드 타깃에서도 테스트할 수 있다.
 public static class AppsInTossPurchaseError
 {
@@ -25,7 +25,7 @@ public static class AppsInTossPurchaseError
         return message.Substring(1, end - 1);
     }
 
-    // 코드가 있으면 코드로만 판정한다. 코드가 없으면(구버전 토스 앱, SDK 업데이트로 패치 유실) 메시지의 "cancel"로 판정한다.
+    // 코드가 있으면 코드로만 판정한다. 코드가 없으면(구버전 토스 앱, 훅 설치 실패) 메시지의 "cancel"로 판정한다.
     public static bool IsCancelled(string errorCode, string message)
     {
         string code = GetCode(errorCode, message);

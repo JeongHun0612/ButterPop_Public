@@ -2,7 +2,7 @@
 using NUnit.Framework;
 
 // 앱인토스 결제 오류의 취소·실패 판정표를 고정한다.
-// 메시지의 "[CODE] " 접두사는 IAP jslib 로컬 패치가 붙인다.
+// 메시지의 "[CODE] " 접두사는 AppsInTossIapErrorCode.jslib 훅이 붙인다.
 public class AppsInTossPurchaseErrorTests
 {
     [TestCase("", "[USER_CANCELED] 결제를 취소했어요", ExpectedResult = true)]

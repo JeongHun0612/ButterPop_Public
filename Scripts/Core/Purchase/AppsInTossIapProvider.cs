@@ -1,6 +1,7 @@
 #if APPS_IN_TOSS
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using AppsInToss;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -73,6 +74,8 @@ public sealed class AppsInTossIapProvider : IIapProvider
                 Sku = sku,
                 ProcessProductGrant = _ => processGrant?.Invoke(productId) == true
             };
+
+            InstallErrorCodeHook();
 
             dispose = AIT.IAPCreateOneTimePurchaseOrder(
                 onEvent: result =>
@@ -279,5 +282,20 @@ public sealed class AppsInTossIapProvider : IIapProvider
             Debug.LogError($"[AppsInTossIapProvider] 미결 주문 복구 오류({orderId}): {e.Message}");
         }
     }
+
+    // SDK 브릿지가 버리는 결제 오류 코드를 메시지 앞 "[CODE] "로 보존하는 JS 훅(AppsInTossIapErrorCode.jslib)을 건다.
+    // 주문 생성 전에 걸려 있어야 하고, 여러 번 불러도 한 번만 걸린다.
+    private static void InstallErrorCodeHook()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (ButterPopInstallIapErrorCodeHook() == 0)
+            Debug.LogWarning("[AppsInTossIapProvider] 결제 오류 코드 훅을 걸지 못했습니다. 취소 여부를 메시지로만 판정합니다.");
+#endif
+    }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern int ButterPopInstallIapErrorCodeHook();
+#endif
 }
 #endif
