@@ -12,7 +12,7 @@ public class BannerSafeArea : MonoBehaviour
     private float _appliedBottom = float.NaN;
 
     // 안전 영역 안쪽 상단에 겹쳐 그려지는 플랫폼 버튼(앱인토스 X 캡슐)을 피할 최소 높이(px).
-    // 상단 배너는 그 자리를 덮으므로 배너 높이와 합치지 않고 큰 쪽을 쓴다.
+    // 상단 배너는 버튼 영역 아래에 배치하므로 두 높이를 합쳐 비운다.
     public static float MinTopPixels { get; set; }
 
     private void Awake()
@@ -34,7 +34,7 @@ public class BannerSafeArea : MonoBehaviour
         float banner = hasAds ? ToCanvasUnits(ads.BannerHeightPixels) : 0f;
         float minTop = ToCanvasUnits(MinTopPixels);
         bool top = !hasAds || ads.BannerSide == BannerSide.Top;
-        SetPadding(top ? Mathf.Max(banner, minTop) : minTop, top ? 0f : banner);
+        SetPadding(top ? minTop + banner : minTop, top ? 0f : banner);
     }
 
     // 스크린 px → 캔버스 단위.

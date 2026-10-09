@@ -21,9 +21,6 @@ public sealed class AppsInTossAdProvider : IAdProvider
         TimeSpan.FromSeconds(60),
     };
 
-    // 배너 위치 단일 소스. 상단 고정 배너는 게임 내비게이션 캡슐(··· X)에 오른쪽이 가려진다.
-    private static readonly AITBannerPosition BannerPos = AITBannerPosition.Bottom;
-
     private readonly AdRetryTimer _rewardedRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "리워드", RetryDelays);
     private readonly AdRetryTimer _bannerRetry = new AdRetryTimer(nameof(AppsInTossAdProvider), "배너", RetryDelays);
 
@@ -36,6 +33,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
     private Action _loadDisposer;
     private bool _bannerRequested;   // 게임이 배너 노출을 원하는지. 실패해도 유지해 재시도 대상이 된다.
     private float _bannerHeightPixels;
+    private AppsInTossBannerHost _bannerHost;
 
     public event Action<bool> OnRewardedAvailabilityChanged;
 
@@ -45,12 +43,10 @@ public sealed class AppsInTossAdProvider : IAdProvider
     public bool IsInterstitialReady => _interstitialReady;
     public bool IsRewardedReady => _rewardedReady;
     public float BannerHeightPixels => _bannerRequested ? _bannerHeightPixels : 0f;
-    public BannerSide BannerSide => BannerPos == AITBannerPosition.Top ? BannerSide.Top : BannerSide.Bottom;
+    public BannerSide BannerSide => BannerSide.Top;
 
     public async UniTask InitializeAsync()
     {
-        AITBannerAd.OnAdEvent -= OnBannerEvent;
-        AITBannerAd.OnAdEvent += OnBannerEvent;
         await UniTask.CompletedTask;
         Debug.Log($"[AppsInTossAdProvider] 초기화 완료 ({(AppsInTossServiceSettings.UseProductionAds ? "실광고" : "테스트 광고")} ID)");
     }
@@ -62,14 +58,20 @@ public sealed class AppsInTossAdProvider : IAdProvider
 
         _bannerRequested = true;
         _bannerRetry.Cancel();
-        AITBannerAd.Show(id, BannerPos);
+        if (_bannerHost == null)
+        {
+            _bannerHost = AppsInTossBannerHost.Create();
+            _bannerHost.View.OnAdEvent += OnBannerEvent;
+        }
+        _bannerHeightPixels = 0f;
+        _bannerHost.Show(id);
     }
 
     public void HideBanner()
     {
         _bannerRequested = false;
         _bannerRetry.Cancel();
-        AITBannerAd.Hide();
+        if (_bannerHost != null) _bannerHost.Hide();
         _bannerHeightPixels = 0f;
     }
 
@@ -260,7 +262,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
 
     private void OnBannerEvent(AITBannerAdEvent evt)
     {
-        if (evt == null) return;
+        if (evt == null || !_bannerRequested) return;
 
         switch (evt.Kind)
         {
