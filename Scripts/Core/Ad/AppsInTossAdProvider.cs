@@ -5,7 +5,7 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 // 앱인토스 통합 광고 SDK를 기존 광고 서비스 계약에 연결한다.
-public sealed class AppsInTossAdProvider : IAdProvider
+public sealed class AppsInTossAdProvider : IAdProvider, IBannerPositionProvider
 {
     private const float ShowTimeoutSeconds = 120f;
 
@@ -34,6 +34,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
     private bool _bannerRequested;   // 게임이 배너 노출을 원하는지. 실패해도 유지해 재시도 대상이 된다.
     private float _bannerHeightPixels;
     private AppsInTossBannerHost _bannerHost;
+    private BannerSide _bannerSide = BannerSide.Bottom;
 
     public event Action<bool> OnRewardedAvailabilityChanged;
 
@@ -43,7 +44,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
     public bool IsInterstitialReady => _interstitialReady;
     public bool IsRewardedReady => _rewardedReady;
     public float BannerHeightPixels => _bannerRequested ? _bannerHeightPixels : 0f;
-    public BannerSide BannerSide => BannerSide.Top;
+    public BannerSide BannerSide => _bannerSide;
 
     public async UniTask InitializeAsync()
     {
@@ -64,6 +65,7 @@ public sealed class AppsInTossAdProvider : IAdProvider
             _bannerHost.View.OnAdEvent += OnBannerEvent;
         }
         _bannerHeightPixels = 0f;
+        _bannerHost.SetBannerSide(_bannerSide);
         _bannerHost.Show(id);
     }
 
@@ -73,6 +75,12 @@ public sealed class AppsInTossAdProvider : IAdProvider
         _bannerRetry.Cancel();
         if (_bannerHost != null) _bannerHost.Hide();
         _bannerHeightPixels = 0f;
+    }
+
+    public void SetBannerSide(BannerSide side)
+    {
+        _bannerSide = side;
+        if (_bannerHost != null) _bannerHost.SetBannerSide(side);
     }
 
     public void LoadInterstitial()

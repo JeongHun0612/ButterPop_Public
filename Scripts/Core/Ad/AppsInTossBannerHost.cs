@@ -2,14 +2,27 @@
 using AppsInToss;
 using UnityEngine;
 
-// 기기 안전 영역 안에서 토스 내비게이션 캡슐 아래에 배너를 고정한다.
+// 기기 안전 영역의 상단 또는 하단에 배너를 고정하고 상단에서는 토스 내비게이션 캡슐을 피한다.
 // 광고 전용 Canvas에는 Graphic/Raycaster를 두지 않아 게임 입력을 가로채지 않는다.
 public sealed class AppsInTossBannerHost : MonoBehaviour
 {
     private const float InitialHeightCss = 96f;
     private RectTransform _rect;
+    private BannerSide _bannerSide = BannerSide.Bottom;
 
     public AITBannerAdView View { get; private set; }
+
+    private void Awake()
+    {
+        _rect = (RectTransform)transform;
+        View = gameObject.AddComponent<AITBannerAdView>();
+        View.Placement = AITBannerAdPlacement.FollowRectTransform;
+        View.AutoResizeHeight = true;
+        RefreshPosition();
+    }
+
+    // SafeArea는 안전 영역을, SDK의 LateUpdate는 DOM 위치를 추적한다.
+    private void Update() => RefreshPosition();
 
     public static AppsInTossBannerHost Create()
     {
@@ -32,20 +45,11 @@ public sealed class AppsInTossBannerHost : MonoBehaviour
         var banner = new GameObject("Banner", typeof(RectTransform));
         var bannerRect = (RectTransform)banner.transform;
         bannerRect.SetParent(safeRect, false);
-        bannerRect.anchorMin = new Vector2(0f, 1f);
-        bannerRect.anchorMax = Vector2.one;
-        bannerRect.pivot = new Vector2(0.5f, 1f);
+        bannerRect.anchorMin = Vector2.zero;
+        bannerRect.anchorMax = new Vector2(1f, 0f);
+        bannerRect.pivot = new Vector2(0.5f, 0f);
         bannerRect.sizeDelta = new Vector2(0f, InitialHeightCss * AppsInTossSafeArea.DevicePixelRatio);
         return banner.AddComponent<AppsInTossBannerHost>();
-    }
-
-    private void Awake()
-    {
-        _rect = (RectTransform)transform;
-        View = gameObject.AddComponent<AITBannerAdView>();
-        View.Placement = AITBannerAdPlacement.FollowRectTransform;
-        View.AutoResizeHeight = true;
-        RefreshPosition();
     }
 
     public void Show(string adGroupId)
@@ -62,12 +66,21 @@ public sealed class AppsInTossBannerHost : MonoBehaviour
 
     public void Hide() => View.Hide();
 
-    // SafeArea는 안전 영역을, SDK의 LateUpdate는 DOM 위치를 추적한다.
-    private void Update() => RefreshPosition();
+    public void SetBannerSide(BannerSide side)
+    {
+        _bannerSide = side;
+        float y = side == BannerSide.Top ? 1f : 0f;
+        _rect.anchorMin = new Vector2(0f, y);
+        _rect.anchorMax = new Vector2(1f, y);
+        _rect.pivot = new Vector2(0.5f, y);
+        RefreshPosition();
+    }
 
     private void RefreshPosition()
     {
-        _rect.anchoredPosition = new Vector2(0f, -BannerSafeArea.MinTopPixels);
+        _rect.anchoredPosition = _bannerSide == BannerSide.Top
+            ? new Vector2(0f, -BannerSafeArea.MinTopPixels)
+            : Vector2.zero;
     }
 }
 #endif

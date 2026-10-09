@@ -64,6 +64,12 @@ public class AdsService : IAdsService
         _provider.HideBanner();
     }
 
+    public void SetBannerSide(BannerSide side)
+    {
+        if (_provider is IBannerPositionProvider positionProvider)
+            positionProvider.SetBannerSide(side);
+    }
+
     public async UniTask<bool> ShowInterstitialAsync()
     {
         if (_purchase.RemoveAllAds) return false;

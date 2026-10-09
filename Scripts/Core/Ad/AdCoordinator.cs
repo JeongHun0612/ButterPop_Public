@@ -32,6 +32,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [Min(1)]
     [SerializeField] private int skinTrialRotationPeriod = 3;
 
+    private StageManager _stage;
     private IAdsService _ads;
     private IPurchaseService _purchase;
     private ISkinService _skin;
@@ -72,29 +73,37 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private void OnDestroy()
     {
-        if (StageManager.TryGetInstance(out var stage))
+        if (_stage != null)
         {
-            stage.OnStageLoaded -= OnStageLoaded;
-            stage.OnTryCountChanged -= OnTryCountChanged;
-            stage.OnStageCleared -= OnStageCleared;
+            _stage.OnStageLoaded -= OnStageLoaded;
+            _stage.OnTryCountChanged -= OnTryCountChanged;
+            _stage.OnStageCleared -= OnStageCleared;
         }
+
+        if (_initialized) _ads.SetBannerSide(BannerSide.Bottom);
     }
 
     public void Initialize()
     {
         if (_initialized) return;
-        _initialized = true;
-
         _ads = Services.Get<IAdsService>();
         _purchase = Services.Get<IPurchaseService>();
         _skin = Services.Get<ISkinService>();
 
-        if (StageManager.TryGetInstance(out var stage))
+        if (!StageManager.TryGetInstance(out _stage))
         {
-            stage.OnStageLoaded += OnStageLoaded;
-            stage.OnTryCountChanged += OnTryCountChanged;
-            stage.OnStageCleared += OnStageCleared;
+            Debug.LogError("[AdCoordinator] StageManager가 없어 스테이지별 광고 정책을 초기화할 수 없습니다.");
+            enabled = false;
+            return;
         }
+
+        _stage.OnStageLoaded += OnStageLoaded;
+        _stage.OnTryCountChanged += OnTryCountChanged;
+        _stage.OnStageCleared += OnStageCleared;
+        _initialized = true;
+
+        // 첫 스테이지는 구독 전에 로드되므로 배너 표시 전에 현재 설정을 적용한다.
+        ApplyStageBannerSide();
 
         // 배너는 게임 진입과 함께 상시 노출(배너 제거 구매 시 서비스가 무시).
         _ads.ShowBanner();
@@ -175,9 +184,16 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         && _sessionInterstitialCount < sessionInterstitialCap
         && Time.realtimeSinceStartup - _lastInterstitialTime >= interstitialCooldownSeconds;
 
+    private void ApplyStageBannerSide()
+    {
+        var data = _stage.CurrentStageData;
+        _ads.SetBannerSide(data != null ? data.AppsInTossBannerSide : BannerSide.Bottom);
+    }
+
     // 새 스테이지 시작 시 per-stage 상태 초기화.
     private void OnStageLoaded()
     {
+        ApplyStageBannerSide();
         _rewardWatchedThisStage = false;
         _currentTrialStep = -1; // 새 스테이지 첫 주기에서 다시 뽑도록(직전 제외는 _currentTrialSkin으로 유지)
     }

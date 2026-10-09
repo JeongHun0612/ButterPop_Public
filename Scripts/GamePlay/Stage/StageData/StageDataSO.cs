@@ -50,8 +50,14 @@ public class StageDataSO : ScriptableObject
     [Header("배경")]
     public Color backgroundColor = DefaultBackgroundColor;
 
+    [Header("앱인토스 배너 광고")]
+    [Tooltip("기본은 하단입니다. 하단 오브젝트를 가리는 스테이지는 Top을 선택합니다")]
+    [SerializeField] private BannerSide appsInTossBannerSide = BannerSide.Bottom;
+
     [Header("스테이지 오브젝트")]
     public StageObjectSpawnData[] stageObjects;
+
+    public BannerSide AppsInTossBannerSide => appsInTossBannerSide;
 }
 
 [Serializable]

@@ -9,6 +9,9 @@ public interface IAdsService
     void ShowBanner();
     void HideBanner();
 
+    /// <summary>위치 변경을 지원하는 제공자에 배너 방향을 적용한다.</summary>
+    void SetBannerSide(BannerSide side);
+
     /// <summary>
     /// 전면(인터스티셜) 광고를 재생한다. 광고 제거 구매 시 표시하지 않는다.
     /// 실제로 표시했으면 true, 게이팅/미로드로 건너뛰면 false를 반환한다.
