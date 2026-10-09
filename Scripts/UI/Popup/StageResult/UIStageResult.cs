@@ -2,6 +2,7 @@ using Coffee.UIExtensions;
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 public class UIStageResult : UIPopup
@@ -12,8 +13,9 @@ public class UIStageResult : UIPopup
     [SerializeField] private float shutterHoldDuration = 0.2f;
     [SerializeField] private float shutterFadeOutDuration = 0.3f;
 
-    [Header("필름 연출")]
-    [SerializeField] private RectTransform filmPanel;
+    [Header("결과 화면")]
+    [FormerlySerializedAs("filmPanel")]
+    [SerializeField] private RectTransform resultLayout;
     [SerializeField] private RawImage capturedImage;
 
     [Header("파티클")]
@@ -51,7 +53,7 @@ public class UIStageResult : UIPopup
     protected override async UniTask OnShowAnimation()
     {
         if (heartLoopEffect != null) heartLoopEffect.Stop();
-        filmPanel.gameObject.SetActive(false);
+        resultLayout.gameObject.SetActive(false);
 
         // 셔터 연출 (화면 플래시)
         if (shutterPanel != null)
@@ -61,7 +63,7 @@ public class UIStageResult : UIPopup
             await shutterPanel.DOFade(1f, shutterFadeInDuration).ToUniTask();
             await UniTask.Delay((int)(shutterHoldDuration * 1000));
 
-            filmPanel.gameObject.SetActive(true);
+            resultLayout.gameObject.SetActive(true);
             SpawnParticle();
 
             await shutterPanel.DOFade(0f, shutterFadeOutDuration).ToUniTask();
@@ -69,7 +71,7 @@ public class UIStageResult : UIPopup
         }
         else
         {
-            filmPanel.gameObject.SetActive(true);
+            resultLayout.gameObject.SetActive(true);
             SpawnParticle();
         }
 
@@ -89,7 +91,7 @@ public class UIStageResult : UIPopup
     {
         if (heartLoopEffect != null) heartLoopEffect.Stop();
         DespawnParticle();
-        filmPanel.gameObject.SetActive(false);
+        resultLayout.gameObject.SetActive(false);
     }
 
     // 캡처가 없으면 RawImage를 꺼둔다. 켜둔 채 텍스처만 비우면 흰 사각형이 그려진다.
