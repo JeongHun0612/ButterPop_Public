@@ -1,3 +1,4 @@
+using UnityEngine;
 using Cysharp.Threading.Tasks;
 
 public static class ServiceBootstrap
@@ -25,7 +26,7 @@ public static class ServiceBootstrap
         var ads = new AdsService(CreateAdProvider(), purchase, analytics);
         Services.Register<IAdsService>(ads);
 
-        var leaderboard = CreateLeaderboard();
+        var leaderboard = CreateLeaderboard(save);
         Services.Register<ILeaderboardService>(leaderboard);
 
         // SDK 응답을 기다리면 네트워크가 없을 때 부팅이 멈추므로 떼어 낸다.
@@ -33,11 +34,20 @@ public static class ServiceBootstrap
         analytics.InitializeAsync().Forget();
         purchase.InitializeAsync().Forget();
         ads.InitializeAsync().Forget();
-        leaderboard.InitializeAsync().Forget();
+        InitializeLeaderboardAsync(leaderboard, save).Forget();
 
 #if LEVELPLAY_SDK && (UNITY_ANDROID || UNITY_IOS) && BUTTERPOP_AD_TEST_SUITE && !UNITY_EDITOR
         LevelPlayTestSuite.Launch();
 #endif
+    }
+
+    // 리더보드 준비가 끝나면 저장된 최고 기록을 한 번 올린다. 준비를 기다리는 동안 깬 스테이지도 포함된다.
+    private static async UniTaskVoid InitializeLeaderboardAsync(ILeaderboardService leaderboard, ISaveService save)
+    {
+        await leaderboard.InitializeAsync();
+
+        int highest = save.Data?.stage?.highestClearedIndex ?? -1;
+        if (highest >= 0) leaderboard.SubmitHighestStage(highest);
     }
 
     private static async UniTask<ILocalizationService> CreateLocalizationAsync()
@@ -90,13 +100,21 @@ public static class ServiceBootstrap
     }
 
     // 광고·결제와 달리 릴리즈 여부로 가르지 않는다. 붙는 비용이 없고 디버그 빌드에서 실제로 검증해야 한다.
-    private static ILeaderboardService CreateLeaderboard()
+    // 앱인토스만 디버그 해금 빌드에서 끈다. 전 스테이지가 열려 있어 임의로 깬 스테이지가 순위에 오른다.
+    private static ILeaderboardService CreateLeaderboard(ISaveService save)
     {
+        var stageManager = StageManager.Instance;
+        if (stageManager == null || stageManager.StageCount <= 0)
+        {
+            Debug.LogError("[ServiceBootstrap] 리더보드에 필요한 스테이지 목록이 없습니다");
+            return new StubLeaderboardService(isAvailable: false);
+        }
+
 #if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
-        // 게임센터 리더보드를 연결하기 전까지 랭킹 진입 버튼을 숨긴다.
-        return new StubLeaderboardService(isAvailable: false);
+        return new AppsInTossLeaderboardService(save, new AppsInTossLeaderboardApi(),
+            stageManager.StageCount, BuildFlags.DebugUnlock);
 #elif GPGS_SDK && UNITY_ANDROID && !UNITY_EDITOR
-        return new GpgsLeaderboardService();
+        return new GpgsLeaderboardService(stageManager.StageCount);
 #else
         return new StubLeaderboardService();
 #endif

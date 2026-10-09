@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class UIMenu : UIPopup
 {
+    private const float LeaderboardOpenCooldownSeconds = 1f;
+
     [Header("패널")]
     [SerializeField] private MenuStorePanel storePanel;
     [SerializeField] private MenuStageSelectPanel stagePanel;
@@ -21,6 +23,8 @@ public class UIMenu : UIPopup
 
     // OnHide에서 확정한 장착 변경 여부. 닫힌 뒤 스테이지를 다시 지을지 판단하는 데 쓴다.
     private bool _skinChanged;
+    private ILeaderboardService _leaderboard;
+    private float _lastLeaderboardOpenTime = float.NegativeInfinity;
 
     public override void Initialize()
     {
@@ -33,6 +37,14 @@ public class UIMenu : UIPopup
         if (closeButton != null) closeButton.OnClickWithSound(OnClickBack);
         if (leaderboardButton != null) leaderboardButton.OnClickWithSound(OnClickLeaderboard);
         if (muteToggleButton != null) muteToggleButton.onClick.AddListener(OnClickMuteToggle);
+
+        CacheLeaderboard();
+    }
+
+    public override void OnBeforeShow()
+    {
+        CacheLeaderboard();
+        RefreshLeaderboardButton();
     }
 
     protected override UniTask OnShow()
@@ -40,11 +52,6 @@ public class UIMenu : UIPopup
         if (storePanel != null) storePanel.Refresh();
         if (stagePanel != null) stagePanel.Refresh();
         if (customPanel != null) customPanel.Refresh();
-
-        // 로그인이 끝나야 순위 화면을 띄울 수 있다. 메뉴를 열 때마다 다시 판단한다.
-        bool isAvailable = Services.TryGet<ILeaderboardService>(out var leaderboard) && leaderboard.IsAvailable;
-        if (leaderboardButton != null)
-            leaderboardButton.gameObject.SetActive(isAvailable);
 
         RefreshMuteIcon();
 
@@ -84,10 +91,28 @@ public class UIMenu : UIPopup
         if (sprite != null) muteToggleButton.image.sprite = sprite;
     }
 
-    // 순위 화면은 Play Games가 게임 위에 직접 그리므로 메뉴를 닫지 않는다.
+    private void CacheLeaderboard()
+    {
+        if (_leaderboard == null) Services.TryGet(out _leaderboard);
+    }
+
+    private void RefreshLeaderboardButton()
+    {
+        if (leaderboardButton == null) return;
+        leaderboardButton.gameObject.SetActive(_leaderboard != null && _leaderboard.IsAvailable);
+    }
+
+    // 메뉴를 닫지 않아 플랫폼 순위 화면이 떠 있는 동안에도 판정 정지가 이어진다.
     private void OnClickLeaderboard()
     {
-        if (Services.TryGet<ILeaderboardService>(out var leaderboard)) leaderboard.ShowLeaderboard();
+        if (_leaderboard == null) return;
+
+        // 순위 화면이 게임을 덮기 전의 연타로 화면이 겹쳐 열리지 않게 한다.
+        float now = Time.realtimeSinceStartup;
+        if (now - _lastLeaderboardOpenTime < LeaderboardOpenCooldownSeconds) return;
+        _lastLeaderboardOpenTime = now;
+
+        _leaderboard.ShowLeaderboard();
     }
 
     private void OnClickMuteToggle()
