@@ -68,18 +68,22 @@ public class MenuStorePanel : MonoBehaviour
         if (_purchase.TryGetPrice(productId, out string price)) text.text = price;
     }
 
-    // 이미 보유한 상품과 결제 진행 중인 버튼은 비활성화한다.
+    // 이미 보유한 상품, 스토어에서 조회되지 않은 상품, 결제 진행 중인 버튼은 비활성화한다.
     private void RefreshButtons()
     {
         if (_purchase == null) return;
 
         if (bannerAdRemoveButton != null)
-            bannerAdRemoveButton.interactable = !_purchasing && !_purchase.RemoveBannerAds;
+            bannerAdRemoveButton.interactable = CanPurchase(ProductIds.RemoveBannerAds, _purchase.RemoveBannerAds);
         if (allAdRemoveButton != null)
-            allAdRemoveButton.interactable = !_purchasing && !_purchase.RemoveAllAds;
+            allAdRemoveButton.interactable = CanPurchase(ProductIds.RemoveAllAds, _purchase.RemoveAllAds);
         if (restoreButton != null)
             restoreButton.interactable = !_purchasing;
     }
+
+    // 가격이 조회되지 않으면 스토어에 없는 상품으로 본다.
+    private bool CanPurchase(string productId, bool owned)
+        => !_purchasing && !owned && _purchase.TryGetPrice(productId, out _);
 
     private void ShowStatus(string message, bool isError = false)
     {
