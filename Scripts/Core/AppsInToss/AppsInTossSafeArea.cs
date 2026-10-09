@@ -1,7 +1,6 @@
 #if APPS_IN_TOSS
 using System;
 using AppsInToss;
-using Crystal;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
