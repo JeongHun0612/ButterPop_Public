@@ -5,9 +5,9 @@ using System.Collections.Generic;
 // SDK의 Deploy for Online Test도 개발 빌드가 아니라서 Debug.isDebugBuild로 가르면 실기기 테스트에 실광고가 나간다(정책 위반).
 public static class AppsInTossServiceSettings
 {
-    private const string ProductionBannerAdGroupId = "";
-    private const string ProductionInterstitialAdGroupId = "";
-    private const string ProductionRewardedAdGroupId = "";
+    private const string ProductionBannerAdGroupId = "PUBLIC_SAMPLE_APPS_IN_TOSS_ID";
+    private const string ProductionInterstitialAdGroupId = "PUBLIC_SAMPLE_APPS_IN_TOSS_ID";
+    private const string ProductionRewardedAdGroupId = "PUBLIC_SAMPLE_APPS_IN_TOSS_ID";
 
     private const string TestBannerAdGroupId = "ait-ad-test-banner-id";
     private const string TestInterstitialAdGroupId = "ait-ad-test-interstitial-id";
