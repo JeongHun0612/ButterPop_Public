@@ -16,8 +16,8 @@ public static class AppsInTossServiceSettings
     // 게임 상품 ID → 콘솔이 발급한 SKU(예: PUBLIC_SAMPLE_APPS_IN_TOSS_ID).
     private static readonly Dictionary<string, string> Skus = new()
     {
-        { ProductIds.RemoveBannerAds, "" },
-        { ProductIds.RemoveAllAds, "" },
+        { ProductIds.RemoveBannerAds, "PUBLIC_SAMPLE_APPS_IN_TOSS_ID" },
+        { ProductIds.RemoveAllAds, "PUBLIC_SAMPLE_APPS_IN_TOSS_ID" },
     };
 
 #if AIT_PRODUCTION_ADS
