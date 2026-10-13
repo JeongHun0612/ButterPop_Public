@@ -103,8 +103,11 @@ public static class ServiceBootstrap
 
     // 광고·결제와 달리 릴리즈 여부로 가르지 않는다. 붙는 비용이 없고 디버그 빌드에서 실제로 검증해야 한다.
     // 앱인토스만 디버그 해금 빌드에서 끈다. 전 스테이지가 열려 있어 임의로 깬 스테이지가 순위에 오른다.
+    // 시연 빌드는 여러 사람이 한 기기로 플레이하므로 플랫폼과 상관없이 끄고 진입 버튼도 숨긴다.
     private static ILeaderboardService CreateLeaderboard(ISaveService save)
     {
+        if (BuildFlags.IsDemo) return new StubLeaderboardService(isAvailable: false);
+
         var stageManager = StageManager.Instance;
         if (stageManager == null || stageManager.StageCount <= 0)
         {
