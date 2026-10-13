@@ -6,6 +6,10 @@ using UnityEngine;
 // SDK 초기화 전에 들어온 이벤트는 모아 두었다가 초기화가 끝나면 보낸다.
 public class AnalyticsService : IAnalyticsService
 {
+    // 스테이지 이벤트 이름의 앞부분. 실제 이벤트 이름에는 stage_clear_01처럼 스테이지 번호가 붙는다.
+    public const string StageClearEvent = "stage_clear";
+    public const string StageClearSkipEvent = "stage_clear_skip";
+
     // 초기화가 끝나지 않을 때 대기 이벤트가 무한히 쌓이지 않도록 제한한다.
     private const int MaxPendingEvents = 100;
 
@@ -77,7 +81,7 @@ public class AnalyticsService : IAnalyticsService
     {
         // UI 표기(#1부터)와 맞춘다.
         int stageNumber = stageIndex + 1;
-        string prefix = skipped ? "stage_clear_skip" : "stage_clear";
+        string prefix = skipped ? StageClearSkipEvent : StageClearEvent;
         string eventName = $"{prefix}_{stageNumber:D2}";   // 예: stage_clear_01, stage_clear_skip_01
 
         LogEvent(eventName, new Dictionary<string, object>

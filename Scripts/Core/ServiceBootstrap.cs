@@ -70,7 +70,9 @@ public static class ServiceBootstrap
     // 에디터의 Firebase는 데스크톱 스텁이라 수집되지 않으므로 제외한다.
     private static IAnalyticsProvider CreateAnalyticsProvider()
     {
-#if FIREBASE_SDK && UNITY_ANDROID && !UNITY_EDITOR
+#if APPS_IN_TOSS && UNITY_WEBGL && !UNITY_EDITOR
+        if (BuildFlags.IsRelease) return new AppsInTossAnalyticsProvider();
+#elif FIREBASE_SDK && UNITY_ANDROID && !UNITY_EDITOR
         if (BuildFlags.IsRelease) return new FirebaseAnalyticsProvider();
 #endif
         return new StubAnalyticsProvider();
