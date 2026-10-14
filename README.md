@@ -6,11 +6,10 @@
 
 **Google Play·앱인토스 출시 · gamescom asia 2026 전시**
 
-4인 팀에서 메인 클라이언트 개발을 담당했으며, 소프트바디·스테이지 제작 도구·광고·결제·저장 흐름을 구현했습니다.
+4인 팀에서 메인 클라이언트 개발을 담당했으며, 소프트바디와 스테이지 제작 도구를 구현했습니다. 플랫폼별 광고·결제·저장·리더보드·애널리틱스 서비스도 구현하고 연동했습니다.
 
-- <img src="media/icons/website.svg" width="20" height="20" alt="웹사이트"> [프로젝트 상세 포트폴리오](https://junghun-portfolio-rouge.vercel.app/projects/butterpop)
 - <img src="media/icons/google-play.png" width="20" height="20" alt="Google Play"> [Google Play](https://play.google.com/store/apps/details?id=com.fruitsghost.butterpop)
-- <img src="media/icons/pdf.svg" width="20" height="20" alt="PDF"> [포트폴리오 PDF](media/portfolio.pdf)
+- <img src="media/icons/pdf.svg" width="20" height="20" alt="PDF"> [상세 기술 포트폴리오 (PDF)](media/portfolio.pdf)
 - <img src="media/icons/youtube.svg" width="20" height="20" alt="YouTube"> [플레이·구현 시연 영상](https://www.youtube.com/watch?v=ByeWOFnp3t4)
 
 ![낙하 준비, 손으로 쳐 올리기, 충돌과 변형을 보여주는 플레이 화면](media/gameplay-live.png)
