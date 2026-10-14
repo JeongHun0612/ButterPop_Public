@@ -57,9 +57,15 @@
 
 ### 4. 광고·결제·저장 실패 대응
 
-광고 로드 실패에는 간격을 늘리는 재시도를 적용하고, 광고 준비 상태에 따라 리워드 버튼을 갱신했습니다. 결제는 미확정 주문 처리·권한 복원과 응답 타임아웃으로 종료·무응답 상황에 대응했습니다. 저장은 임시 파일 기록 후 교체하고 요청을 순차 실행하며, 로드 실패 시 쓰기를 차단해 기존 데이터를 보호합니다.
-
-대표 코드: [UnityIapProvider](Scripts/Core/Purchase/UnityIapProvider.cs) · [SaveService](Scripts/Core/Save/SaveService.cs)
+| 문제 | 대응 | 대표 코드 |
+|---|---|---|
+| 배너 최초 로드 실패 후 미노출 | 5·15·30·60초 재요청, 요청·로드·노출 상태 분리 | [LevelPlayProvider](Scripts/Core/Ad/LevelPlayProvider.cs) |
+| 준비되지 않은 리워드 버튼 노출 | 광고 준비 상태 이벤트로 UI 갱신 | [UIInGameHUD](Scripts/UI/Scene/UIInGameHUD.cs) |
+| 구매 확정 전 종료로 남은 미확정 주문 | 보유 주문 조회, 미확정 주문 확정과 권한 복원 | [UnityIapProvider](Scripts/Core/Purchase/UnityIapProvider.cs) |
+| 스토어 무응답으로 구매 대기 지속 | 연결·조회 30초, 구매 900초 타임아웃과 대기 해제 | [UnityIapProvider](Scripts/Core/Purchase/UnityIapProvider.cs) |
+| 저장 도중 중단되는 파일 쓰기 | 임시 파일 기록 후 기존 파일 교체 | [FileSaveStorage](Scripts/Core/Save/FileSaveStorage.cs) |
+| 겹친 저장 요청의 임시 파일 충돌 | 이전 저장 완료 후 다음 저장을 순차 실행 | [SaveService](Scripts/Core/Save/SaveService.cs) |
+| 저장 데이터 로드 실패 후 덮어쓰기 | 로드 실패 시 저장을 차단해 기존 데이터 보호 | [SaveService](Scripts/Core/Save/SaveService.cs) |
 
 ## 공개 범위
 
