@@ -8,6 +8,7 @@
 
 4인 팀에서 메인 클라이언트 개발을 담당했으며, 소프트바디·스테이지 제작 도구·광고·결제·저장 흐름을 구현했습니다.
 
+- <img src="media/icons/website.svg" width="20" height="20" alt="웹사이트"> [프로젝트 상세 포트폴리오](https://junghun-portfolio-rouge.vercel.app/projects/butterpop)
 - <img src="media/icons/google-play.png" width="20" height="20" alt="Google Play"> [Google Play](https://play.google.com/store/apps/details?id=com.fruitsghost.butterpop)
 - <img src="media/icons/pdf.svg" width="20" height="20" alt="PDF"> [포트폴리오 PDF](media/portfolio.pdf)
 - <img src="media/icons/youtube.svg" width="20" height="20" alt="YouTube"> [플레이·구현 시연 영상](https://www.youtube.com/watch?v=ByeWOFnp3t4)
@@ -23,7 +24,7 @@
 | 담당 역할 | 메인 클라이언트 개발 |
 | 엔진 · 언어 | Unity 6 · URP · C# |
 | 플랫폼 | Android (Google Play) / WebGL (앱인토스) |
-| 주요 기술 | Unity 2D Physics, 런타임 Mesh, ScriptableObject, Unity Editor, UniTask, Addressables, DOTween |
+| 주요 기술 | Unity 2D Physics, 런타임 Mesh, ScriptableObject, UniTask, Addressables, DOTween |
 | 외부 서비스 | LevelPlay, Unity IAP, Google Play Games, Firebase Analytics, Apps in Toss |
 
 ## 핵심 구현
@@ -41,7 +42,7 @@
 
 ### 2. 스테이지 제작 도구
 
-기획자가 오브젝트 배치와 카메라 설정을 편집하고 Scene View에서 확인할 수 있는 제작 도구를 개발했습니다. 편집 결과를 `StageDataSO`로 저장하고 런타임에서 재구성하는 흐름으로 **50개 스테이지를 제작하고 플레이 환경에서 검증**했습니다. 여러 Bone의 충돌 콜백은 공통 센서에서 하나의 접촉으로 통합해 기믹과 효과음의 중복 실행을 방지했습니다.
+기획자가 오브젝트 배치와 카메라 설정을 편집하고 Scene View에서 확인할 수 있는 제작 도구를 개발했습니다. 편집 결과를 `StageDataSO`로 저장하고 런타임에서 재구성하는 흐름으로 **50개 스테이지를 제작하고 플레이 환경에서 검증**했습니다.
 
 ![Stage Maker 작업 데이터와 Scene View 프리뷰를 함께 편집하는 시연](media/stage-maker.gif)
 
@@ -69,13 +70,11 @@
 
 ## 공개 범위
 
-이 저장소는 **포트폴리오 검토를 위한 소스 열람용 저장소**입니다. 상세 설계와 문제 해결 과정은 위 포트폴리오 PDF에 정리했으며, 여기서는 구현 코드와 시연 자료를 확인할 수 있습니다.
+이 저장소는 **포트폴리오 검토를 위한 소스 열람용 저장소**입니다.
 
-- `Scripts/`: Core, GamePlay, UI, Editor, Util로 구분한 애플리케이션 C# 코드
-- `media/`: 포트폴리오 PDF, 플레이 화면, GIF와 시연 영상
+- `Scripts/`: 애플리케이션 C# 코드
+- `media/`: 포트폴리오 PDF와 시연 자료
 - Unity Scene·Prefab·원본 게임 에셋·프로젝트 설정·외부 SDK 원본은 포함하지 않아 **이 저장소만으로 실행하거나 빌드할 수 없습니다.**
 - 운영 광고 설정·리더보드 식별자·앱인토스 상품 SKU는 공개용 예시 값으로 대체했습니다.
-
-개발 기간과 팀 정보는 포트폴리오 기준이며, 공개 소스에는 이후 개선한 메시·저장 코드와 앱인토스 연동 코드가 포함됩니다. 시연 자료는 신규 촬영본과 기존 녹화본을 함께 사용했습니다.
 
 코드와 자료에 별도의 오픈소스 이용 허락을 선언하지 않습니다. 재사용·재배포 시 권리자의 허락과 관련 라이선스를 확인해주세요. 팀 제작 아트의 권리는 해당 권리자에게 있습니다.
