@@ -1,0 +1,22 @@
+# This repository contains source-reading portfolio materials.
+.DS_Store
+Thumbs.db
+desktop.ini
+.vs/
+.vscode/
+*.user
+*.suo
+*.tmp
+*.log
+Library/
+Temp/
+Obj/
+Logs/
+Build/
+Builds/
+UserSettings/
+*.keystore
+*.jks
+*.p12
+.env
+.env.*
