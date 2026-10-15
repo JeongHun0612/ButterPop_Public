@@ -22,7 +22,7 @@ public class StageManager : MonoSingleton<StageManager>
 
     private StageContext _current;
     private int _currentTryCount;
-    private int _failsSinceClear;   // 마지막 클리어·스킵 이후 누적 실패. 전면 광고(인터1) 판정용.
+    private int _failsSinceClear;   // 마지막 클리어·스킵 이후 누적 실패. 실패 전면 광고 판정용.
     private int _sessionTryCount;   // 세션 총 실패. 로그 확인용.
 
     // 현재 스테이지 수명에 묶인 비동기 작업의 취소원. 스테이지가 교체되면 끊긴다.

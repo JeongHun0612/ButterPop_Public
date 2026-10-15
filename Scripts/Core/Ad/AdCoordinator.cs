@@ -8,24 +8,19 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [Header("데이터")]
     [SerializeField] private SkinDatabaseSO skinDatabase;
 
-    [Header("전면 - 실패(인터1)")]
-    [Tooltip("마지막 클리어 이후 이 횟수만큼 실패할 때마다 강제 전면(리워드 시청 시 면제). 스테이지를 옮겨도 리셋되지 않고, 클리어·스킵 시 초기화된다")]
+    [Header("전면 - 공통")]
+    [Tooltip("세션 시작 후 이 시간(초)이 지나야 전면 노출")]
+    [SerializeField] private float minSessionPlaySeconds = 30f;
+
+    [Header("전면 - 실패")]
+    [Tooltip("마지막 클리어·스킵·전면 이후 이 횟수 이상 실패하면 전면 노출. 스테이지를 옮겨도 이어서 센다")]
     [Min(1)]
-    [SerializeField] private int interstitialFailThreshold = 10;
+    [SerializeField] private int interstitialFailThreshold = 6;
 
-    [Header("전면 - 클리어(인터2)")]
-    [Tooltip("이번 세션에서 이 개수 이상 스테이지를 클리어한 뒤부터 클리어 전면 노출")]
-    [Min(0)]
-    [SerializeField] private int minSessionClearsForAd = 3;
-    [Tooltip("세션 누적 플레이가 이 시간(초) 이상이어야 클리어 전면 노출")]
-    [SerializeField] private float minSessionPlaySeconds = 90f;
-
-    [Header("전면 - 공통 빈도")]
-    [Tooltip("직전 전면 이후 이 시간(초)이 지나야 다음 전면 노출")]
-    [SerializeField] private float interstitialCooldownSeconds = 75f;
-    [Tooltip("한 세션에서 노출할 전면 최대 횟수")]
-    [Min(0)]
-    [SerializeField] private int sessionInterstitialCap = 5;
+    [Header("전면 - 클리어")]
+    [Tooltip("마지막 전면 이후 이 개수 이상 클리어하면 클리어 연출 뒤 전면 노출")]
+    [Min(1)]
+    [SerializeField] private int interstitialClearThreshold = 1;
 
     [Header("리워드 - 스킨 체험(리워드1)")]
     [Tooltip("실패 시도 몇 회마다 체험 후보 스킨이 로테이션되는지")]
@@ -40,15 +35,16 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private readonly List<SquishSkinSO> _trialPool = new();
 
     private bool _rewardWatchedThisStage;
-    private int _sessionClearedCount;
-    private float _lastInterstitialTime = -999f;
-    private int _sessionInterstitialCount;
+    private bool _interstitialShowing;      // 카운트는 광고가 닫힌 뒤 초기화되므로, 표시 중 들어온 트리거의 중복 노출을 막는다
+    private int _clearsSinceInterstitial;
+    private int _failsAtLastInterstitial;   // 전면 노출 시점의 FailsSinceClear. 클리어 이후 실패 중 전면 이후분만 세기 위한 기준값
     private float _sessionStartTime;
 
     private int _currentTrialStep = -1;      // 현재 로테이션 주기 인덱스(경계에서만 새로 뽑기 위한 캐시 키)
     private SquishSkinSO _currentTrialSkin;  // 현재 주기의 체험 후보(직전 제외 랜덤으로 뽑힘)
 
     private float SessionPlaySeconds => Time.realtimeSinceStartup - _sessionStartTime;
+    private int FailsSinceInterstitial => _stage.FailsSinceClear - _failsAtLastInterstitial;
 
     public bool RewardWatchedThisStage => _rewardWatchedThisStage;
 
@@ -59,8 +55,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     // 이번 클리어에서 전면을 노출할 조건이 되는지 판정한다
     public bool ShouldShowClearInterstitial =>
         _initialized
-        && _sessionClearedCount >= minSessionClearsForAd
-        && SessionPlaySeconds >= minSessionPlaySeconds
+        && _clearsSinceInterstitial >= interstitialClearThreshold
         && CanShowInterstitial();
 
     private bool _initialized;
@@ -168,21 +163,29 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private async UniTaskVoid TryShowInterstitialAsync()
     {
-        if (!CanShowInterstitial()) return;
+        if (_interstitialShowing || !CanShowInterstitial()) return;
 
-        bool shown = await _ads.ShowInterstitialAsync();
+        _interstitialShowing = true;
+        bool shown;
+        try
+        {
+            shown = await _ads.ShowInterstitialAsync();
+        }
+        finally
+        {
+            _interstitialShowing = false;
+        }
         if (!shown) return;
 
-        _lastInterstitialTime = Time.realtimeSinceStartup;
-        _sessionInterstitialCount++;
+        _clearsSinceInterstitial = 0;
+        _failsAtLastInterstitial = _stage.FailsSinceClear;
     }
 
-    // 전면 공통 게이트(리워드 면제·광고 제거·세션 캡·쿨다운)
+    // 전면 공통 게이트(리워드 면제·광고 제거·세션 시작 유예)
     private bool CanShowInterstitial() =>
         !_rewardWatchedThisStage
         && !_purchase.RemoveAllAds
-        && _sessionInterstitialCount < sessionInterstitialCap
-        && Time.realtimeSinceStartup - _lastInterstitialTime >= interstitialCooldownSeconds;
+        && SessionPlaySeconds >= minSessionPlaySeconds;
 
     private void ApplyStageBannerSide()
     {
@@ -196,20 +199,24 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         ApplyStageBannerSide();
         _rewardWatchedThisStage = false;
         _currentTrialStep = -1; // 새 스테이지 첫 주기에서 다시 뽑도록(직전 제외는 _currentTrialSkin으로 유지)
+
+        // 스킵으로 FailsSinceClear가 0이 되면 기준값도 함께 맞춘다.
+        _failsAtLastInterstitial = Mathf.Min(_failsAtLastInterstitial, _stage.FailsSinceClear);
     }
 
-    private void OnStageCleared(Bounds bounds) => _sessionClearedCount++;
+    // 클리어하면 FailsSinceClear가 0이 되므로 기준값도 함께 초기화한다.
+    private void OnStageCleared(Bounds bounds)
+    {
+        _clearsSinceInterstitial++;
+        _failsAtLastInterstitial = 0;
+    }
 
-    // 인터1: 마지막 클리어 이후 N회 실패마다 강제 전면(= 한 지점에 막혀 있을 때).
-    // 스테이지 카운터는 스테이지를 옮길 때마다 0이 되어 전면을 계속 피할 수 있으므로 쓰지 않는다.
+    // 한 지점에 막혀 있을 때 강제 전면.
+    // 스테이지별 시도 횟수는 스테이지를 옮길 때마다 0이 되어 전면을 계속 피할 수 있으므로 쓰지 않는다.
     private void OnTryCountChanged(int tryCount)
     {
         if (tryCount <= 0) return;   // 스테이지 리셋 통지는 실패가 아니다
-
-        var stage = StageManager.Instance;
-        Debug.Assert(stage != null, "[AdCoordinator] StageManager가 없습니다");
-
-        if (stage.FailsSinceClear % interstitialFailThreshold != 0) return;
+        if (FailsSinceInterstitial < interstitialFailThreshold) return;
 
         TryShowInterstitialAsync().Forget();
     }
