@@ -35,7 +35,6 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private readonly List<SquishSkinSO> _trialPool = new();
 
     private bool _rewardWatchedThisStage;
-    private bool _interstitialShowing;      // 카운트는 광고가 닫힌 뒤 초기화되므로, 표시 중 들어온 트리거의 중복 노출을 막는다
     private int _clearsSinceInterstitial;
     private int _failsAtLastInterstitial;   // 전면 노출 시점의 FailsSinceClear. 클리어 이후 실패 중 전면 이후분만 세기 위한 기준값
     private float _sessionStartTime;
@@ -163,18 +162,9 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
     private async UniTaskVoid TryShowInterstitialAsync()
     {
-        if (_interstitialShowing || !CanShowInterstitial()) return;
+        if (!CanShowInterstitial()) return;
 
-        _interstitialShowing = true;
-        bool shown;
-        try
-        {
-            shown = await _ads.ShowInterstitialAsync();
-        }
-        finally
-        {
-            _interstitialShowing = false;
-        }
+        bool shown = await _ads.ShowInterstitialAsync();
         if (!shown) return;
 
         _clearsSinceInterstitial = 0;
