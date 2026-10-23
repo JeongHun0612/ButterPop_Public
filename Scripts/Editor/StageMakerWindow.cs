@@ -57,8 +57,8 @@ public class StageMakerWindow : EditorWindow
     private const string DefaultStageId = "New Stage";
 
     // 스퀴시 낙하 시작점 · 손의 기본 위치. 신규 작업 초기값이자 "기본값으로" 버튼의 복원 대상.
-    private static readonly Vector2 DefaultSquishSpawnPosition = new(-1.5f, 2.5f);
-    private static readonly Vector2 DefaultArmPosition = new(-3f, -2f);
+    internal static readonly Vector2 DefaultSquishSpawnPosition = new(-1.5f, 2.5f);
+    internal static readonly Vector2 DefaultArmPosition = new(-3f, -2f);
 
     private Vector2 _scrollPos;
 
@@ -1010,7 +1010,7 @@ public class StageMakerWindow : EditorWindow
         so.stageObjects = spawnDataList.ToArray();
     }
 
-    private GameObject GetOrCreatePrefab(Sprite sprite)
+    internal static GameObject GetOrCreatePrefab(Sprite sprite)
     {
         // Images/StageObjects 규칙과 동일하게 타입별 서브폴더에 넣는다. 예: Jelly_01 → StageObjects/Jelly/Jelly_01.prefab
         string categoryFolder = $"{GeneratedPrefabFolder}/{GetCategoryName(sprite.name)}";
