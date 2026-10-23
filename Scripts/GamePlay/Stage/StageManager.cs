@@ -270,9 +270,6 @@ public class StageManager : MonoSingleton<StageManager>
         LogFirstClear(false);
         MarkCleared(CurrentStageIndex);
 
-        if (SoundManager.TryGetInstance(out var sound))
-            sound.PlaySfx(SfxType.StageClear);
-
         OnStageCleared?.Invoke(bounds);
     }
 

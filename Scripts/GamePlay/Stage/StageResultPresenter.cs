@@ -116,6 +116,10 @@ public class StageResultPresenter : MonoBehaviour
         }
 
         await uiManager.HideAllPopups();
+
+        if (SoundManager.TryGetInstance(out var sound))
+            sound.PlaySfx(SfxType.StageClear);
+
         await uiManager.ShowPopup<UIStageResult>();
     }
 
