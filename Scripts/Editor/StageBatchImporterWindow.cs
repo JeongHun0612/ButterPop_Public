@@ -28,7 +28,9 @@ public class StageBatchImporterWindow : EditorWindow
     private const string SourceFolderPrefsKey = "ButterPop.StageBatchImporter.SourceFolder";
     private const string ManifestFileName = "stage_manifest.csv";
     private const string ImageRootFolder = "Assets/04. Images/StageObjects";
-    private const string StageDataFolder = "Assets/08. ScriptableObjects/StageDatas/Stages";
+    private const string StageDataRootFolder = "Assets/08. ScriptableObjects/StageDatas/Stages";
+    // 순서가 정해지기 전의 신규 스테이지를 모아두는 폴더
+    private const string NewStageDataFolder = StageDataRootFolder + "/신규 추가";
     private const string StageListPath = "Assets/08. ScriptableObjects/StageDatas/StageList.asset";
     private const string StageTableName = "Stage";
     private const string TestScenePath = "Assets/01. Scenes/StageMaker.unity";
@@ -50,6 +52,7 @@ public class StageBatchImporterWindow : EditorWindow
     private readonly List<SourceEntry> _entries = new();
     // 원본 이미지는 프로젝트 밖에 있어 에셋 프리뷰를 쓸 수 없으므로 파일에서 직접 읽어 캐싱한다.
     private readonly Dictionary<string, Texture2D> _thumbnails = new();
+    private readonly Dictionary<string, StageDataSO> _stageDataCache = new();
     private int _maxImageCount;
     private bool _addToStageList = true;
     private float _targetWorldSize = 3f;
@@ -260,6 +263,7 @@ public class StageBatchImporterWindow : EditorWindow
     private void Scan()
     {
         _entries.Clear();
+        _stageDataCache.Clear();
         _maxImageCount = 0;
         ClearThumbnails();
         if (!Directory.Exists(_sourceFolder))
@@ -419,6 +423,7 @@ public class StageBatchImporterWindow : EditorWindow
                 if (stageData == null)
                 {
                     stageData = CreateStageData(entry, prefab, sprite);
+                    _stageDataCache[entry.id] = stageData;
                     created.Add(entry.id);
                 }
 
@@ -511,8 +516,12 @@ public class StageBatchImporterWindow : EditorWindow
             }
         };
 
-        AssetDatabase.CreateAsset(stageData, GetStageDataPath(entry.id));
-        Debug.Log($"[StageBatchImporter] StageData 생성: {GetStageDataPath(entry.id)}");
+        if (!AssetDatabase.IsValidFolder(NewStageDataFolder))
+            AssetDatabase.CreateFolder(StageDataRootFolder, Path.GetFileName(NewStageDataFolder));
+
+        string path = $"{NewStageDataFolder}/{GetStageDataName(entry.id)}.asset";
+        AssetDatabase.CreateAsset(stageData, path);
+        Debug.Log($"[StageBatchImporter] StageData 생성: {path}");
         return stageData;
     }
 
@@ -604,10 +613,23 @@ public class StageBatchImporterWindow : EditorWindow
             ? $"{ImageRootFolder}/{id}/{GetStageId(id)}.png"
             : $"{ImageRootFolder}/{id}/{GetStageId(id)}_{index + 1}.png";
 
-    private static string GetStageDataPath(string id) => $"{StageDataFolder}/StageData_{GetStageId(id)}.asset";
+    private static string GetStageDataName(string id) => $"StageData_{GetStageId(id)}";
 
-    private static StageDataSO LoadStageData(SourceEntry entry)
-        => IsValidId(entry.id) ? AssetDatabase.LoadAssetAtPath<StageDataSO>(GetStageDataPath(entry.id)) : null;
+    // StageData는 순서별 하위 폴더로 옮겨질 수 있으므로 경로가 아니라 이름으로 찾는다. OnGUI에서 매번 검색하지 않도록 캐싱한다.
+    private StageDataSO LoadStageData(SourceEntry entry)
+    {
+        if (!IsValidId(entry.id)) return null;
+        if (_stageDataCache.TryGetValue(entry.id, out var cached)) return cached;
+
+        string name = GetStageDataName(entry.id);
+        string path = AssetDatabase.FindAssets($"{name} t:{nameof(StageDataSO)}", new[] { StageDataRootFolder })
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .FirstOrDefault(p => Path.GetFileNameWithoutExtension(p) == name);
+
+        var stageData = path != null ? AssetDatabase.LoadAssetAtPath<StageDataSO>(path) : null;
+        _stageDataCache[entry.id] = stageData;
+        return stageData;
+    }
 
     #endregion
 }
