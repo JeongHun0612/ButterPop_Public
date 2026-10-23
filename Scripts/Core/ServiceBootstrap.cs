@@ -12,6 +12,9 @@ public static class ServiceBootstrap
         var save = await SaveService.CreateAsync(CreateSaveStorage());
         Services.Register<ISaveService>(save);
 
+        var remoteConfig = new UgsRemoteConfigService();
+        Services.Register<IRemoteConfigService>(remoteConfig);
+
         // 결제·광고·리더보드가 이벤트를 남길 수 있도록 그보다 먼저 준비한다.
         var analytics = new AnalyticsService(CreateAnalyticsProvider());
         Services.Register<IAnalyticsService>(analytics);
@@ -31,6 +34,7 @@ public static class ServiceBootstrap
 
         // SDK 응답을 기다리면 네트워크가 없을 때 부팅이 멈추므로 떼어 낸다.
         // 구독자가 모두 붙은 뒤 시작해야 복원 완료 통지를 놓치지 않는다.
+        remoteConfig.InitializeAsync().Forget();
         analytics.InitializeAsync().Forget();
         purchase.InitializeAsync().Forget();
         ads.InitializeAsync().Forget();

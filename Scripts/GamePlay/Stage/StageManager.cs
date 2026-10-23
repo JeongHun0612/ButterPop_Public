@@ -21,6 +21,7 @@ public class StageManager : MonoSingleton<StageManager>
     [SerializeField] private int skipTryThreshold = 3;
 
     private StageContext _current;
+    private int _skipTryThreshold;  // 인스펙터 값을 기본값으로 원격 설정을 덮어쓴 적용 값
     private int _currentTryCount;
     private int _failsSinceClear;   // 마지막 클리어·스킵 이후 누적 실패. 실패 전면 광고 판정용.
     private int _sessionTryCount;   // 세션 총 실패. 로그 확인용.
@@ -42,8 +43,8 @@ public class StageManager : MonoSingleton<StageManager>
     public int CurrentStageIndex { get; private set; }
     public int StageCount => stageList != null ? stageList.Count : 0;
     public bool HasNextStage => stageList != null && stageList.IsValidIndex(CurrentStageIndex + 1);
-    public int SkipTryThreshold => skipTryThreshold;
-    public bool IsSkipAvailable => _currentTryCount >= skipTryThreshold;
+    public int SkipTryThreshold => _skipTryThreshold;
+    public bool IsSkipAvailable => _currentTryCount >= _skipTryThreshold;
     public bool IsSettling => _current?.Squish != null && _current.Squish.IsSettling;
     public StageDataSO CurrentStageData => _current?.Data;
     public Squish Squish => _current?.Squish;
@@ -52,6 +53,7 @@ public class StageManager : MonoSingleton<StageManager>
     protected override void Awake()
     {
         base.Awake();
+        _skipTryThreshold = skipTryThreshold;
 
         if (builder != null)
             builder.OnActorsCreated += BindActors;
@@ -99,6 +101,7 @@ public class StageManager : MonoSingleton<StageManager>
     {
         // 이전 스테이지에서 예약된 지연 작업(리스폰 등)이 새 스테이지를 건드리지 못하게 먼저 끊는다.
         ResetStageScope();
+        ApplyRemoteConfig();
 
         _current = builder.Build(data, _stageCts.Token);
         RespawnSquish();
@@ -207,7 +210,7 @@ public class StageManager : MonoSingleton<StageManager>
         _currentTryCount++;
         _failsSinceClear++;
         _sessionTryCount++;
-        Debug.Log($"[StageManager] 실패 트라이: 스테이지 {_currentTryCount}/{skipTryThreshold} · 클리어 이후 {_failsSinceClear} · 세션 누적 {_sessionTryCount}");
+        Debug.Log($"[StageManager] 실패 트라이: 스테이지 {_currentTryCount}/{_skipTryThreshold} · 클리어 이후 {_failsSinceClear} · 세션 누적 {_sessionTryCount}");
 
         OnTryCountChanged?.Invoke(_currentTryCount);
 
@@ -228,6 +231,13 @@ public class StageManager : MonoSingleton<StageManager>
         _stageCts?.Cancel();
         _stageCts?.Dispose();
         _stageCts = new CancellationTokenSource();
+    }
+
+    // 스테이지 도중 기준이 바뀌지 않도록 스테이지 로드 때만 원격 값을 다시 읽는다.
+    private void ApplyRemoteConfig()
+    {
+        if (!Services.TryGet<IRemoteConfigService>(out var remoteConfig)) return;
+        _skipTryThreshold = remoteConfig.GetInt(RemoteConfigKeys.SkipTryThreshold, skipTryThreshold, 1);
     }
 
     // 현재 스퀴시를 스폰 위치로 되돌린다(화면 밖 준비). 화면 안 등장은 Ready 진입 시 SetState에서.

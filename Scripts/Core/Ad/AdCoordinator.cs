@@ -23,7 +23,11 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [SerializeField] private int interstitialClearThreshold = 1;
 
     [Header("리워드 - 스킨 체험(리워드1)")]
-    [Tooltip("실패 시도 몇 회마다 체험 후보 스킨이 로테이션되는지")]
+    [Tooltip("실패 시도가 이 횟수에 이르면 체험 버튼이 처음 나타난다")]
+    [Min(1)]
+    [SerializeField] private int skinTrialFirstTry = 3;
+
+    [Tooltip("첫 노출 이후 실패 시도 몇 회마다 체험 후보 스킨이 로테이션되는지")]
     [Min(1)]
     [SerializeField] private int skinTrialRotationPeriod = 3;
 
@@ -31,6 +35,14 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private IAdsService _ads;
     private IPurchaseService _purchase;
     private ISkinService _skin;
+    private IRemoteConfigService _remoteConfig;
+
+    // 인스펙터 값을 기본값으로 원격 설정을 덮어쓴 적용 값
+    private float _minSessionPlaySeconds;
+    private int _interstitialFailThreshold;
+    private int _interstitialClearThreshold;
+    private int _skinTrialFirstTry;
+    private int _skinTrialRotationPeriod;
 
     private readonly List<SquishSkinSO> _trialPool = new();
 
@@ -54,7 +66,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     // 이번 클리어에서 전면을 노출할 조건이 되는지 판정한다
     public bool ShouldShowClearInterstitial =>
         _initialized
-        && _clearsSinceInterstitial >= interstitialClearThreshold
+        && _clearsSinceInterstitial >= _interstitialClearThreshold
         && CanShowInterstitial();
 
     private bool _initialized;
@@ -83,6 +95,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         _ads = Services.Get<IAdsService>();
         _purchase = Services.Get<IPurchaseService>();
         _skin = Services.Get<ISkinService>();
+        _remoteConfig = Services.Get<IRemoteConfigService>();
 
         if (!StageManager.TryGetInstance(out _stage))
         {
@@ -90,6 +103,8 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
             enabled = false;
             return;
         }
+
+        ApplyRemoteConfig();
 
         _stage.OnStageLoaded += OnStageLoaded;
         _stage.OnTryCountChanged += OnTryCountChanged;
@@ -109,12 +124,12 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     // 현재 시도 횟수에 대응하는 체험 후보 스킨 반환.
     public SquishSkinSO GetTrialSkin(int tryCount)
     {
-        if (tryCount < skinTrialRotationPeriod) return null;
+        if (!_initialized || tryCount < _skinTrialFirstTry) return null;
 
         var pool = GetTrialPool();
         if (pool.Count == 0) return null;
 
-        int step = tryCount / skinTrialRotationPeriod - 1;
+        int step = (tryCount - _skinTrialFirstTry) / _skinTrialRotationPeriod;
         if (step != _currentTrialStep)
         {
             _currentTrialStep = step;
@@ -175,7 +190,17 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private bool CanShowInterstitial() =>
         !_rewardWatchedThisStage
         && !_purchase.RemoveAllAds
-        && SessionPlaySeconds >= minSessionPlaySeconds;
+        && SessionPlaySeconds >= _minSessionPlaySeconds;
+
+    // 스테이지 도중 기준이 바뀌지 않도록 초기화와 스테이지 로드 때만 원격 값을 다시 읽는다.
+    private void ApplyRemoteConfig()
+    {
+        _minSessionPlaySeconds = _remoteConfig.GetFloat(RemoteConfigKeys.AdMinSessionSeconds, minSessionPlaySeconds, 0f);
+        _interstitialFailThreshold = _remoteConfig.GetInt(RemoteConfigKeys.AdInterstitialFailThreshold, interstitialFailThreshold, 1);
+        _interstitialClearThreshold = _remoteConfig.GetInt(RemoteConfigKeys.AdInterstitialClearThreshold, interstitialClearThreshold, 1);
+        _skinTrialFirstTry = _remoteConfig.GetInt(RemoteConfigKeys.SkinTrialFirstTry, skinTrialFirstTry, 1);
+        _skinTrialRotationPeriod = _remoteConfig.GetInt(RemoteConfigKeys.SkinTrialRotationPeriod, skinTrialRotationPeriod, 1);
+    }
 
     private void ApplyStageBannerSide()
     {
@@ -186,6 +211,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     // 새 스테이지 시작 시 per-stage 상태 초기화.
     private void OnStageLoaded()
     {
+        ApplyRemoteConfig();
         ApplyStageBannerSide();
         _rewardWatchedThisStage = false;
         _currentTrialStep = -1; // 새 스테이지 첫 주기에서 다시 뽑도록(직전 제외는 _currentTrialSkin으로 유지)
@@ -206,7 +232,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private void OnTryCountChanged(int tryCount)
     {
         if (tryCount <= 0) return;   // 스테이지 리셋 통지는 실패가 아니다
-        if (FailsSinceInterstitial < interstitialFailThreshold) return;
+        if (FailsSinceInterstitial < _interstitialFailThreshold) return;
 
         TryShowInterstitialAsync().Forget();
     }
