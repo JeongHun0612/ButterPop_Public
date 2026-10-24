@@ -31,6 +31,11 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [Min(1)]
     [SerializeField] private int skinTrialRotationPeriod = 3;
 
+    [Header("광고 제거 유도")]
+    [Tooltip("전면 노출 후 광고 제거 버튼이 떠 있는 실패 횟수")]
+    [Min(1)]
+    [SerializeField] private int removeAdsPromptFailCount = 3;
+
     private StageManager _stage;
     private IAdsService _ads;
     private IPurchaseService _purchase;
@@ -43,6 +48,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private int _interstitialClearThreshold;
     private int _skinTrialFirstTry;
     private int _skinTrialRotationPeriod;
+    private int _removeAdsPromptFailCount;
 
     private readonly List<SquishSkinSO> _trialPool = new();
 
@@ -54,6 +60,11 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     private int _currentTrialStep = -1;      // 현재 로테이션 주기 인덱스(경계에서만 새로 뽑기 위한 캐시 키)
     private SquishSkinSO _currentTrialSkin;  // 현재 주기의 체험 후보(직전 제외 랜덤으로 뽑힘)
 
+    private int _removeAdsPromptFailsLeft;   // 광고 제거 버튼이 사라지기까지 남은 실패 횟수
+    private bool _removeAdsPromptPending;    // 클리어 전면 이후 다음 스테이지 로드 때 노출을 시작할지
+
+    public event System.Action OnRemoveAdsPromptChanged;
+
     private float SessionPlaySeconds => Time.realtimeSinceStartup - _sessionStartTime;
     private int FailsSinceInterstitial => _stage.FailsSinceClear - _failsAtLastInterstitial;
 
@@ -62,6 +73,18 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     // 올스킨 보유(전체 광고 제거)면 체험이 불필요. 후보가 있어야 노출.
     public bool IsSkinTrialAvailable =>
         _initialized && skinDatabase != null && !_purchase.AllSkinsUnlocked && GetTrialPool().Count > 0;
+
+    // 전면 직후 남은 실패 횟수 동안 노출한다. 이미 구매했거나 스토어에서 상품이 조회되지 않으면 띄우지 않는다.
+    public bool IsRemoveAdsPromptActive =>
+        _initialized
+        && _removeAdsPromptFailsLeft > 0
+        && !_purchase.RemoveAllAds
+        && _purchase.TryGetPrice(ProductIds.RemoveAllAds, out _);
+
+    // 건너뛰기는 전면 주기에서 광고 제거 노출을 뺀 실패 동안 연속으로 보이므로, 그 구간의 중간쯤에 한 번 리마인드한다.
+    // 교체가 없는 스테이지에서는 이 주기로 반복되므로 매 실패마다 흔들리지 않게 최소 2로 둔다.
+    public int SkipReminderInterval =>
+        Mathf.Max(2, Mathf.CeilToInt((_interstitialFailThreshold - _removeAdsPromptFailCount) / 2f));
 
     // 이번 클리어에서 전면을 노출할 조건이 되는지 판정한다
     public bool ShouldShowClearInterstitial =>
@@ -143,7 +166,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     {
         if (!ShouldShowClearInterstitial) return;
 
-        TryShowInterstitialAsync().Forget();
+        TryShowInterstitialAsync(true).Forget();
     }
 
     // Squish 탭 스킨 중 미보유·미장착인 것들(체험 대상).
@@ -175,7 +198,8 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         return pick;
     }
 
-    private async UniTaskVoid TryShowInterstitialAsync()
+    // 클리어 전면은 결과 화면 위에서 나오므로, 광고 제거 버튼은 다음 스테이지가 시작될 때 띄운다.
+    private async UniTaskVoid TryShowInterstitialAsync(bool deferPromptToNextStage = false)
     {
         if (!CanShowInterstitial()) return;
 
@@ -184,6 +208,9 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
         _clearsSinceInterstitial = 0;
         _failsAtLastInterstitial = _stage.FailsSinceClear;
+
+        if (deferPromptToNextStage) _removeAdsPromptPending = true;
+        else StartRemoveAdsPrompt();
     }
 
     // 전면 공통 게이트(리워드 면제·광고 제거·세션 시작 유예)
@@ -200,6 +227,7 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         _interstitialClearThreshold = _remoteConfig.GetInt(RemoteConfigKeys.AdInterstitialClearThreshold, interstitialClearThreshold, 1);
         _skinTrialFirstTry = _remoteConfig.GetInt(RemoteConfigKeys.SkinTrialFirstTry, skinTrialFirstTry, 1);
         _skinTrialRotationPeriod = _remoteConfig.GetInt(RemoteConfigKeys.SkinTrialRotationPeriod, skinTrialRotationPeriod, 1);
+        _removeAdsPromptFailCount = _remoteConfig.GetInt(RemoteConfigKeys.RemoveAdsPromptFailCount, removeAdsPromptFailCount, 1);
     }
 
     private void ApplyStageBannerSide()
@@ -218,6 +246,12 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
 
         // 스킵으로 FailsSinceClear가 0이 되면 기준값도 함께 맞춘다.
         _failsAtLastInterstitial = Mathf.Min(_failsAtLastInterstitial, _stage.FailsSinceClear);
+
+        if (_removeAdsPromptPending)
+        {
+            _removeAdsPromptPending = false;
+            StartRemoveAdsPrompt();
+        }
     }
 
     // 클리어하면 FailsSinceClear가 0이 되므로 기준값도 함께 초기화한다.
@@ -227,11 +261,28 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         _failsAtLastInterstitial = 0;
     }
 
+    private void StartRemoveAdsPrompt()
+    {
+        _removeAdsPromptFailsLeft = _removeAdsPromptFailCount;
+        OnRemoveAdsPromptChanged?.Invoke();
+    }
+
+    private void CountDownRemoveAdsPrompt()
+    {
+        if (_removeAdsPromptFailsLeft <= 0) return;
+
+        _removeAdsPromptFailsLeft--;
+        if (_removeAdsPromptFailsLeft == 0) OnRemoveAdsPromptChanged?.Invoke();
+    }
+
     // 한 지점에 막혀 있을 때 강제 전면.
     // 스테이지별 시도 횟수는 스테이지를 옮길 때마다 0이 되어 전면을 계속 피할 수 있으므로 쓰지 않는다.
     private void OnTryCountChanged(int tryCount)
     {
         if (tryCount <= 0) return;   // 스테이지 리셋 통지는 실패가 아니다
+
+        CountDownRemoveAdsPrompt();
+
         if (FailsSinceInterstitial < _interstitialFailThreshold) return;
 
         TryShowInterstitialAsync().Forget();

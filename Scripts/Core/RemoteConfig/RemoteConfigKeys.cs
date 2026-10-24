@@ -6,5 +6,6 @@ public static class RemoteConfigKeys
     public const string AdInterstitialClearThreshold = "ad_interstitial_clear_threshold";
     public const string SkinTrialFirstTry = "skin_trial_first_try";
     public const string SkinTrialRotationPeriod = "skin_trial_rotation_period";
+    public const string RemoveAdsPromptFailCount = "remove_ads_prompt_fail_count";
     public const string SkipTryThreshold = "skip_try_threshold";
 }
