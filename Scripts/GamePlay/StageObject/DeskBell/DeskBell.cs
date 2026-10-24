@@ -43,7 +43,7 @@ public class DeskBell : MonoBehaviour, ISquishHittable
         _lastRingTime = Time.time;
 
         PlaySwayAnimation();
-        PlayRingSound();
+        SoundManager.TryPlaySfx(ringClip);
     }
 
     private void PlaySwayAnimation()
@@ -57,13 +57,5 @@ public class DeskBell : MonoBehaviour, ISquishHittable
         // Z축으로 좌우로 감쇠하며 흔들려 종이 쳐진 느낌을 준다.
         bellBody.DOPunchRotation(new Vector3(0f, 0f, swayAngle), swayDuration, swayVibrato)
             .SetLink(bellBody.gameObject);
-    }
-
-    private void PlayRingSound()
-    {
-        if (ringClip == null) return;
-
-        if (SoundManager.TryGetInstance(out var sound))
-            sound.PlaySfx(ringClip);
     }
 }

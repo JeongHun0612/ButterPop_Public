@@ -89,7 +89,7 @@ public class EmergencyButton : MonoBehaviour, ISquishHittable
         if (Time.time - _lastPressTime >= pressCooldown)
         {
             _lastPressTime = Time.time;
-            PlayPressSound();
+            SoundManager.TryPlaySfx(pressClip);
         }
     }
 
@@ -134,13 +134,5 @@ public class EmergencyButton : MonoBehaviour, ISquishHittable
 
         buttonVisual.localPosition = _visualOriginPosition;
         buttonVisual.localScale = _visualOriginScale;
-    }
-
-    private void PlayPressSound()
-    {
-        if (pressClip == null) return;
-
-        if (SoundManager.TryGetInstance(out var sound))
-            sound.PlaySfx(pressClip);
     }
 }

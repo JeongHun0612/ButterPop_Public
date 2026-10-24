@@ -76,6 +76,12 @@ public class SoundManager : MonoSingleton<SoundManager>
         sfxSource.PlayOneShot(clip, Mathf.Max(0f, volumeScale) * multiplier);
     }
 
+    // 인스턴스가 없으면 재생하지 않는다. 스테이지 오브젝트처럼 SoundManager 없이도 동작해야 하는 곳에서 쓴다.
+    public static void TryPlaySfx(AudioClip clip)
+    {
+        if (TryGetInstance(out var sound)) sound.PlaySfx(clip);
+    }
+
     private void ApplyMute(bool muted)
     {
         _muted = muted;

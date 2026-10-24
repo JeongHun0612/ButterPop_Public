@@ -35,16 +35,8 @@ public class ClearSpriteSwap : MonoBehaviour, IStageClearEffect
         if (targetRenderer == null || clearSprite == null) return;
 
         targetRenderer.sprite = clearSprite;
-        PlayClearSound();
+        SoundManager.TryPlaySfx(clearClip);
 
         await UniTask.Delay(TimeSpan.FromSeconds(holdDuration), cancellationToken: token);
-    }
-
-    private void PlayClearSound()
-    {
-        if (clearClip == null) return;
-
-        if (SoundManager.TryGetInstance(out var sound))
-            sound.PlaySfx(clearClip);
     }
 }
