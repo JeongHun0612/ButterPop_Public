@@ -1034,7 +1034,7 @@ public class StageMakerWindow : EditorWindow
         return prefab;
     }
 
-    // 에셋 이름에서 타입(카테고리) 폴더명을 얻는다. 첫 언더스코어 앞부분. 예: Eye_Sclera_01 → Eye
+    // 에셋 이름에서 타입(카테고리) 폴더명을 얻는다. 첫 언더스코어 앞부분. 예: Eye_01_Sclera → Eye
     private static string GetCategoryName(string assetName)
     {
         int underscore = assetName.IndexOf('_');
