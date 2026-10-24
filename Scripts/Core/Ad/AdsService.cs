@@ -25,7 +25,7 @@ public class AdsService : IAdsService
         _provider.OnAdImpression += _analytics.LogAdImpression;
     }
 
-    public bool IsRewardedReady => _provider.IsRewardedReady;
+    public bool IsRewardedReady => _purchase.RemoveAllAds || _provider.IsRewardedReady;
 
     public float BannerHeightPixels => _purchase.RemoveBannerAds ? 0f : _provider.BannerHeightPixels;
     public BannerSide BannerSide => _provider.BannerSide;
@@ -88,7 +88,9 @@ public class AdsService : IAdsService
 
     public async UniTask<bool> ShowRewardedAsync()
     {
-        // 리워드는 광고 제거와 무관하게 항상 허용한다(유저가 보상을 위해 자발적으로 시청).
+        // 전체 광고 제거 구매자는 광고 없이 바로 보상을 받는다.
+        if (_purchase.RemoveAllAds) return true;
+
         if (!_provider.IsRewardedReady)
         {
             _provider.LoadRewarded();
@@ -100,13 +102,15 @@ public class AdsService : IAdsService
         return rewarded;
     }
 
-    // 배너 제거 권한 변경에 맞춰 배너를 내리거나 다시 띄운다.
+    // 광고 제거 권한 변경에 맞춰 배너를 내리거나 다시 띄우고, 리워드 버튼 상태를 갱신시킨다.
     private void OnPurchasesUpdated()
     {
         if (_purchase.RemoveBannerAds) _provider.HideBanner();
         else if (_initialized && _bannerRequested) _provider.ShowBanner();
+
+        OnRewardedAvailabilityChanged?.Invoke(IsRewardedReady);
     }
 
-    private void OnProviderRewardedAvailabilityChanged(bool available) =>
-        OnRewardedAvailabilityChanged?.Invoke(available);
+    private void OnProviderRewardedAvailabilityChanged(bool _) =>
+        OnRewardedAvailabilityChanged?.Invoke(IsRewardedReady);
 }
