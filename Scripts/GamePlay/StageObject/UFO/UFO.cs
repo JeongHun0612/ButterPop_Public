@@ -3,11 +3,15 @@ using DG.Tweening;
 using UnityEngine;
 
 // 우주선(UFO) 스테이지 오브젝트.
-// 하단 빔(UfoBeam)에 스퀴시가 닿으면 접시 아래로 빨아올려(어브덕션) 스테이지를 클리어한다.
+// 하단 빔 감지 영역에 스퀴시가 닿으면 접시 아래로 빨아올려(어브덕션) 스테이지를 클리어한다.
 // 스퀴시는 뼈 체인(독립 rigidbody)이라 루트 transform 이동이 아니라 SquishBody를 kinematic으로 얼려
 // SnapPose로 매 틱 재배치한다.
 public class UFO : MonoBehaviour, IStageContextReceiver
 {
+    [Header("감지")]
+    [Tooltip("스퀴시 진입을 알리는 빔 감지 영역. 비우면 Awake에서 자식에서 찾는다")]
+    [SerializeField] private SquishTriggerSensor beamSensor;
+
     [Header("어브덕션 목표")]
     [Tooltip("스퀴시가 빨려 올라가 멈출 지점. 빔과 우주선이 연결되는 부위에 배치하고, 우주선 하위에 두면 회전도 함께 따라간다. 비우면 이 오브젝트 위치를 사용")]
     [SerializeField] private Transform abductPoint;
@@ -33,6 +37,25 @@ public class UFO : MonoBehaviour, IStageContextReceiver
 
     private StageContext _context;
     private bool _abducting;
+
+    private void Awake()
+    {
+        if (beamSensor == null)
+            beamSensor = GetComponentInChildren<SquishTriggerSensor>(true);
+
+        if (beamSensor == null)
+            Debug.LogError("[UFO] 빔 SquishTriggerSensor를 찾지 못했습니다", this);
+    }
+
+    private void OnEnable()
+    {
+        if (beamSensor != null) beamSensor.OnSquishEntered += Abduct;
+    }
+
+    private void OnDisable()
+    {
+        if (beamSensor != null) beamSensor.OnSquishEntered -= Abduct;
+    }
 
     public void ReceiveStageContext(StageContext context)
     {
