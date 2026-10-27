@@ -15,12 +15,12 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
     [Header("전면 - 실패")]
     [Tooltip("마지막 클리어·스킵·전면 이후 이 횟수 이상 실패하면 전면 노출. 스테이지를 옮겨도 이어서 센다")]
     [Min(1)]
-    [SerializeField] private int interstitialFailThreshold = 6;
+    [SerializeField] private int interstitialFailThreshold = 8;
 
     [Header("전면 - 클리어")]
     [Tooltip("마지막 전면 이후 이 개수 이상 클리어하면 클리어 연출 뒤 전면 노출")]
     [Min(1)]
-    [SerializeField] private int interstitialClearThreshold = 1;
+    [SerializeField] private int interstitialClearThreshold = 2;
 
     [Header("리워드 - 스킨 체험(리워드1)")]
     [Tooltip("실패 시도가 이 횟수에 이르면 체험 버튼이 처음 나타난다")]
@@ -92,6 +92,20 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         && _clearsSinceInterstitial >= _interstitialClearThreshold
         && CanShowInterstitial();
 
+#if UNITY_EDITOR
+    public bool DebugInitialized => _initialized;
+    public bool DebugCanShowInterstitial => _initialized && CanShowInterstitial();
+    public float DebugSessionPlaySeconds => SessionPlaySeconds;
+    public float DebugMinSessionPlaySeconds => _minSessionPlaySeconds;
+    public int DebugFailsSinceInterstitial => _initialized ? FailsSinceInterstitial : 0;
+    public int DebugInterstitialFailThreshold => _interstitialFailThreshold;
+    public int DebugClearsSinceInterstitial => _clearsSinceInterstitial;
+    public int DebugInterstitialClearThreshold => _interstitialClearThreshold;
+    public int DebugRemoveAdsPromptFailsLeft => _removeAdsPromptFailsLeft;
+    public int DebugRemoveAdsPromptFailCount => _removeAdsPromptFailCount;
+    public bool DebugRemoveAdsPromptPending => _removeAdsPromptPending;
+#endif
+
     private bool _initialized;
 
     protected override void Awake()
@@ -141,8 +155,12 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         _ads.ShowBanner();
     }
 
-    // 리워드 광고 시청 시 호출. 해당 스테이지의 전면을 면제한다.
-    public void MarkRewardWatched() => _rewardWatchedThisStage = true;
+    // 리워드 광고 시청 시 호출. 해당 스테이지의 전면을 면제하고 광고 제거 버튼을 띄운다.
+    public void MarkRewardWatched()
+    {
+        _rewardWatchedThisStage = true;
+        StartRemoveAdsPrompt();
+    }
 
     // 현재 시도 횟수에 대응하는 체험 후보 스킨 반환.
     public SquishSkinSO GetTrialSkin(int tryCount)
@@ -160,6 +178,24 @@ public class AdCoordinator : MonoSingleton<AdCoordinator>
         }
         return _currentTrialSkin;
     }
+
+#if UNITY_EDITOR
+    // 세션 시작 후 전면 유예 시간이 이미 지난 것으로 만든다.
+    public void DebugSkipSessionGrace() =>
+        _sessionStartTime = Mathf.Min(_sessionStartTime, Time.realtimeSinceStartup - _minSessionPlaySeconds);
+
+    // 실패 누적 없이 실패 전면을 시도한다. 공통 게이트(리워드 면제·광고 제거·세션 유예)는 그대로 적용된다.
+    public void DebugTryShowInterstitial()
+    {
+        if (!_initialized) return;
+        if (!CanShowInterstitial())
+            Debug.Log("[AdCoordinator] 전면 게이트에 막혀 표시하지 않습니다");
+
+        TryShowInterstitialAsync().Forget();
+    }
+
+    public void DebugStartRemoveAdsPrompt() => StartRemoveAdsPrompt();
+#endif
 
     // 클리어 연출이 끝난 뒤 조건 통과 시 전면을 자동 노출한다
     public void NotifyStageClearPresented()

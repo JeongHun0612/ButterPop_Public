@@ -81,6 +81,15 @@ public class PurchaseService : IPurchaseService
     public bool TryGetPrice(string productId, out string price)
         => _provider.TryGetLocalizedPrice(productId, out price);
 
+#if UNITY_EDITOR
+    // 결제 없이 권한을 켜거나 끈다. 세이브에 저장되고 구매 갱신 통지도 보낸다.
+    public void DebugSetEntitlement(string productId, bool owned)
+    {
+        bool changed = owned ? ApplyEntitlement(productId) : RevokeEntitlement(productId);
+        if (changed) CommitEntitlements();
+    }
+#endif
+
     private async UniTask RestoreCoreAsync()
     {
         int grantCountAtStart = _purchaseGrantCount;
