@@ -15,6 +15,7 @@ public class StageMakerWindow : EditorWindow
         public Vector2 cameraCenter = Vector2.zero;
         public float cameraOrthoSize = 6f;
         public Color backgroundColor = StageDataSO.DefaultBackgroundColor;
+        public BannerSide bannerSide = BannerSide.Bottom;
         public List<StageObjectEntry> stageObjects = new();
     }
 
@@ -47,11 +48,30 @@ public class StageMakerWindow : EditorWindow
     private readonly List<GameObject> _objectPreviewInstances = new();
     private Camera _mainCamera;
     private float _lastKnownAspect;
+    private bool _showBannerFrame;
+    private bool _showAndroidBannerFrame;
 
     private const string SquishPrefabPath = "Assets/03. Prefabs/Controllers/Squish.prefab";
     private const string HandPrefabPath = "Assets/03. Prefabs/Controllers/Arm.prefab";
     private const string PreviewParentName = "[StageMaker] Preview";
     private const string GeneratedPrefabFolder = "Assets/03. Prefabs/StageObjects";
+    private const string ShowBannerFramePrefsKey = "ButterPop.StageMaker.ShowBannerFrame";
+
+    // 앱인토스 배너 영역(CSS px). 기준 비율 기기(390x844)의 safe area inset과
+    // AppsInTossBannerHost 배너 높이·AppsInTossSafeArea 상단 버튼 예약 높이를 옮겨 적었다.
+    private const float BannerScreenHeightCss = 844f;
+    private const float BannerHeightCss = 96f;
+    private const float BannerTopOffsetCss = 47f + 52f;   // 상단 inset + 게임 X 버튼 예약
+    private const float BannerBottomOffsetCss = 34f;      // 하단 inset(홈 인디케이터)
+
+    // Android LevelPlay 배너 영역(dp). 위치는 스테이지와 무관하게 상단 중앙 고정이다.
+    // 기준 비율 기기(360x780)에 LevelPlayProvider의 BANNER 크기와 펀치홀 inset 추정값을 적용했다.
+    private const string ShowAndroidBannerFramePrefsKey = "ButterPop.StageMaker.ShowAndroidBannerFrame";
+    private const float AndroidScreenWidthDp = 360f;
+    private const float AndroidScreenHeightDp = 780f;
+    private const float AndroidBannerWidthDp = 320f;
+    private const float AndroidBannerHeightDp = 50f;
+    private const float AndroidBannerTopOffsetDp = 32f;
 
     // 신규 작업의 기본 스테이지 이름. 첫 오브젝트 추가 시 이름 자동 설정 여부 판별에도 사용한다.
     private const string DefaultStageId = "New Stage";
@@ -84,6 +104,8 @@ public class StageMakerWindow : EditorWindow
         EditorApplication.update += OnEditorUpdate;
         EnsureWorkingData();
         Undo.undoRedoPerformed += OnUndoRedo;
+        _showBannerFrame = EditorPrefs.GetBool(ShowBannerFramePrefsKey, true);
+        _showAndroidBannerFrame = EditorPrefs.GetBool(ShowAndroidBannerFramePrefsKey, true);
 
         // 도메인 리로드(스크립트 컴파일 등)로 _data는 파괴되어 기본값으로 리셋되지만,
         // 창에 직렬화된 _loadedSO는 살아남아 상태가 어긋난다(오브젝트가 비어 프리뷰가 안 뜸).
@@ -166,6 +188,8 @@ public class StageMakerWindow : EditorWindow
         EditorGUILayout.Space(4);
         DrawCameraSettings();
         EditorGUILayout.Space(4);
+        DrawBannerSettings();
+        EditorGUILayout.Space(4);
         DrawBackgroundSettings();
         EditorGUILayout.Space(4);
         DrawStageObjects();
@@ -206,6 +230,7 @@ public class StageMakerWindow : EditorWindow
         _data.cameraCenter = so.cameraCenter;
         _data.cameraOrthoSize = so.cameraOrthographicSize;
         _data.backgroundColor = so.backgroundColor;
+        _data.bannerSide = so.AppsInTossBannerSide;
 
         _data.stageObjects.Clear();
         if (so.stageObjects != null)
@@ -301,6 +326,40 @@ public class StageMakerWindow : EditorWindow
             _data.cameraOrthoSize = newOrtho;
             if (_isEditMode) SyncGameCamera();
         }
+    }
+
+    private void DrawBannerSettings()
+    {
+        EditorGUILayout.LabelField("배너 광고", EditorStyles.boldLabel);
+
+        EditorGUI.BeginChangeCheck();
+        var newSide = (BannerSide)EditorGUILayout.EnumPopup(
+            new GUIContent("앱인토스 Banner Side", "기본은 하단입니다. 하단 오브젝트를 가리는 스테이지는 Top을 선택합니다"),
+            _data.bannerSide);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("Edit Banner Side");
+            _data.bannerSide = newSide;
+            SceneView.RepaintAll();
+        }
+
+        _showBannerFrame = DrawFrameToggle("앱인토스 배너 프레임",
+            "편집 모드에서 기준 프레임 위에 앱인토스 배너가 가리는 영역을 표시합니다",
+            _showBannerFrame, ShowBannerFramePrefsKey);
+        _showAndroidBannerFrame = DrawFrameToggle("Android 배너 프레임",
+            "편집 모드에서 기준 프레임 위에 Android 배너(상단 고정)가 가리는 영역을 표시합니다",
+            _showAndroidBannerFrame, ShowAndroidBannerFramePrefsKey);
+    }
+
+    private static bool DrawFrameToggle(string label, string tooltip, bool value, string prefsKey)
+    {
+        EditorGUI.BeginChangeCheck();
+        bool next = EditorGUILayout.Toggle(new GUIContent(label, tooltip), value);
+        if (!EditorGUI.EndChangeCheck()) return value;
+
+        EditorPrefs.SetBool(prefsKey, next);
+        SceneView.RepaintAll();
+        return next;
     }
 
     private void DrawBackgroundSettings()
@@ -711,6 +770,8 @@ public class StageMakerWindow : EditorWindow
         changed |= HandleHand();
         changed |= HandleCameraCenter();
         DrawCameraRect();
+        if (_showBannerFrame) DrawBannerFrame();
+        if (_showAndroidBannerFrame) DrawAndroidBannerFrame();
         DrawFallLine();
         changed |= HandleStageObjects();
 
@@ -816,6 +877,105 @@ public class StageMakerWindow : EditorWindow
             Handles.Label(new Vector3(c.x - dhW, c.y + dhH + 0.15f, 0),
                 $"Device View  {deviceAspect:0.000}  ({deviceSize / _data.cameraOrthoSize:0.00}x)", style);
         }
+    }
+
+    // 기준 프레임 안에서 배너가 덮는 띠. 선택한 쪽은 채우고, 반대쪽은 외곽선만 그려 비교할 수 있게 한다.
+    private void DrawBannerFrame()
+    {
+        Vector2 c = _data.cameraCenter;
+        float halfH = _data.cameraOrthoSize;
+        float halfW = halfH * StageDataSO.ReferenceAspect;
+        float unitsPerCss = halfH * 2f / BannerScreenHeightCss;
+        float bannerH = BannerHeightCss * unitsPerCss;
+
+        float topY = c.y + halfH - BannerTopOffsetCss * unitsPerCss;
+        float bottomY = c.y - halfH + BannerBottomOffsetCss * unitsPerCss + bannerH;
+
+        bool isTop = _data.bannerSide == BannerSide.Top;
+        var color = new Color(1f, 0.35f, 0.55f);
+        DrawBannerBand(c.x, halfW, topY, bannerH, isTop, "AIT Banner (Top)", color);
+        DrawBannerBand(c.x, halfW, bottomY, bannerH, !isTop, "AIT Banner (Bottom)", color);
+    }
+
+    // 배너 폭이 화면보다 좁아 가운데 부분만 가린다.
+    private void DrawAndroidBannerFrame()
+    {
+        Vector2 c = _data.cameraCenter;
+        float halfH = _data.cameraOrthoSize;
+        float halfW = halfH * StageDataSO.ReferenceAspect * (AndroidBannerWidthDp / AndroidScreenWidthDp);
+        float unitsPerDp = halfH * 2f / AndroidScreenHeightDp;
+
+        float topY = c.y + halfH - AndroidBannerTopOffsetDp * unitsPerDp;
+        DrawBannerBand(c.x, halfW, topY, AndroidBannerHeightDp * unitsPerDp, true,
+            "Android Banner", new Color(0.4f, 0.9f, 0.4f));
+    }
+
+    private static void DrawBannerBand(float cx, float halfW, float topY, float height, bool active, string label, Color color)
+    {
+        float left = cx - halfW, right = cx + halfW, bottomY = topY - height;
+        var corners = new Vector3[]
+        {
+            new(left, bottomY, 0),
+            new(left, topY, 0),
+            new(right, topY, 0),
+            new(right, bottomY, 0),
+        };
+
+        if (!active)
+        {
+            Handles.color = new Color(color.r, color.g, color.b, 0.5f);
+            for (int i = 0; i < 4; i++)
+                Handles.DrawDottedLine(corners[i], corners[(i + 1) % 4], 3f);
+            return;
+        }
+
+        Handles.DrawSolidRectangleWithOutline(corners, new Color(color.r, color.g, color.b, 0.35f), Color.clear);
+
+        // 오브젝트와 겹쳐도 구분되도록 사선 빗금을 긋는다.
+        Handles.color = new Color(color.r, color.g, color.b, 0.6f);
+        float step = height * 0.6f;
+        for (float x = left - height; x < right; x += step)
+        {
+            float x0 = Mathf.Max(x, left);
+            float x1 = Mathf.Min(x + height, right);
+            if (x1 <= x0) continue;
+            Handles.DrawAAPolyLine(2f,
+                new Vector3(x0, bottomY + (x0 - x), 0),
+                new Vector3(x1, bottomY + (x1 - x), 0));
+        }
+
+        Handles.color = color;
+        Handles.DrawAAPolyLine(4f, corners[0], corners[1], corners[2], corners[3], corners[0]);
+
+        DrawBannerLabel(corners[1], corners[3], label, color);
+    }
+
+    // 줌과 상관없이 박스 안에 들어가도록 박스의 화면 크기에 맞춰 글자 크기를 정한다.
+    private static void DrawBannerLabel(Vector3 topLeft, Vector3 bottomRight, string label, Color color)
+    {
+        Vector2 a = HandleUtility.WorldToGUIPoint(topLeft);
+        Vector2 b = HandleUtility.WorldToGUIPoint(bottomRight);
+        var rect = Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+
+        var style = new GUIStyle(EditorStyles.boldLabel)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            clipping = TextClipping.Clip,
+            padding = new RectOffset(0, 0, 0, 0),
+            normal = { textColor = color }
+        };
+
+        style.fontSize = Mathf.RoundToInt(rect.height * 0.5f);
+        float textWidth = style.CalcSize(new GUIContent(label)).x;
+        float maxWidth = rect.width * 0.9f;
+        if (textWidth > maxWidth)
+            style.fontSize = Mathf.FloorToInt(style.fontSize * maxWidth / textWidth);
+
+        if (style.fontSize < 6) return;
+
+        Handles.BeginGUI();
+        GUI.Label(rect, label, style);
+        Handles.EndGUI();
     }
 
     private static void DrawFrame(Vector2 center, float halfH, float aspect, Color fill, Color outline)
@@ -980,6 +1140,7 @@ public class StageMakerWindow : EditorWindow
         so.cameraCenter = _data.cameraCenter;
         so.cameraOrthographicSize = _data.cameraOrthoSize;
         so.backgroundColor = _data.backgroundColor;
+        ApplyBannerSide(so, _data.bannerSide);
 
         EnsureFolder(GeneratedPrefabFolder);
 
@@ -1008,6 +1169,14 @@ public class StageMakerWindow : EditorWindow
         }
 
         so.stageObjects = spawnDataList.ToArray();
+    }
+
+    // 런타임에서 바꾸지 못하게 private 직렬화 필드로 두었으므로 SerializedObject로 기록한다.
+    private static void ApplyBannerSide(StageDataSO so, BannerSide side)
+    {
+        var serialized = new SerializedObject(so);
+        serialized.FindProperty("appsInTossBannerSide").enumValueIndex = (int)side;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     internal static GameObject GetOrCreatePrefab(Sprite sprite)
@@ -1082,6 +1251,7 @@ public class StageMakerWindow : EditorWindow
         _data.cameraCenter = Vector2.zero;
         _data.cameraOrthoSize = 6f;
         _data.backgroundColor = StageDataSO.DefaultBackgroundColor;
+        _data.bannerSide = BannerSide.Bottom;
         _data.stageObjects.Clear();
 
         Repaint();
