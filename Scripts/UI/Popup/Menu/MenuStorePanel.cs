@@ -37,7 +37,15 @@ public class MenuStorePanel : MonoBehaviour
     {
         if (bannerAdRemoveButton != null) bannerAdRemoveButton.OnClickWithSound(OnBannerAdRemoveClicked);
         if (allAdRemoveButton != null) allAdRemoveButton.OnClickWithSound(OnAllAdRemoveClicked);
-        if (restoreButton != null) restoreButton.OnClickWithSound(OnRestoreClicked);
+        if (restoreButton != null)
+        {
+#if UNITY_ANDROID
+            // 구글 플레이는 부팅 시 보유 상품 조회로 복원되므로 수동 복원 버튼을 두지 않는다.
+            restoreButton.gameObject.SetActive(false);
+#else
+            restoreButton.OnClickWithSound(OnRestoreClicked);
+#endif
+        }
 
         if (Services.TryGet<IPurchaseService>(out _purchase))
             _purchase.OnPurchasesUpdated += RefreshButtons;
