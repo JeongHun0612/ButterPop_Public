@@ -96,10 +96,21 @@ public class UIStageReady : UIPopup
             stageDescription.TableEntryReference)
         {
             { "stageObjectName", new StringVariable { Value = stageObjectName } },
-            { "skinName", new StringVariable { Value = skinName } }
+            { "skinName", new StringVariable { Value = skinName } },
+            { "skinHasFinalConsonant", new BoolVariable { Value = HasFinalConsonant(skinName) } }
         };
 
         stageNameText.text = await description.GetLocalizedStringAsync();
+    }
+
+    // 한국어 조사(을/를) 선택용. 마지막 글자가 받침 있는 한글 음절이면 true.
+    private static bool HasFinalConsonant(string word)
+    {
+        if (string.IsNullOrEmpty(word)) return false;
+
+        char last = word[^1];
+        if (last < '가' || last > '힣') return false;
+        return (last - '가') % 28 != 0;
     }
 
     private static async UniTask<string> GetLocalizedNameAsync(LocalizedString localizedName, string fallback)
