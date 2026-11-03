@@ -82,6 +82,12 @@ public class StageResultPresenter : MonoBehaviour
 
         var currentSkin = stageManager.Squish != null ? stageManager.Squish.CurrentSkin : null;
         await popup.RefreshAsync(stageManager.CurrentStageIndex, stageManager.CurrentStageData, currentSkin);
+
+        // 부팅 중에는 로딩 화면 뒤에서 등장 연출이 끝나 버리지 않도록 로딩이 걷히기 시작할 때 띄운다.
+        bool canceled = await UniTask.WaitWhile(() => uiManager.IsInitialLoadingCovering,
+            cancellationToken: destroyCancellationToken).SuppressCancellationThrow();
+        if (canceled) return;
+
         await uiManager.ShowPopup<UIStageReady>();
     }
 

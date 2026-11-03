@@ -21,6 +21,9 @@ public class UIInitialLoading : UIPanel
     private Sequence _dotSequence;
     private float _shownAt;
 
+    // 화면을 가리고 있는 동안 true. 페이드아웃이 시작되면 false가 된다.
+    public bool IsCovering { get; private set; }
+
     private void OnDestroy() => StopLoadingDots();
 
     public override void Initialize() { }
@@ -29,6 +32,7 @@ public class UIInitialLoading : UIPanel
     {
         canvasGroup.alpha = 1f;
         _shownAt = Time.realtimeSinceStartup;
+        IsCovering = true;
         PlayLoadingDots();
         return UniTask.CompletedTask;
     }
@@ -44,11 +48,13 @@ public class UIInitialLoading : UIPanel
             if (canceled) return;
         }
 
+        IsCovering = false;
         await canvasGroup.DOFade(0f, fadeDuration).SetEase(Ease.InOutSine).ToUniTask();
     }
 
     protected override UniTask OnHide()
     {
+        IsCovering = false;
         StopLoadingDots();
         return UniTask.CompletedTask;
     }
