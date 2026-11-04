@@ -3,6 +3,9 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public class SoundManager : MonoSingleton<SoundManager>
 {
+    // 세이브 데이터의 음소거 설정을 기기 저장소에 둔 사본. 세이브가 준비되기 전에 나는 소리에 쓴다.
+    private const string MutedCacheKey = "sound.muted";
+
     [Header("사운드 데이터")]
     [SerializeField] private SoundDatabaseSO database;
 
@@ -25,12 +28,19 @@ public class SoundManager : MonoSingleton<SoundManager>
         // 2D 게임이므로 위치 기반 감쇠 없이 재생한다.
         sfxSource.playOnAwake = false;
         sfxSource.spatialBlend = 0f;
+
+        // 로딩 인트로 소리는 세이브 로드보다 먼저 나므로 사본으로 음소거를 먼저 적용한다.
+        ApplyMute(PlayerPrefs.GetInt(MutedCacheKey, 0) == 1);
     }
 
+    // 세이브 데이터가 기준이다. 로드에 실패한 세션은 기본값이 들어 있으므로 사본을 유지한다.
     public void Initialize()
     {
-        bool muted = Services.TryGet<ISaveService>(out var save) && save.Data.settings.muted;
+        if (!Services.TryGet<ISaveService>(out var save) || save.IsReadOnly) return;
+
+        bool muted = save.Data.settings.muted;
         ApplyMute(muted);
+        CacheMuted(muted);
     }
 
     public void SetMuted(bool muted)
@@ -38,6 +48,7 @@ public class SoundManager : MonoSingleton<SoundManager>
         if (_muted == muted) return;
 
         ApplyMute(muted);
+        CacheMuted(muted);
 
         if (Services.TryGet<ISaveService>(out var save))
         {
@@ -86,5 +97,15 @@ public class SoundManager : MonoSingleton<SoundManager>
     {
         _muted = muted;
         AudioListener.volume = muted ? 0f : 1f;
+    }
+
+    // 앱이 강제 종료돼도 남도록 값이 바뀔 때 바로 기록한다.
+    private static void CacheMuted(bool muted)
+    {
+        int value = muted ? 1 : 0;
+        if (PlayerPrefs.GetInt(MutedCacheKey, 0) == value) return;
+
+        PlayerPrefs.SetInt(MutedCacheKey, value);
+        PlayerPrefs.Save();
     }
 }
