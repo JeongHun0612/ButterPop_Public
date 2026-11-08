@@ -21,6 +21,7 @@ public class UIManager : MonoSingleton<UIManager>
 
     public UIScene CurrentScene => _currentScene;
     public UIPopup CurrentPopup => _popupStack.Count > 0 ? _popupStack.Peek() : null;
+    public bool IsInitialLoadingCovering => initialLoading != null && initialLoading.IsCovering;
 
     public async UniTask InitializeAsync()
     {

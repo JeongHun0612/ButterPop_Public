@@ -19,12 +19,12 @@ public interface IAdsService
     UniTask<bool> ShowInterstitialAsync();
 
     /// <summary>
-    /// 리워드 광고를 재생한다(광고 제거와 무관하게 항상 허용).
+    /// 리워드 광고를 재생한다. 전체 광고 제거 구매 시 광고 없이 바로 true를 반환한다.
     /// 시청을 완료하여 보상을 지급해야 하면 true를 반환한다.
     /// </summary>
     UniTask<bool> ShowRewardedAsync();
 
-    /// <summary>리워드 광고가 재생 준비됐는지. (버튼 활성화 판단용)</summary>
+    /// <summary>리워드 보상을 받을 수 있는지. 전체 광고 제거 구매 시 항상 true. (버튼 활성화 판단용)</summary>
     bool IsRewardedReady { get; }
 
     /// <summary>리워드 광고의 재생 준비 상태가 바뀔 때 통지한다.</summary>

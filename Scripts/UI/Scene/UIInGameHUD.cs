@@ -8,6 +8,8 @@ public class UIInGameHUD : UIScene
     [Header("Buttons")]
     [SerializeField] private Button menuButton;
     [SerializeField] private Button skipButton;
+    [Tooltip("전면 광고 직후 건너뛰기 자리에 대신 뜨는 전체 광고 제거 구매 버튼")]
+    [SerializeField] private Button removeAdsButton;
 
     [Header("스킨 체험 (리워드)")]
     [Tooltip("실패 시도마다 후보 스킨이 로테이션되는 광고 체험 버튼")]
@@ -25,12 +27,15 @@ public class UIInGameHUD : UIScene
 
     private Tween _skipShowTween;
     private Tween _skinTrialShowTween;
+    private Tween _removeAdsShowTween;
 
     private SquishSkinSO _trialCandidate;
     private bool _trialAppliedThisStage;
     private bool _skipEligible;
     private bool _skinTrialEligible;
     private bool _rewardedInProgress;
+    private bool _purchaseInProgress;
+    private int _skipShownFailCount;   // 건너뛰기가 마지막으로 등장했을 때의 클리어 이후 실패 수. 리마인드 주기의 기준점
 
     // 메뉴 버튼 상태의 두 조건(표시 / 클릭 가능). 소유자가 갈리면 서로 덮어쓰므로 한 곳에서 합쳐 계산한다.
     private bool _menuOpen;
@@ -44,8 +49,10 @@ public class UIInGameHUD : UIScene
         if (skipButton != null) skipButton.OnClickWithSound(OnSkipButtonClicked);
 
         if (skinTrialButton != null) skinTrialButton.OnClickWithSound(OnSkinTrialButtonClicked);
+        if (removeAdsButton != null) removeAdsButton.OnClickWithSound(OnRemoveAdsButtonClicked);
 
         SetSkipButtonActive(false);
+        RefreshRemoveAdsButton();
         SetSkinTrialActive(false);
     }
 
@@ -53,6 +60,12 @@ public class UIInGameHUD : UIScene
     {
         if (Services.TryGet<IAdsService>(out var adsService))
             adsService.OnRewardedAvailabilityChanged += OnRewardedAvailabilityChanged;
+        if (Services.TryGet<IPurchaseService>(out var purchaseService))
+            purchaseService.OnPurchasesUpdated += RefreshSkipSlot;
+        if (AdCoordinator.TryGetInstance(out var adCoordinator))
+            adCoordinator.OnRemoveAdsPromptChanged += RefreshSkipSlot;
+
+        RefreshRemoveAdsButton();
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
@@ -70,9 +83,14 @@ public class UIInGameHUD : UIScene
     {
         _skipShowTween?.Kill();
         _skinTrialShowTween?.Kill();
+        _removeAdsShowTween?.Kill();
 
         if (Services.TryGet<IAdsService>(out var adsService))
             adsService.OnRewardedAvailabilityChanged -= OnRewardedAvailabilityChanged;
+        if (Services.TryGet<IPurchaseService>(out var purchaseService))
+            purchaseService.OnPurchasesUpdated -= RefreshSkipSlot;
+        if (AdCoordinator.TryGetInstance(out var adCoordinator))
+            adCoordinator.OnRemoveAdsPromptChanged -= RefreshSkipSlot;
 
         if (!StageManager.TryGetInstance(out var stageManager)) return;
 
@@ -111,7 +129,8 @@ public class UIInGameHUD : UIScene
     {
         if (skipButton == null) return;
 
-        bool active = _skipEligible && IsRewardedReady();
+        // 같은 자리를 쓰는 광고 제거 버튼이 떠 있으면 그쪽에 양보한다.
+        bool active = _skipEligible && IsRewardedReady() && !IsRemoveAdsPromptActive();
         _skipShowTween?.Kill();
 
         var buttonTransform = skipButton.transform;
@@ -124,6 +143,7 @@ public class UIInGameHUD : UIScene
         }
 
         // 활성화될 때 스케일 팝인으로 가볍게 등장시킨다.
+        if (StageManager.TryGetInstance(out var stageManager)) _skipShownFailCount = stageManager.FailsSinceClear;
         skipButton.gameObject.SetActive(true);
         buttonTransform.localScale = Vector3.zero;
         _skipShowTween = buttonTransform
@@ -131,13 +151,16 @@ public class UIInGameHUD : UIScene
             .SetEase(skipShowEase);
     }
 
-    // 최초 노출 이후 다시 기준 횟수만큼 실패할 때마다 버튼을 가볍게 강조한다.
+    // 건너뛰기가 등장한 뒤 정해진 횟수만큼 실패할 때마다 버튼을 가볍게 강조한다.
+    // 등장 시점을 기준으로 세므로 광고 제거 버튼과 슬롯을 주고받아도 숨겨진 동안의 실패는 섞이지 않는다.
     private void RemindSkipButton(int tryCount)
     {
-        if (skipButton == null || !skipButton.gameObject.activeSelf) return;
+        if (tryCount <= 0 || skipButton == null || !skipButton.gameObject.activeSelf) return;
+        if (!StageManager.TryGetInstance(out var stageManager)) return;
+        if (!AdCoordinator.TryGetInstance(out var adCoordinator)) return;
 
-        int interval = StageManager.Instance.SkipTryThreshold;
-        if (tryCount <= interval || tryCount % interval != 0) return;
+        int failsSinceShown = stageManager.FailsSinceClear - _skipShownFailCount;
+        if (failsSinceShown <= 0 || failsSinceShown % adCoordinator.SkipReminderInterval != 0) return;
 
         _skipShowTween?.Kill();
         skipButton.transform.localScale = Vector3.one;
@@ -181,6 +204,79 @@ public class UIInGameHUD : UIScene
         if (StageManager.TryGetInstance(out var stageManager))
             stageManager.SkipCurrentStage();
     }
+
+    // ---------------- 광고 제거  ----------------------
+
+    // 건너뛰기와 같은 자리라 두 버튼을 함께 갱신한다.
+    private void RefreshSkipSlot()
+    {
+        RefreshRemoveAdsButton();
+        RefreshSkipButton();
+    }
+
+    private void RefreshRemoveAdsButton()
+    {
+        if (removeAdsButton == null) return;
+
+        // 결제 창이 떠 있는 동안 상태가 바뀌어도 버튼이 사라지지 않게 유지하고 클릭만 막는다.
+        bool active = _purchaseInProgress || IsRemoveAdsPromptActive();
+        removeAdsButton.interactable = !_purchaseInProgress;
+
+        var buttonTransform = removeAdsButton.transform;
+
+        if (!active)
+        {
+            _removeAdsShowTween?.Kill();
+            buttonTransform.localScale = Vector3.one;
+            removeAdsButton.gameObject.SetActive(false);
+            return;
+        }
+
+        if (removeAdsButton.gameObject.activeSelf) return;
+
+        removeAdsButton.gameObject.SetActive(true);
+        buttonTransform.localScale = Vector3.zero;
+        _removeAdsShowTween = buttonTransform
+            .DOScale(Vector3.one, skipShowDuration)
+            .SetEase(skipShowEase);
+    }
+
+    // 결제 창이 떠 있는 동안 안착·낙하가 판정되지 않게 한다.
+    private async UniTaskVoid PurchaseRemoveAdsAsync()
+    {
+        if (_purchaseInProgress) return;
+        if (!Services.TryGet<IPurchaseService>(out var purchaseService))
+        {
+            Debug.LogWarning("[UIInGameHUD] IPurchaseService가 없어 광고 제거를 구매할 수 없습니다");
+            return;
+        }
+
+        _purchaseInProgress = true;
+        RefreshSkipSlot();
+
+        bool paused = StageManager.TryGetInstance(out var stageManager);
+        if (paused) stageManager.SetJudgingPaused(true);
+
+        PurchaseState state;
+        try
+        {
+            state = await purchaseService.PurchaseAsync(ProductIds.RemoveAllAds);
+        }
+        finally
+        {
+            if (paused) stageManager.SetJudgingPaused(false);
+
+            _purchaseInProgress = false;
+            RefreshSkipSlot();
+        }
+
+        if (state != PurchaseState.Success)
+            Debug.Log($"[UIInGameHUD] 광고 제거 구매 미완료: {state}");
+    }
+
+    private bool IsRemoveAdsPromptActive() =>
+        AdCoordinator.TryGetInstance(out var adCoordinator)
+        && adCoordinator.IsRemoveAdsPromptActive;
 
     // ---------------- 스킨 체험  ----------------------
 
@@ -320,6 +416,8 @@ public class UIInGameHUD : UIScene
     private void OnSkipButtonClicked() => SkipStageAsync().Forget();
 
     private void OnSkinTrialButtonClicked() => SkinTrialAsync().Forget();
+
+    private void OnRemoveAdsButtonClicked() => PurchaseRemoveAdsAsync().Forget();
 
     private bool IsRewardedReady() =>
         !_rewardedInProgress

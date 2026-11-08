@@ -3,6 +3,8 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody2D))]
 public class ArmController : MonoBehaviour
 {
+    private const int ContactBufferSize = 16;
+
     [Header("각도")]
     [SerializeField] private float idleAngle = -15f;
     [SerializeField] private float raisedAngle = 20f;
@@ -19,7 +21,15 @@ public class ArmController : MonoBehaviour
     [Tooltip("주입 각속도 (deg/s).")]
     [SerializeField] private float flickImpulse = 700f;
 
+    [Header("끼임 방지")]
+    [Tooltip("팔이 스퀴시를 미는 방향과 고정된 오브젝트가 스퀴시를 미는 방향의 내적이 이 값 이하면 끼임으로 보고 올리기를 멈춘다.")]
+    [Range(-1f, 0f)]
+    [SerializeField] private float pinchDotThreshold = -0.5f;
+
+    private readonly ContactPoint2D[] _armContacts = new ContactPoint2D[ContactBufferSize];
+    private readonly ContactPoint2D[] _boneContacts = new ContactPoint2D[ContactBufferSize];
     private Rigidbody2D _rb;
+    private ContactFilter2D _contactFilter;
     private bool _raising;
     private float _angle;
     private float _simVel;
@@ -31,6 +41,7 @@ public class ArmController : MonoBehaviour
         _rb = GetComponent<Rigidbody2D>();
         _rb.bodyType = RigidbodyType2D.Kinematic;
         _rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        _contactFilter = new ContactFilter2D { useTriggers = false };
         _angle = idleAngle;
         _rb.rotation = idleAngle;
     }
@@ -38,6 +49,7 @@ public class ArmController : MonoBehaviour
     private void FixedUpdate()
     {
         float dt = Time.fixedDeltaTime;
+        float prevAngle = _angle;
         float target = _raising ? raisedAngle : idleAngle;
 
         float error = Mathf.DeltaAngle(_angle, target);
@@ -55,7 +67,15 @@ public class ArmController : MonoBehaviour
         {
             _angle = raisedAngle; 
             if (_simVel > 0f) 
-                _simVel = 0f; 
+                _simVel = 0f;
+        }
+
+        // Kinematic 팔은 끼인 스퀴시에 밀려나지 않아 계속 올리면 스퀴시가 얇은 팔을 관통한다.
+        if (_angle > prevAngle && IsSquishPinched())
+        {
+            _angle = prevAngle;
+            if (_simVel > 0f)
+                _simVel = 0f;
         }
 
         _rb.MoveRotation(_angle);
@@ -86,5 +106,46 @@ public class ArmController : MonoBehaviour
         _simVel = 0f;
         _angle = idleAngle;
         _rb.rotation = idleAngle;
+    }
+
+    // 팔에 닿은 스퀴시가 반대편에서 고정된 오브젝트에 막혀 있는지 확인한다.
+    private bool IsSquishPinched()
+    {
+        int count = _rb.GetContacts(_contactFilter, _armContacts);
+        for (int i = 0; i < count; i++)
+        {
+            Rigidbody2D bone = _armContacts[i].rigidbody;
+            if (bone == null) continue;
+
+            var body = bone.GetComponentInParent<SquishBody>();
+            if (body == null) continue;
+
+            // 접촉 법선은 접촉을 받는 쪽(팔)을 향하므로 팔이 스퀴시를 미는 방향은 그 반대다.
+            if (IsBlockedAgainst(body, -_armContacts[i].normal))
+                return true;
+        }
+
+        return false;
+    }
+
+    // 밀려나지 않는 오브젝트(정적·Kinematic)가 armPush와 반대 방향으로 스퀴시를 받치고 있는지 확인한다.
+    private bool IsBlockedAgainst(SquishBody body, Vector2 armPush)
+    {
+        var bones = body.BoneRigidbodies;
+        for (int b = 0; b < bones.Count; b++)
+        {
+            int count = bones[b].GetContacts(_contactFilter, _boneContacts);
+            for (int i = 0; i < count; i++)
+            {
+                Rigidbody2D other = _boneContacts[i].rigidbody;
+                if (other == _rb) continue;
+                if (other != null && other.bodyType == RigidbodyType2D.Dynamic) continue;
+
+                if (Vector2.Dot(_boneContacts[i].normal, armPush) <= pinchDotThreshold)
+                    return true;
+            }
+        }
+
+        return false;
     }
 }

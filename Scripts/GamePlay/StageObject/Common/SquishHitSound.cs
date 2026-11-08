@@ -24,9 +24,7 @@ public class SquishHitSound : MonoBehaviour, ISquishHittable
         var clip = hitClips[Random.Range(0, hitClips.Length)];
         if (clip == null) return;
 
-        if (!SoundManager.TryGetInstance(out var sound)) return;
-
         _lastPlayTime = Time.time;
-        sound.PlaySfx(clip);
+        SoundManager.TryPlaySfx(clip);
     }
 }

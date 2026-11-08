@@ -69,14 +69,6 @@ public class Fire : MonoBehaviour, IStageContextReceiver
         _burnProgress = 0f;
     }
 
-    private void PlayBurnSound()
-    {
-        if (burnClip == null) return;
-
-        if (SoundManager.TryGetInstance(out var sound))
-            sound.PlaySfx(burnClip);
-    }
-
     // 첫 뼈가 닿았을 때만 1회 울린다(뼈마다 울려 소리가 겹치던 것을 센서가 막아준다).
-    private void OnSquishEntered() => PlayBurnSound();
+    private void OnSquishEntered() => SoundManager.TryPlaySfx(burnClip);
 }
